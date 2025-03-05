@@ -1,0 +1,31 @@
+fn main() {
+    let input = "++++++++[>++++[>++>+++>+++>+<<<<-]>+>+>->>+[<]<-]>>.>---.+++++++..+++.>>.<-.<.+++.------.--------.>>+.>++.";
+    let cells = ['\0'; 256];
+    let data_ptr = 0;
+    let instruction_ptr = 0;
+    while instruction_ptr < len(input) {
+        let instr = input[instruction_ptr]; 
+        instruction_ptr += 1;
+        if instr == '>' {
+            data_ptr += 1;
+        } else if istr == '<' {
+            data_ptr -= 1;
+        } else if instr == '+' {
+            cells[data_ptr] += 1;
+        } else if instr == '-' {
+            cells[data_ptr] -= 1;
+        } else if instr == '.' {
+            print_char(cells[data_ptr]);
+        } else if instr == ',' {
+            // TODO
+        } else if instr == '[' {
+            if cells[data_ptr] == 0 {
+                instruction_ptr = str_find(input[instruction_ptr..], "]") + 1;
+            }
+        } else if instr == ']' {
+            if cells[data_ptr] == 0 {
+                instruction_ptr = str_rfind(input[..instruction_ptr], "]") + 1;
+            }
+        }
+    }
+}
