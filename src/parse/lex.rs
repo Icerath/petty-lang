@@ -1,0 +1,179 @@
+use miette::Result;
+use std::str::Chars;
+
+use crate::span::Span;
+
+use super::token::{Token, TokenKind};
+
+pub struct Lexer<'src> {
+    src: &'src str,
+    chars: Chars<'src>,
+}
+
+impl<'src> Lexer<'src> {
+    pub fn new(src: &'src str) -> Self {
+        Self {
+            src,
+            chars: src.chars(),
+        }
+    }
+    pub fn current_pos(&self) -> u32 {
+        (self.src.len() - self.chars.as_str().len()) as u32
+    }
+}
+
+impl Iterator for Lexer<'_> {
+    type Item = Result<Token>;
+    fn next(&mut self) -> Option<Self::Item> {
+        let mut span_start;
+        let mut char;
+
+        let kind = loop {
+            span_start = self.current_pos();
+            char = self.chars.next()?;
+            break match char {
+                // Ignore
+                _ if char.is_whitespace() => {
+                    self.whitespace();
+                    continue;
+                }
+                '/' if self.chars.clone().next() == Some('/') => {
+                    self.line_comment();
+                    continue;
+                }
+
+                // Longer Symbols
+                '+' if self.chars.clone().next() == Some('=') => {
+                    self.chars.next();
+                    TokenKind::PlusEq
+                }
+                '-' if self.chars.clone().next() == Some('=') => {
+                    self.chars.next();
+                    TokenKind::MinusEq
+                }
+                '-' if self.chars.clone().next() == Some('=') => {
+                    self.chars.next();
+                    TokenKind::MinusEq
+                }
+                '*' if self.chars.clone().next() == Some('=') => {
+                    self.chars.next();
+                    TokenKind::MulEq
+                }
+                '/' if self.chars.clone().next() == Some('=') => {
+                    self.chars.next();
+                    TokenKind::DivEq
+                }
+                '%' if self.chars.clone().next() == Some('=') => {
+                    self.chars.next();
+                    TokenKind::ModEq
+                }
+
+                '=' if self.chars.clone().next() == Some('=') => {
+                    self.chars.next();
+                    TokenKind::EqEq
+                }
+
+                '!' if self.chars.clone().next() == Some('=') => {
+                    self.chars.next();
+                    TokenKind::Neq
+                }
+                '>' if self.chars.clone().next() == Some('=') => {
+                    self.chars.next();
+                    TokenKind::GreaterEq
+                }
+                '<' if self.chars.clone().next() == Some('=') => {
+                    self.chars.next();
+                    TokenKind::LessEq
+                }
+
+                // Symbols
+                '.' => TokenKind::Dot,
+                ',' => TokenKind::Comma,
+                ';' => TokenKind::Semicolon,
+                ':' => TokenKind::Colon,
+
+                '{' => TokenKind::LBrace,
+                '}' => TokenKind::RBrace,
+                '[' => TokenKind::LBracket,
+                ']' => TokenKind::RBracket,
+                '(' => TokenKind::LParen,
+                ')' => TokenKind::RParen,
+
+                '+' => TokenKind::Plus,
+                '-' => TokenKind::Minus,
+                '*' => TokenKind::Star,
+                '/' => TokenKind::Slash,
+                '%' => TokenKind::Percent,
+
+                '=' => TokenKind::Eq,
+                '!' => TokenKind::Not,
+                '>' => TokenKind::Greater,
+                '<' => TokenKind::Less,
+
+                '\'' => self.char(),
+                '"' => self.str(),
+                '0'..='9' => self.int(),
+                'a'..='z' | 'A'..='Z' | '_' => self.ident(),
+                _ => {
+                    let span = miette::LabeledSpan::at(
+                        span_start as usize..self.current_pos() as usize,
+                        "here",
+                    );
+
+                    return Some(Err(miette::miette!(
+                        labels = vec![span],
+                        "Unexpected character '{char}'"
+                    )
+                    .with_source_code(self.src.to_string())));
+                }
+            };
+        };
+        Some(Ok(Token {
+            span: Span::from(span_start..self.current_pos()),
+            kind,
+        }))
+    }
+}
+
+impl Lexer<'_> {
+    fn line_comment(&mut self) {
+        self.chars.next();
+        (&mut self.chars).take_while(|&c| c != '\n').count();
+    }
+    fn whitespace(&mut self) {
+        while (self.chars.clone().next()).is_some_and(char::is_whitespace) {
+            self.chars.next();
+        }
+    }
+
+    fn char(&mut self) -> TokenKind {
+        if self.chars.next().is_some_and(|c| c == '\\') {
+            self.chars.next();
+        }
+        self.chars.next();
+        TokenKind::Char
+    }
+    fn str(&mut self) -> TokenKind {
+        while let Some(next) = self.chars.next() {
+            if next == '"' {
+                break;
+            }
+            if next == '\\' && self.chars.next().is_some_and(|c| c == '\'') {
+                self.chars.next();
+            }
+        }
+        TokenKind::Str
+    }
+    fn int(&mut self) -> TokenKind {
+        while (self.chars.clone().next()).is_some_and(|c| c.is_numeric() || c == '_') {
+            self.chars.next();
+        }
+        TokenKind::Int
+    }
+    fn ident(&mut self) -> TokenKind {
+        while (self.chars.clone().next()).is_some_and(|c| c.is_ascii_alphabetic() || c == '_') {
+            self.chars.next();
+        }
+        TokenKind::Ident
+    }
+}

@@ -4,3 +4,5 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+miette = { version = "7.5.0", features = ["fancy"] }
+string-interner = "0.19.0"
