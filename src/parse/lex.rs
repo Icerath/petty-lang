@@ -17,6 +17,7 @@ impl<'src> Lexer<'src> {
             chars: src.chars(),
         }
     }
+    #[expect(clippy::cast_possible_truncation)]
     pub fn current_pos(&self) -> u32 {
         (self.src.len() - self.chars.as_str().len()) as u32
     }
@@ -46,10 +47,6 @@ impl Iterator for Lexer<'_> {
                 '+' if self.chars.clone().next() == Some('=') => {
                     self.chars.next();
                     TokenKind::PlusEq
-                }
-                '-' if self.chars.clone().next() == Some('=') => {
-                    self.chars.next();
-                    TokenKind::MinusEq
                 }
                 '-' if self.chars.clone().next() == Some('=') => {
                     self.chars.next();
