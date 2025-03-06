@@ -230,6 +230,8 @@ impl Parse for Lit {
     fn parse(stream: &mut Stream) -> Result<Self> {
         let next = stream.next()?;
         Ok(match next.kind {
+            TokenKind::Ident if &stream.lexer.src()[next.span] == "true" => Self::Bool(true),
+            TokenKind::Ident if &stream.lexer.src()[next.span] == "false" => Self::Bool(false),
             TokenKind::Int => Self::Int(stream.lexer.src()[next.span].parse::<i64>().unwrap()),
             TokenKind::Str => Self::Str(Symbol::from(&stream.lexer.src()[next.span])),
             TokenKind::Char => Self::Char(stream.lexer.src()[next.span].chars().next().unwrap()),
