@@ -160,9 +160,14 @@ fn parse_expr(stream: &mut Stream, allow_struct_init: bool) -> Result<ExprId> {
 
 impl Parse for Ty {
     fn parse(stream: &mut Stream) -> Result<Self> {
-        let any = stream.any(&[TokenKind::Ident, TokenKind::LBrace])?;
+        let any = stream.any(&[TokenKind::Ident, TokenKind::LBracket])?;
         Ok(match any.kind {
             TokenKind::Ident => Ty::Name(Symbol::from(&stream.lexer.src()[any.span])),
+            TokenKind::LBracket => {
+                let of = stream.parse()?;
+                stream.expect(TokenKind::RBracket)?;
+                Self::Array(Box::new(of))
+            }
             _ => unreachable!(),
         })
     }
