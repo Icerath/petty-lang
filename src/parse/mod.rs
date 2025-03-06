@@ -1,4 +1,5 @@
 mod ast;
+mod display;
 mod expr;
 mod lex;
 mod token;

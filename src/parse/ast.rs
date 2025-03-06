@@ -1,5 +1,3 @@
-#![expect(dead_code)]
-
 use std::{
     cell::{Ref, RefCell},
     fmt,

@@ -17,5 +17,5 @@ fn main() {
     }
 
     let ast = try_miette!(parse::parse(src));
-    println!("{ast:#?}");
+    println!("{ast}");
 }
