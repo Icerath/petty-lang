@@ -4,8 +4,10 @@ version = "0.1.0"
 edition = "2024"
 
 [lints.clippy]
-pedantic = "warn"
+pedantic = { level = "warn", priority = -1 }
+cast_possible_truncation = "allow"           # We do a lot of casts from usize -> u32
 
 [dependencies]
 miette = { version = "7.5.0", features = ["fancy"] }
-string-interner = "0.19.0"
+thin-vec = "0.2.13"
+ustr = "1.1.0"

@@ -5,26 +5,35 @@ use crate::span::Span;
 
 use super::token::{Token, TokenKind};
 
+#[derive(Clone)]
 pub struct Lexer<'src> {
     src: &'src str,
     chars: Chars<'src>,
+    prev_end: u32,
 }
 
 impl<'src> Lexer<'src> {
     pub fn new(src: &'src str) -> Self {
-        Self {
-            src,
-            chars: src.chars(),
-        }
+        Self { src, prev_end: 0, chars: src.chars() }
     }
-    #[expect(clippy::cast_possible_truncation)]
     pub fn current_pos(&self) -> u32 {
         (self.src.len() - self.chars.as_str().len()) as u32
+    }
+    pub fn src(&self) -> &'src str {
+        self.src
+    }
+    pub fn span_eof(&self) -> Span {
+        Span::from(self.current_pos()..self.src.len() as u32)
+    }
+    pub fn span(&self) -> Span {
+        Span::from(self.prev_end..self.current_pos())
     }
 }
 
 impl Iterator for Lexer<'_> {
     type Item = Result<Token>;
+
+    #[allow(clippy::too_many_lines)]
     fn next(&mut self) -> Option<Self::Item> {
         let mut span_start;
         let mut char;
@@ -32,7 +41,7 @@ impl Iterator for Lexer<'_> {
         let kind = loop {
             span_start = self.current_pos();
             char = self.chars.next()?;
-            break match char {
+            let kind = match char {
                 // Ignore
                 _ if char.is_whitespace() => {
                     self.whitespace();
@@ -44,6 +53,20 @@ impl Iterator for Lexer<'_> {
                 }
 
                 // Longer Symbols
+                '.' if self.chars.clone().next() == Some('.') => {
+                    self.chars.next();
+                    if self.chars.clone().next() == Some('=') {
+                        self.chars.next();
+                        TokenKind::DotDotEq
+                    } else {
+                        TokenKind::DotDot
+                    }
+                }
+                '.' if self.chars.clone().next() == Some('.') => {
+                    self.chars.next();
+                    TokenKind::DotDot
+                }
+
                 '+' if self.chars.clone().next() == Some('=') => {
                     self.chars.next();
                     TokenKind::PlusEq
@@ -124,11 +147,10 @@ impl Iterator for Lexer<'_> {
                     .with_source_code(self.src.to_string())));
                 }
             };
+            self.prev_end = span_start;
+            break kind;
         };
-        Some(Ok(Token {
-            span: Span::from(span_start..self.current_pos()),
-            kind,
-        }))
+        Some(Ok(Token { span: Span::from(span_start..self.current_pos()), kind }))
     }
 }
 

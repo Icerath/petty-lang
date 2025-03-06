@@ -1,0 +1,178 @@
+#![expect(dead_code)]
+
+use std::{
+    cell::{Ref, RefCell},
+    fmt,
+};
+
+use thin_vec::ThinVec;
+use ustr::Ustr as Symbol;
+
+use super::token::TokenKind;
+
+#[derive(Default)]
+pub struct Ast {
+    exprs: RefCell<Vec<Expr>>,
+    pub top_level: RefCell<Vec<Stmt>>,
+}
+
+impl fmt::Debug for Ast {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let top = self.top_level.borrow();
+        top.fmt(f)
+    }
+}
+
+impl Ast {
+    pub fn push_top(&self, stmt: Stmt) {
+        self.top_level.borrow_mut().push(stmt);
+    }
+    pub fn add(&self, expr: Expr) -> ExprId {
+        let mut exprs = self.exprs.borrow_mut();
+        let id = ExprId { index: exprs.len() as u32 };
+        exprs.push(expr);
+        id
+    }
+    pub fn get(&self, id: ExprId) -> Ref<Expr> {
+        std::cell::Ref::map(self.exprs.borrow(), |exprs| &exprs[id.index as usize])
+    }
+}
+
+pub struct Block {
+    pub stmts: ThinVec<Stmt>,
+}
+
+#[derive(Debug)]
+pub enum Stmt {
+    Let { ident: Symbol, ty: Option<Ty>, expr: ExprId },
+    While { condition: ExprId, block: Block },
+    If { arms: ThinVec<IfStmt>, els: Option<Block> },
+    FnDecl { ident: Symbol, params: ThinVec<Param>, ret: Option<Ty>, block: Block },
+    Expr(ExprId),
+}
+
+#[derive(Debug)]
+pub struct IfStmt {
+    pub condition: ExprId,
+    pub body: Block,
+}
+
+#[derive(Debug)]
+pub struct Param {
+    pub ident: Symbol,
+    pub ty: Ty,
+}
+
+#[derive(Debug)]
+pub enum Ty {
+    Name(Symbol),
+    Array(Box<Ty>),
+}
+
+#[derive(Debug)]
+pub enum Expr {
+    Binary { lhs: ExprId, op: BinaryOp, rhs: ExprId },
+    Unary { op: UnaryOp, expr: ExprId },
+    FnCall { function: ExprId, args: ThinVec<ExprId> },
+    MethodCall { expr: ExprId, method: Symbol, args: ThinVec<ExprId> },
+    Ident(Symbol),
+    Index { expr: ExprId, index: ExprId },
+    FieldAccess { expr: ExprId, field: Symbol },
+    StructInit { ident: Symbol, args: ThinVec<StructInitField> },
+    Lit(Lit),
+}
+
+#[derive(Debug)]
+pub struct StructInitField {
+    pub field: Symbol,
+    pub expr: Option<ExprId>,
+}
+
+#[derive(Debug)]
+pub struct ArraySeg {
+    pub expr: ExprId,
+    pub repeated: Option<ExprId>,
+}
+
+#[derive(Debug)]
+pub enum Lit {
+    Int(i64),
+    Str(Symbol),
+    Char(char),
+    Bool(bool),
+    Array { segments: ThinVec<ArraySeg> },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum BinaryOp {
+    Assign,
+    AddAssign,
+    SubAssign,
+    MulAssign,
+    DivAssign,
+    ModAssign,
+
+    Add,
+    Sub,
+    Mul,
+    Div,
+    Mod,
+
+    Eq,
+    Neq,
+    Greater,
+    Less,
+    GreaterEq,
+    LessEq,
+
+    Range,
+    RangeInclusive,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum UnaryOp {
+    Neg,
+    Not,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ExprId {
+    index: u32,
+}
+
+impl TryFrom<TokenKind> for BinaryOp {
+    type Error = ();
+    fn try_from(kind: TokenKind) -> Result<Self, Self::Error> {
+        Ok(match kind {
+            TokenKind::Eq => Self::Assign,
+            TokenKind::PlusEq => Self::AddAssign,
+            TokenKind::MinusEq => Self::SubAssign,
+            TokenKind::MulEq => Self::MulAssign,
+            TokenKind::DivEq => Self::DivAssign,
+            TokenKind::ModEq => Self::ModAssign,
+
+            TokenKind::Plus => Self::Add,
+            TokenKind::Minus => Self::Sub,
+            TokenKind::Star => Self::Mul,
+            TokenKind::Slash => Self::Div,
+            TokenKind::Percent => Self::Mod,
+
+            TokenKind::EqEq => Self::Eq,
+            TokenKind::Neq => Self::Neq,
+            TokenKind::Greater => Self::Greater,
+            TokenKind::Less => Self::Less,
+            TokenKind::GreaterEq => Self::GreaterEq,
+            TokenKind::LessEq => Self::LessEq,
+
+            TokenKind::DotDot => Self::Range,
+            TokenKind::DotDotEq => Self::RangeInclusive,
+            _ => return Err(()),
+        })
+    }
+}
+
+impl fmt::Debug for Block {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.stmts.fmt(f)
+    }
+}

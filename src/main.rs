@@ -3,7 +3,19 @@ mod span;
 
 fn main() {
     let src = include_str!("../examples/brainfuck.pebble");
-    for token in parse::tokenize(src) {
-        println!("{:?}({})", token.kind, &src[token.span]);
+
+    macro_rules! try_miette {
+        ($expr: expr) => {
+            match $expr {
+                Ok(ok) => ok,
+                Err(err) => {
+                    eprintln!("{err:?}");
+                    return;
+                }
+            }
+        };
     }
+
+    let ast = try_miette!(parse::parse(src));
+    println!("{ast:#?}");
 }

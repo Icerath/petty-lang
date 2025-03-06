@@ -19,6 +19,9 @@ impl Span {
     pub fn into_range(self) -> Range<u32> {
         self.start..self.end
     }
+    pub fn into_range_usize(self) -> Range<usize> {
+        self.start as usize..self.end as usize
+    }
 }
 
 impl From<Range<u32>> for Span {
@@ -30,6 +33,12 @@ impl From<Range<u32>> for Span {
 impl Index<Span> for str {
     type Output = str;
     fn index(&self, index: Span) -> &Self::Output {
-        &self[index.start as usize..index.end as usize]
+        &self[index.into_range_usize()]
+    }
+}
+
+impl From<Span> for miette::SourceSpan {
+    fn from(span: Span) -> Self {
+        miette::SourceSpan::from(span.into_range_usize())
     }
 }
