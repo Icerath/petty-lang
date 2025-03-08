@@ -56,7 +56,9 @@ fn global_body(tcx: &mut TyCtx) -> Body {
 
 impl Collector<'_, '_> {
     fn analyze_body(&mut self, stmts: &[Stmt]) -> Body {
-        let mut body = Body::default();
+        self.analyze_body_with(stmts, Body::default())
+    }
+    fn analyze_body_with(&mut self, stmts: &[Stmt], mut body: Body) -> Body {
         // look for structs/enums first.
         // for stmt in &*ast.top_level.borrow() {}
 
@@ -80,7 +82,17 @@ impl Collector<'_, '_> {
     fn analyze_stmt(&mut self, stmt: &Stmt) {
         match stmt {
             Stmt::Expr(expr) => _ = self.analyze_expr(*expr),
-            Stmt::FnDecl { block, .. } => _ = self.analyze_body(&block.stmts),
+            Stmt::FnDecl { block, params, ident, .. } => {
+                let mut body = Body::default();
+                let fn_ty = self.bodies.last().unwrap().variables[ident].clone();
+                let TyKind::Function { params: param_tys, .. } = fn_ty.kind() else {
+                    unreachable!()
+                };
+                for (param, ty) in std::iter::zip(params, param_tys) {
+                    body.variables.insert(param.ident, ty.clone());
+                }
+                self.analyze_body_with(&block.stmts, body);
+            }
             Stmt::Let { ident, ty, expr } => {
                 let expr_ty = self.analyze_expr(*expr).clone();
                 if let Some(ty) = ty {
