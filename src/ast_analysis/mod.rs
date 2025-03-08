@@ -1,5 +1,5 @@
 use crate::{
-    parse::ast::{self, Ast, BinaryOp, Expr, ExprId, Lit, Stmt},
+    ast::{self, Ast, BinaryOp, Expr, ExprId, Lit, Stmt},
     ty::{Ty, TyCtx, TyKind},
 };
 use ustr::{Ustr as Symbol, UstrMap};

@@ -1,10 +1,8 @@
-pub mod ast;
-mod display;
 mod expr;
 mod lex;
 mod token;
 
-use ast::{ArraySeg, Ast, Block, ExprId, IfStmt, Lit, Stmt, StructInitField, Ty};
+use crate::ast::{ArraySeg, Ast, Block, ExprId, IfStmt, Lit, Stmt, StructInitField, Ty};
 use lex::Lexer;
 use miette::{LabeledSpan, Result, miette};
 use thin_vec::{ThinVec, thin_vec};

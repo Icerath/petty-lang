@@ -1,5 +1,6 @@
 use ty::TyCtx;
 
+mod ast;
 mod ast_analysis;
 mod parse;
 mod span;
