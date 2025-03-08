@@ -181,10 +181,13 @@ impl Collector<'_, '_> {
     }
 
     fn read_ident(&mut self, ident: Symbol, id: ExprId) -> Ty {
-        let last = self.bodies.last().unwrap();
-        let ty = last.variables.get(&ident).unwrap_or_else(|| panic!("{:?}", &*ident)).clone();
-        self.ty_info.expr_tys[id] = ty.clone();
-        ty
+        for body in self.bodies.iter().rev() {
+            if let Some(ty) = body.variables.get(&ident) {
+                self.ty_info.expr_tys[id] = ty.clone();
+                return ty.clone();
+            }
+        }
+        panic!("{:?}", &*ident);
     }
 
     fn analyze_lit(&mut self, lit: &Lit, id: ExprId) {

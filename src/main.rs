@@ -7,7 +7,8 @@ mod span;
 mod ty;
 
 fn main() {
-    let src = include_str!("../examples/brainfuck.pebble");
+    let std = include_str!("std.pebble").to_string();
+    let src = std + include_str!("../examples/brainfuck.pebble");
 
     macro_rules! try_miette {
         ($expr: expr) => {
@@ -21,7 +22,7 @@ fn main() {
         };
     }
 
-    let ast = try_miette!(parse::parse(src));
+    let ast = try_miette!(parse::parse(&src));
     let mut tcx = TyCtx::default();
     let analysis = ast_analysis::analyze(&ast, &mut tcx);
     println!("{analysis:?}");

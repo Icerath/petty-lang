@@ -1,0 +1,3 @@
+fn strlen(str: str) -> int {}
+fn str_find(haystack: str, needle: str) -> int {}
+fn str_rfind(haystack: str, needle: str) -> int {}
