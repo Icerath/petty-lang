@@ -3,7 +3,7 @@ use std::{
     mem,
 };
 
-use super::ast::{Ast, BinaryOp, Block, Expr, ExprId, Lit, Stmt, Ty, UnaryOp};
+use crate::ast::{Ast, BinaryOp, Block, Expr, ExprId, Lit, Stmt, Ty, UnaryOp};
 
 struct Writer<'ast> {
     ast: &'ast Ast,

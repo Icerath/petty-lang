@@ -1,3 +1,5 @@
+mod display;
+
 use std::{
     cell::{Ref, RefCell},
     fmt,
