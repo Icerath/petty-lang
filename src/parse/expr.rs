@@ -126,34 +126,3 @@ fn parse_array(stream: &mut Stream) -> Result<Expr> {
     let segments = stream.parse_separated(TokenKind::Comma, TokenKind::RBracket)?;
     Ok(Expr::Lit(Lit::Array { segments }))
 }
-
-impl TryFrom<TokenKind> for BinaryOp {
-    type Error = ();
-    fn try_from(kind: TokenKind) -> Result<Self, Self::Error> {
-        Ok(match kind {
-            TokenKind::Eq => Self::Assign,
-            TokenKind::PlusEq => Self::AddAssign,
-            TokenKind::MinusEq => Self::SubAssign,
-            TokenKind::MulEq => Self::MulAssign,
-            TokenKind::DivEq => Self::DivAssign,
-            TokenKind::ModEq => Self::ModAssign,
-
-            TokenKind::Plus => Self::Add,
-            TokenKind::Minus => Self::Sub,
-            TokenKind::Star => Self::Mul,
-            TokenKind::Slash => Self::Div,
-            TokenKind::Percent => Self::Mod,
-
-            TokenKind::EqEq => Self::Eq,
-            TokenKind::Neq => Self::Neq,
-            TokenKind::Greater => Self::Greater,
-            TokenKind::Less => Self::Less,
-            TokenKind::GreaterEq => Self::GreaterEq,
-            TokenKind::LessEq => Self::LessEq,
-
-            TokenKind::DotDot => Self::Range,
-            TokenKind::DotDotEq => Self::RangeInclusive,
-            _ => return Err(()),
-        })
-    }
-}

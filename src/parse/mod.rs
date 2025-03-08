@@ -2,7 +2,9 @@ mod expr;
 mod lex;
 mod token;
 
-use crate::ast::{ArraySeg, Ast, Block, ExprId, IfStmt, Lit, Stmt, StructInitField, Ty};
+use crate::ast::{
+    ArraySeg, Ast, BinaryOp, Block, ExprId, IfStmt, Lit, Param, Stmt, StructInitField, Ty,
+};
 use lex::Lexer;
 use miette::{LabeledSpan, Result, miette};
 use thin_vec::{ThinVec, thin_vec};
@@ -174,8 +176,7 @@ impl Parse for Ty {
 fn parse_fn(stream: &mut Stream) -> Result<Stmt> {
     let ident = stream.expect_ident()?;
     stream.expect(TokenKind::LParen)?;
-    let params = thin_vec![];
-    stream.expect(TokenKind::RParen)?;
+    let params = stream.parse_separated(TokenKind::Comma, TokenKind::RParen)?;
 
     let chosen = stream.any(&[TokenKind::LBrace, TokenKind::ThinArrow])?;
     let mut ret = None;
@@ -271,5 +272,45 @@ impl Parse for ArraySeg {
             repeated = Some(stream.parse()?);
         }
         Ok(Self { expr, repeated })
+    }
+}
+
+impl Parse for Param {
+    fn parse(stream: &mut Stream) -> Result<Self> {
+        let ident = stream.expect_ident()?;
+        stream.expect(TokenKind::Colon)?;
+        let ty = stream.parse()?;
+        Ok(Self { ident, ty })
+    }
+}
+
+impl TryFrom<TokenKind> for BinaryOp {
+    type Error = ();
+    fn try_from(kind: TokenKind) -> Result<Self, Self::Error> {
+        Ok(match kind {
+            TokenKind::Eq => Self::Assign,
+            TokenKind::PlusEq => Self::AddAssign,
+            TokenKind::MinusEq => Self::SubAssign,
+            TokenKind::MulEq => Self::MulAssign,
+            TokenKind::DivEq => Self::DivAssign,
+            TokenKind::ModEq => Self::ModAssign,
+
+            TokenKind::Plus => Self::Add,
+            TokenKind::Minus => Self::Sub,
+            TokenKind::Star => Self::Mul,
+            TokenKind::Slash => Self::Div,
+            TokenKind::Percent => Self::Mod,
+
+            TokenKind::EqEq => Self::Eq,
+            TokenKind::Neq => Self::Neq,
+            TokenKind::Greater => Self::Greater,
+            TokenKind::Less => Self::Less,
+            TokenKind::GreaterEq => Self::GreaterEq,
+            TokenKind::LessEq => Self::LessEq,
+
+            TokenKind::DotDot => Self::Range,
+            TokenKind::DotDotEq => Self::RangeInclusive,
+            _ => return Err(()),
+        })
     }
 }
