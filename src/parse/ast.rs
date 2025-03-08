@@ -1,6 +1,7 @@
 use std::{
     cell::{Ref, RefCell},
     fmt,
+    ops::{Index, IndexMut},
 };
 
 use thin_vec::ThinVec;
@@ -10,7 +11,7 @@ use super::token::TokenKind;
 
 #[derive(Default)]
 pub struct Ast {
-    exprs: RefCell<Vec<Expr>>,
+    pub exprs: RefCell<Vec<Expr>>,
     pub top_level: RefCell<Vec<Stmt>>,
 }
 
@@ -32,7 +33,7 @@ impl Ast {
         id
     }
     pub fn get(&self, id: ExprId) -> Ref<Expr> {
-        std::cell::Ref::map(self.exprs.borrow(), |exprs| &exprs[id.index as usize])
+        std::cell::Ref::map(self.exprs.borrow(), |exprs| &exprs[id])
     }
 }
 
@@ -136,6 +137,32 @@ pub enum UnaryOp {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ExprId {
     index: u32,
+}
+
+impl<T> Index<ExprId> for [T] {
+    type Output = T;
+    fn index(&self, index: ExprId) -> &Self::Output {
+        &self[index.index as usize]
+    }
+}
+
+impl<T> IndexMut<ExprId> for [T] {
+    fn index_mut(&mut self, index: ExprId) -> &mut Self::Output {
+        &mut self[index.index as usize]
+    }
+}
+
+impl<T> Index<ExprId> for Vec<T> {
+    type Output = T;
+    fn index(&self, index: ExprId) -> &Self::Output {
+        &self[index.index as usize]
+    }
+}
+
+impl<T> IndexMut<ExprId> for Vec<T> {
+    fn index_mut(&mut self, index: ExprId) -> &mut Self::Output {
+        &mut self[index.index as usize]
+    }
 }
 
 impl TryFrom<TokenKind> for BinaryOp {

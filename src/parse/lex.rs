@@ -53,6 +53,10 @@ impl Iterator for Lexer<'_> {
                 }
 
                 // Longer Symbols
+                '-' if self.chars.clone().next() == Some('>') => {
+                    self.chars.next();
+                    TokenKind::ThinArrow
+                }
                 '.' if self.chars.clone().next() == Some('.') => {
                     self.chars.next();
                     if self.chars.clone().next() == Some('=') {
