@@ -38,6 +38,7 @@ impl Writer<'_> {
                 for (i, param) in params.iter().enumerate() {
                     self.f.push_str(if i == 0 { "" } else { ", " });
                     self.f.push_str(&param.ident);
+                    self.f.push_str(": ");
                     self.display_ty(&param.ty);
                 }
                 self.f.push(')');
@@ -229,6 +230,11 @@ impl Writer<'_> {
     }
 
     fn display_block(&mut self, block: &Block) {
+        if block.stmts.is_empty() {
+            self.f.push_str(" {}");
+            self.ln();
+            return;
+        }
         self.indent += 1;
         self.f.push_str(" {");
         self.ln();

@@ -23,6 +23,7 @@ fn main() {
     let src = std + include_str!("../examples/brainfuck.pebble");
 
     let ast = try_miette!(parse::parse(&src));
+    println!("{ast}");
     let mut tcx = TyCtx::default();
     let analysis = ast_analysis::analyze(&ast, &mut tcx);
     println!("{analysis:?}");

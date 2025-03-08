@@ -16,6 +16,9 @@ impl fmt::Debug for Span {
 }
 
 impl Span {
+    pub fn shrink(self, n: u32) -> Self {
+        (self.start + n..self.end - n).into()
+    }
     pub fn into_range(self) -> Range<u32> {
         self.start..self.end
     }

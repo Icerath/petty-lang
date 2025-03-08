@@ -237,8 +237,16 @@ impl Parse for Lit {
             TokenKind::Ident if &stream.lexer.src()[next.span] == "true" => Self::Bool(true),
             TokenKind::Ident if &stream.lexer.src()[next.span] == "false" => Self::Bool(false),
             TokenKind::Int => Self::Int(stream.lexer.src()[next.span].parse::<i64>().unwrap()),
-            TokenKind::Str => Self::Str(Symbol::from(&stream.lexer.src()[next.span])),
-            TokenKind::Char => Self::Char(stream.lexer.src()[next.span].chars().next().unwrap()),
+            TokenKind::Str => {
+                // TODO: Escaping
+                let str = &stream.lexer.src()[next.span.shrink(1)];
+                Self::Str(str.into())
+            }
+            TokenKind::Char => {
+                // TODO: Escaping
+                let str = &stream.lexer.src()[next.span.shrink(1)];
+                Self::Char(str.chars().next().unwrap())
+            }
             found => {
                 let label = LabeledSpan::at(stream.lexer.span(), "here");
                 return Err(miette::miette!(
