@@ -40,15 +40,10 @@ pub enum TyKind {
     Int,
     Char,
     Str,
-    #[expect(unused)]
     Range,
-    #[expect(unused)]
     RangeInclusive,
     Array(Ty),
-    Function {
-        params: ThinVec<Ty>,
-        ret: Ty,
-    },
+    Function { params: ThinVec<Ty>, ret: Ty },
     Infer(TyVid),
 }
 

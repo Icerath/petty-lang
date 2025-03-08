@@ -144,6 +144,19 @@ impl Collector<'_, '_> {
                 self.tcx.eq(&lhs, &rhs);
                 self.ty_info.expr_tys[id] = self.tcx.bool().clone();
             }
+            &Expr::Binary { lhs, rhs, op: op @ (BinaryOp::Range | BinaryOp::RangeInclusive) } => {
+                let lhs = self.analyze_expr(lhs);
+                let rhs = self.analyze_expr(rhs);
+                self.tcx.eq(&lhs, &rhs);
+                let TyKind::Int = lhs.kind() else { panic!("expected `int`, found: {lhs:?}") };
+                let TyKind::Int = rhs.kind() else { panic!("expected `int`, found: {rhs:?}") };
+                let ty = match op {
+                    BinaryOp::Range => TyKind::Range.into(),
+                    BinaryOp::RangeInclusive => TyKind::RangeInclusive.into(),
+                    _ => unreachable!(),
+                };
+                self.ty_info.expr_tys[id] = ty;
+            }
             &Expr::Binary { lhs, rhs, .. } => {
                 let lhs = self.analyze_expr(lhs);
                 let rhs = self.analyze_expr(rhs);
