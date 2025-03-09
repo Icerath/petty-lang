@@ -1,6 +1,6 @@
 use crate::ast::{BinaryOp, Expr, ExprId, Lit, UnaryOp};
 
-use super::{Parse, Stream, token::TokenKind};
+use super::{Stream, parse_atom_with, token::TokenKind};
 use miette::Result;
 
 pub fn parse_expr_inner(
@@ -37,7 +37,7 @@ pub fn parse_expr_inner(
     };
     let mut root = parse_expr_inner(stream, precedence + 1, allow_struct_init)?;
     loop {
-        let token = stream.peek()?;
+        let Some(token) = stream.lexer.clone().next().transpose()? else { break };
         let Ok(op) = BinaryOp::try_from(token.kind) else { break };
         if !ops.contains(&op) {
             break;
@@ -53,7 +53,8 @@ fn parse_leaf_expr(stream: &mut Stream, allow_struct_init: bool) -> Result<ExprI
     let mut expr = parse_unary_expr(stream, allow_struct_init)?;
 
     loop {
-        match stream.peek()?.kind {
+        let Some(token) = stream.lexer.clone().next().transpose()? else { break };
+        match token.kind {
             TokenKind::LParen => {
                 _ = stream.next();
                 let args = stream.parse_separated(TokenKind::Comma, TokenKind::RParen)?;
@@ -92,12 +93,13 @@ fn parse_leaf_expr(stream: &mut Stream, allow_struct_init: bool) -> Result<ExprI
 }
 
 fn parse_unary_expr(stream: &mut Stream, allow_struct_init: bool) -> Result<ExprId> {
+    _ = allow_struct_init;
     let expr = match stream.peek()?.kind {
         kind @ (TokenKind::Minus | TokenKind::Not) => {
             _ = stream.next();
             Ok(Expr::Unary {
                 op: if kind == TokenKind::Minus { UnaryOp::Neg } else { UnaryOp::Not },
-                expr: parse_expr_inner(stream, 0, allow_struct_init)?,
+                expr: parse_paren_expr(stream)?,
             })
         }
         TokenKind::LBracket => {
@@ -110,16 +112,13 @@ fn parse_unary_expr(stream: &mut Stream, allow_struct_init: bool) -> Result<Expr
 }
 
 fn parse_paren_expr(stream: &mut Stream) -> Result<ExprId> {
-    if stream.peek()?.kind == TokenKind::LParen {
-        _ = stream.next();
+    let token = stream.next()?;
+    if token.kind == TokenKind::LParen {
         let expr = parse_expr_inner(stream, 0, true)?;
         stream.expect(TokenKind::RParen)?;
         return Ok(expr);
     }
-    if stream.peek()?.kind == TokenKind::Ident {
-        return Ok(stream.ast.add(Expr::Ident(stream.expect_ident()?)));
-    }
-    Ok(stream.ast.add(Expr::Lit(Lit::parse(stream)?)))
+    parse_atom_with(stream, token)
 }
 
 fn parse_array(stream: &mut Stream) -> Result<Expr> {

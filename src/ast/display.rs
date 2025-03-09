@@ -3,7 +3,7 @@ use std::{
     mem,
 };
 
-use crate::ast::{Ast, BinaryOp, Block, Expr, ExprId, Lit, Stmt, Ty, UnaryOp};
+use crate::ast::{Ast, BinaryOp, Block, Expr, ExprId, Lit, Ty, UnaryOp};
 
 struct Writer<'ast> {
     ast: &'ast Ast,
@@ -16,8 +16,9 @@ impl fmt::Display for Ast {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         let f = String::new();
         let mut writer = Writer { ast: self, f, indent: 0, inside_expr: false };
-        for stmt in &*self.top_level.borrow() {
-            writer.display_stmt(stmt);
+        for &expr in &*self.top_level.borrow() {
+            writer.display_expr(expr);
+            writer.ln();
         }
         #[cfg(debug_assertions)]
         crate::parse::parse(&writer.f).unwrap();
@@ -26,66 +27,6 @@ impl fmt::Display for Ast {
 }
 
 impl Writer<'_> {
-    fn display_stmt(&mut self, stmt: &Stmt) {
-        match stmt {
-            Stmt::Expr(expr) => {
-                self.display_expr(*expr);
-                self.ln();
-            }
-            Stmt::FnDecl { ident, params, ret, block } => {
-                _ = write!(self.f, "fn {ident}(");
-
-                for (i, param) in params.iter().enumerate() {
-                    self.f.push_str(if i == 0 { "" } else { ", " });
-                    self.f.push_str(&param.ident);
-                    self.f.push_str(": ");
-                    self.display_ty(&param.ty);
-                }
-                self.f.push(')');
-
-                if let Some(ret) = ret {
-                    self.f.push_str(" -> ");
-                    self.display_ty(ret);
-                }
-
-                self.display_block(block);
-            }
-            Stmt::Let { ident, ty, expr } => {
-                self.f.push_str("let ");
-                self.f.push_str(ident);
-                if let Some(ty) = ty {
-                    self.f.push_str(": ");
-                    self.display_ty(ty);
-                }
-                self.f.push_str(" = ");
-
-                self.display_expr(*expr);
-                self.ln();
-            }
-            Stmt::While { condition, block } => {
-                self.f.push_str("while ");
-                self.display_expr(*condition);
-                self.display_block(block);
-            }
-            Stmt::If { arms, els } => {
-                for (i, arm) in arms.iter().enumerate() {
-                    if i != 0 {
-                        for _ in 0..=self.indent * 4 {
-                            self.f.pop();
-                        }
-                        self.f.push_str(" else ");
-                    }
-                    self.f.push_str("if ");
-                    self.display_expr(arm.condition);
-                    self.display_block(&arm.body);
-                }
-                if let Some(els) = els {
-                    self.f.push_str("else ");
-                    self.display_block(els);
-                }
-            }
-        }
-    }
     fn display_ty(&mut self, ty: &Ty) {
         match ty {
             Ty::Array(ty) => {
@@ -96,6 +37,7 @@ impl Writer<'_> {
             Ty::Name(name) => self.f.push_str(name),
         }
     }
+    #[expect(clippy::too_many_lines)]
     fn display_expr(&mut self, expr: ExprId) {
         // FIXME: take precedence into account to use minimum parens needed
         let inside_expr = mem::replace(&mut self.inside_expr, true);
@@ -170,6 +112,59 @@ impl Writer<'_> {
                 }
                 self.f.push('}');
             }
+            Expr::FnDecl { ident, params, ret, block } => {
+                self.inside_expr = false;
+                _ = write!(self.f, "fn {ident}(");
+
+                for (i, param) in params.iter().enumerate() {
+                    self.f.push_str(if i == 0 { "" } else { ", " });
+                    self.f.push_str(&param.ident);
+                    self.f.push_str(": ");
+                    self.display_ty(&param.ty);
+                }
+                self.f.push(')');
+
+                if let Some(ret) = ret {
+                    self.f.push_str(" -> ");
+                    self.display_ty(ret);
+                }
+
+                self.display_block(block);
+            }
+            Expr::Let { ident, ty, expr } => {
+                self.f.push_str("let ");
+                self.f.push_str(ident);
+                if let Some(ty) = ty {
+                    self.f.push_str(": ");
+                    self.display_ty(ty);
+                }
+                self.f.push_str(" = ");
+
+                self.inside_expr = false;
+                self.display_expr(*expr);
+            }
+            Expr::While { condition, block } => {
+                self.f.push_str("while ");
+                self.display_expr(*condition);
+                self.display_block(block);
+            }
+            Expr::If { arms, els } => {
+                for (i, arm) in arms.iter().enumerate() {
+                    if i != 0 {
+                        self.f.push_str("else ");
+                    }
+                    self.f.push_str("if ");
+                    self.display_expr(arm.condition);
+                    self.display_block(&arm.body);
+                    if i + 1 != arms.len() {
+                        self.ln();
+                    }
+                }
+                if let Some(els) = els {
+                    self.f.push_str("else ");
+                    self.display_block(els);
+                }
+            }
         }
         self.inside_expr = inside_expr;
     }
@@ -230,23 +225,23 @@ impl Writer<'_> {
     }
 
     fn display_block(&mut self, block: &Block) {
+        self.inside_expr = false;
         if block.stmts.is_empty() {
             self.f.push_str(" {}");
-            self.ln();
             return;
         }
         self.indent += 1;
         self.f.push_str(" {");
         self.ln();
-        for stmt in &block.stmts {
-            self.display_stmt(stmt);
+        for &expr in &block.stmts {
+            self.display_expr(expr);
+            self.ln();
         }
         self.indent -= 1;
         for _ in 0..4 {
             self.f.pop().unwrap();
         }
         self.f.push('}');
-        self.ln();
     }
 
     fn ln(&mut self) {

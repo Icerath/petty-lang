@@ -3,7 +3,7 @@ mod lex;
 mod token;
 
 use crate::ast::{
-    ArraySeg, Ast, BinaryOp, Block, ExprId, IfStmt, Lit, Param, Stmt, StructInitField, Ty,
+    ArraySeg, Ast, BinaryOp, Block, Expr, ExprId, IfStmt, Lit, Param, StructInitField, Ty,
 };
 use lex::Lexer;
 use miette::{LabeledSpan, Result, miette};
@@ -98,35 +98,6 @@ trait Parse: Sized {
     fn parse(stream: &mut Stream) -> Result<Self>;
 }
 
-impl Parse for Stmt {
-    fn parse(stream: &mut Stream) -> Result<Self> {
-        let tok = stream.peek()?;
-        parse_stmt_with(stream, tok)
-    }
-}
-
-fn parse_stmt_with(stream: &mut Stream, tok: Token) -> Result<Stmt> {
-    macro_rules! kw {
-        ($kw: ident) => {
-            &stream.lexer.src()[tok.span] == stringify!($kw)
-        };
-    }
-    macro_rules! skip {
-        ($expr: expr) => {{
-            _ = stream.next();
-            $expr
-        }};
-    }
-
-    match tok.kind {
-        TokenKind::Ident if kw!(fn) => skip!(parse_fn(stream)),
-        TokenKind::Ident if kw!(let) => skip!(parse_let(stream)),
-        TokenKind::Ident if kw!(while) => skip!(parse_while(stream)),
-        TokenKind::Ident if kw!(if) => skip!(parse_ifchain(stream)),
-        _ => Ok(Stmt::Expr(stream.parse()?)),
-    }
-}
-
 impl Parse for Block {
     fn parse(stream: &mut Stream) -> Result<Self> {
         let mut stmts = thin_vec![];
@@ -141,7 +112,7 @@ impl Parse for Block {
                     _ = stream.next();
                     continue;
                 }
-                _ => stmts.push(parse_stmt_with(stream, tok)?),
+                _ => stmts.push(stream.parse()?),
             }
         }
         Ok(Block { stmts })
@@ -173,7 +144,7 @@ impl Parse for Ty {
     }
 }
 
-fn parse_fn(stream: &mut Stream) -> Result<Stmt> {
+fn parse_fn(stream: &mut Stream) -> Result<Expr> {
     let ident = stream.expect_ident()?;
     stream.expect(TokenKind::LParen)?;
     let params = stream.parse_separated(TokenKind::Comma, TokenKind::RParen)?;
@@ -185,10 +156,10 @@ fn parse_fn(stream: &mut Stream) -> Result<Stmt> {
         stream.expect(TokenKind::LBrace)?;
     }
     let block = stream.parse()?;
-    Ok(Stmt::FnDecl { ident, params, ret, block })
+    Ok(Expr::FnDecl { ident, params, ret, block })
 }
 
-fn parse_let(stream: &mut Stream) -> Result<Stmt> {
+fn parse_let(stream: &mut Stream) -> Result<Expr> {
     let ident = stream.expect_ident()?;
     let tok = stream.any(&[TokenKind::Colon, TokenKind::Eq])?;
     let mut ty = None;
@@ -197,17 +168,17 @@ fn parse_let(stream: &mut Stream) -> Result<Stmt> {
         stream.expect(TokenKind::Eq)?;
     }
     let expr = stream.parse()?;
-    Ok(Stmt::Let { ident, ty, expr })
+    Ok(Expr::Let { ident, ty, expr })
 }
 
-fn parse_while(stream: &mut Stream) -> Result<Stmt> {
+fn parse_while(stream: &mut Stream) -> Result<Expr> {
     let condition = stream.parse()?;
     stream.expect(TokenKind::LBrace)?;
     let block = stream.parse()?;
-    Ok(Stmt::While { condition, block })
+    Ok(Expr::While { condition, block })
 }
 
-fn parse_ifchain(stream: &mut Stream) -> Result<Stmt> {
+fn parse_ifchain(stream: &mut Stream) -> Result<Expr> {
     let mut arms = thin_vec![];
     let els = loop {
         let condition = stream.parse()?;
@@ -227,36 +198,7 @@ fn parse_ifchain(stream: &mut Stream) -> Result<Stmt> {
         stream.expect(TokenKind::LBrace)?;
         break Some(stream.parse()?);
     };
-    Ok(Stmt::If { arms, els })
-}
-
-impl Parse for Lit {
-    fn parse(stream: &mut Stream) -> Result<Self> {
-        let next = stream.next()?;
-        Ok(match next.kind {
-            TokenKind::Ident if &stream.lexer.src()[next.span] == "true" => Self::Bool(true),
-            TokenKind::Ident if &stream.lexer.src()[next.span] == "false" => Self::Bool(false),
-            TokenKind::Int => Self::Int(stream.lexer.src()[next.span].parse::<i64>().unwrap()),
-            TokenKind::Str => {
-                // TODO: Escaping
-                let str = &stream.lexer.src()[next.span.shrink(1)];
-                Self::Str(str.into())
-            }
-            TokenKind::Char => {
-                // TODO: Escaping
-                let str = &stream.lexer.src()[next.span.shrink(1)];
-                Self::Char(str.chars().next().unwrap())
-            }
-            found => {
-                let label = LabeledSpan::at(stream.lexer.span(), "here");
-                return Err(miette::miette!(
-                    labels = vec![label],
-                    "expected `expression`, found {found:?}",
-                )
-                .with_source_code(stream.lexer.src().to_string()));
-            }
-        })
-    }
+    Ok(Expr::If { arms, els })
 }
 
 impl Parse for StructInitField {
@@ -321,4 +263,48 @@ impl TryFrom<TokenKind> for BinaryOp {
             _ => return Err(()),
         })
     }
+}
+
+fn parse_atom_with(stream: &mut Stream, tok: Token) -> Result<ExprId> {
+    macro_rules! kw {
+        ($kw: ident) => {
+            &stream.lexer.src()[tok.span] == stringify!($kw)
+        };
+    }
+
+    macro_rules! lit {
+        ($lit: expr) => {
+            Ok(Expr::Lit($lit))
+        };
+    }
+
+    let expr = match tok.kind {
+        TokenKind::Ident if kw!(fn) => parse_fn(stream),
+        TokenKind::Ident if kw!(let) => parse_let(stream),
+        TokenKind::Ident if kw!(while) => parse_while(stream),
+        TokenKind::Ident if kw!(if) => parse_ifchain(stream),
+        TokenKind::Ident if &stream.lexer.src()[tok.span] == "true" => lit!(Lit::Bool(true)),
+        TokenKind::Ident if &stream.lexer.src()[tok.span] == "false" => lit!(Lit::Bool(false)),
+        TokenKind::Int => lit!(Lit::Int(stream.lexer.src()[tok.span].parse::<i64>().unwrap())),
+        TokenKind::Str => {
+            // TODO: Escaping
+            let str = &stream.lexer.src()[tok.span.shrink(1)];
+            lit!(Lit::Str(str.into()))
+        }
+        TokenKind::Char => {
+            // TODO: Escaping
+            let str = &stream.lexer.src()[tok.span.shrink(1)];
+            lit!(Lit::Char(str.chars().next().unwrap()))
+        }
+        TokenKind::Ident => Ok(Expr::Ident(stream.lexer.src()[tok.span].into())),
+        found => {
+            let label = LabeledSpan::at(stream.lexer.span(), "here");
+            return Err(miette::miette!(
+                labels = vec![label],
+                "expected `expression`, found {found:?}",
+            )
+            .with_source_code(stream.lexer.src().to_string()));
+        }
+    };
+    Ok(stream.ast.add(expr?))
 }

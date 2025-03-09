@@ -12,7 +12,7 @@ use ustr::Ustr as Symbol;
 #[derive(Default)]
 pub struct Ast {
     pub exprs: RefCell<Vec<Expr>>,
-    pub top_level: RefCell<Vec<Stmt>>,
+    pub top_level: RefCell<Vec<ExprId>>,
 }
 
 impl fmt::Debug for Ast {
@@ -23,8 +23,8 @@ impl fmt::Debug for Ast {
 }
 
 impl Ast {
-    pub fn push_top(&self, stmt: Stmt) {
-        self.top_level.borrow_mut().push(stmt);
+    pub fn push_top(&self, expr: ExprId) {
+        self.top_level.borrow_mut().push(expr);
     }
     pub fn add(&self, expr: Expr) -> ExprId {
         let mut exprs = self.exprs.borrow_mut();
@@ -38,16 +38,7 @@ impl Ast {
 }
 
 pub struct Block {
-    pub stmts: ThinVec<Stmt>,
-}
-
-#[derive(Debug)]
-pub enum Stmt {
-    Let { ident: Symbol, ty: Option<Ty>, expr: ExprId },
-    While { condition: ExprId, block: Block },
-    If { arms: ThinVec<IfStmt>, els: Option<Block> },
-    FnDecl { ident: Symbol, params: ThinVec<Param>, ret: Option<Ty>, block: Block },
-    Expr(ExprId),
+    pub stmts: ThinVec<ExprId>,
 }
 
 #[derive(Debug)]
@@ -79,6 +70,10 @@ pub enum Expr {
     FieldAccess { expr: ExprId, field: Symbol },
     StructInit { ident: Symbol, args: ThinVec<StructInitField> },
     Lit(Lit),
+    Let { ident: Symbol, ty: Option<Ty>, expr: ExprId },
+    While { condition: ExprId, block: Block },
+    If { arms: ThinVec<IfStmt>, els: Option<Block> },
+    FnDecl { ident: Symbol, params: ThinVec<Param>, ret: Option<Ty>, block: Block },
 }
 
 #[derive(Debug)]
