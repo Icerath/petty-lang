@@ -39,6 +39,8 @@ impl Ast {
 
 pub struct Block {
     pub stmts: ThinVec<ExprId>,
+    /// Will be false if the last expression if followed by a ';'.
+    pub is_expr: bool,
 }
 
 #[derive(Debug)]

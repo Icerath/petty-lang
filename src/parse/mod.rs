@@ -101,6 +101,8 @@ trait Parse: Sized {
 impl Parse for Block {
     fn parse(stream: &mut Stream) -> Result<Self> {
         let mut stmts = thin_vec![];
+        let mut is_expr = true;
+
         loop {
             let tok = stream.peek()?;
             match tok.kind {
@@ -109,13 +111,16 @@ impl Parse for Block {
                     break;
                 }
                 TokenKind::Semicolon => {
+                    is_expr = false;
                     _ = stream.next();
-                    continue;
                 }
-                _ => stmts.push(stream.parse()?),
+                _ => {
+                    is_expr = true;
+                    stmts.push(stream.parse()?);
+                }
             }
         }
-        Ok(Block { stmts })
+        Ok(Block { stmts, is_expr })
     }
 }
 

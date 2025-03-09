@@ -113,7 +113,7 @@ impl Writer<'_> {
                 self.f.push('}');
             }
             Expr::FnDecl { ident, params, ret, block } => {
-                self.inside_expr = false;
+                self.inside_expr = inside_expr;
                 _ = write!(self.f, "fn {ident}(");
 
                 for (i, param) in params.iter().enumerate() {
@@ -132,6 +132,7 @@ impl Writer<'_> {
                 self.display_block(block);
             }
             Expr::Let { ident, ty, expr } => {
+                self.inside_expr = inside_expr;
                 self.f.push_str("let ");
                 self.f.push_str(ident);
                 if let Some(ty) = ty {
@@ -144,11 +145,13 @@ impl Writer<'_> {
                 self.display_expr(*expr);
             }
             Expr::While { condition, block } => {
+                self.inside_expr = inside_expr;
                 self.f.push_str("while ");
                 self.display_expr(*condition);
                 self.display_block(block);
             }
             Expr::If { arms, els } => {
+                self.inside_expr = inside_expr;
                 for (i, arm) in arms.iter().enumerate() {
                     if i != 0 {
                         self.f.push_str("else ");
@@ -233,8 +236,12 @@ impl Writer<'_> {
         self.indent += 1;
         self.f.push_str(" {");
         self.ln();
-        for &expr in &block.stmts {
+        for (index, &expr) in block.stmts.iter().enumerate() {
+            self.inside_expr = false;
             self.display_expr(expr);
+            if !block.is_expr || index + 1 < block.stmts.len() {
+                self.f.push(';');
+            }
             self.ln();
         }
         self.indent -= 1;
