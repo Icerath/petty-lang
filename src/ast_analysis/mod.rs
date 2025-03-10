@@ -84,15 +84,12 @@ impl Collector<'_, '_> {
     fn read_ast_ty(&self, ty: &ast::Ty) -> Ty {
         match ty {
             ast::Ty::Array(of) => TyKind::Array(self.read_ast_ty(of)).into(),
-            ast::Ty::Name(name) => {
-                for body in self.bodies.iter().rev() {
-                    if let Some(ty) = body.ty_names.get(name) {
-                        return ty.clone();
-                    }
-                }
-                panic!("{name:?}");
-            }
+            ast::Ty::Name(name) => self.read_named_ty(*name),
         }
+    }
+
+    fn read_named_ty(&self, name: Symbol) -> Ty {
+        self.bodies.iter().rev().find_map(|body| body.ty_names.get(&name)).unwrap().clone()
     }
 
     #[expect(clippy::too_many_lines)]
