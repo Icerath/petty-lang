@@ -10,6 +10,7 @@ use thin_vec::ThinVec;
 pub struct Ast {
     pub exprs: IndexVec<ExprId, Expr>,
     pub blocks: IndexVec<BlockId, Block>,
+    pub types: IndexVec<TypeId, Ty>,
     pub top_level: Vec<ExprId>,
 }
 
@@ -21,6 +22,12 @@ index_vec::define_index_type! {
 
 index_vec::define_index_type! {
     pub struct BlockId = u32;
+
+    DISABLE_MAX_INDEX_CHECK = cfg!(not(debug_assertions));
+}
+
+index_vec::define_index_type! {
+    pub struct TypeId = u32;
 
     DISABLE_MAX_INDEX_CHECK = cfg!(not(debug_assertions));
 }
@@ -46,13 +53,13 @@ pub struct IfStmt {
 #[derive(Debug)]
 pub struct Param {
     pub ident: Symbol,
-    pub ty: Ty,
+    pub ty: TypeId,
 }
 
 #[derive(Debug)]
 pub enum Ty {
     Name(Symbol),
-    Array(Box<Ty>),
+    Array(TypeId),
 }
 
 #[derive(Debug)]
@@ -67,10 +74,10 @@ pub enum Expr {
     StructInit { ident: Symbol, args: ThinVec<StructInitField> },
     Lit(Lit),
     Block(BlockId),
-    Let { ident: Symbol, ty: Option<Ty>, expr: ExprId },
+    Let { ident: Symbol, ty: Option<TypeId>, expr: ExprId },
     While { condition: ExprId, block: BlockId },
     If { arms: ThinVec<IfStmt>, els: Option<BlockId> },
-    FnDecl { ident: Symbol, params: ThinVec<Param>, ret: Option<Ty>, block: BlockId },
+    FnDecl { ident: Symbol, params: ThinVec<Param>, ret: Option<TypeId>, block: BlockId },
 }
 
 #[derive(Debug)]

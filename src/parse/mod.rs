@@ -5,7 +5,7 @@ mod token;
 use crate::{
     ast::{
         ArraySeg, Ast, BinaryOp, Block, BlockId, Expr, ExprId, IfStmt, Lit, Param, StructInitField,
-        Ty,
+        Ty, TypeId,
     },
     symbol::Symbol,
 };
@@ -140,6 +140,12 @@ impl Parse for BlockId {
     }
 }
 
+impl Parse for TypeId {
+    fn parse(stream: &mut Stream) -> Result<Self> {
+        Ty::parse(stream).map(|block| stream.ast.types.push(block))
+    }
+}
+
 fn parse_expr(stream: &mut Stream, allow_struct_init: bool) -> Result<ExprId> {
     expr::parse_expr_inner(stream, 0, allow_struct_init)
 }
@@ -152,7 +158,7 @@ impl Parse for Ty {
             TokenKind::LBracket => {
                 let of = stream.parse()?;
                 stream.expect(TokenKind::RBracket)?;
-                Self::Array(Box::new(of))
+                Self::Array(of)
             }
             _ => unreachable!(),
         })

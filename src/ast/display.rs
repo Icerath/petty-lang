@@ -4,6 +4,8 @@ use std::{
 };
 
 use crate::ast::{Ast, BinaryOp, BlockId, Expr, ExprId, Lit, Ty, UnaryOp};
+
+use super::TypeId;
 struct Writer<'ast> {
     ast: &'ast Ast,
     f: String,
@@ -26,11 +28,12 @@ impl fmt::Display for Ast {
 }
 
 impl Writer<'_> {
-    fn display_ty(&mut self, ty: &Ty) {
+    fn display_ty(&mut self, ty: TypeId) {
+        let ty = &self.ast.types[ty];
         match ty {
             Ty::Array(ty) => {
                 self.f.push('[');
-                self.display_ty(ty);
+                self.display_ty(*ty);
                 self.f.push(']');
             }
             Ty::Name(name) => self.f.push_str(name),
@@ -120,13 +123,13 @@ impl Writer<'_> {
                     self.f.push_str(if i == 0 { "" } else { ", " });
                     self.f.push_str(&param.ident);
                     self.f.push_str(": ");
-                    self.display_ty(&param.ty);
+                    self.display_ty(param.ty);
                 }
                 self.f.push(')');
 
                 if let Some(ret) = ret {
                     self.f.push_str(" -> ");
-                    self.display_ty(ret);
+                    self.display_ty(*ret);
                 }
 
                 self.display_block(*block);
@@ -137,7 +140,7 @@ impl Writer<'_> {
                 self.f.push_str(ident);
                 if let Some(ty) = ty {
                     self.f.push_str(": ");
-                    self.display_ty(ty);
+                    self.display_ty(*ty);
                 }
                 self.f.push_str(" = ");
 

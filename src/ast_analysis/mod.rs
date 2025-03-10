@@ -63,9 +63,8 @@ impl Collector<'_, '_> {
 
         for &id in stmts {
             let Expr::FnDecl { ident, params, ret, .. } = &self.ast.exprs[id] else { continue };
-            let ret =
-                ret.as_ref().map_or_else(|| self.tcx.unit().clone(), |ret| self.read_ast_ty(ret));
-            let params = params.iter().map(|param| self.read_ast_ty(&param.ty)).collect();
+            let ret = ret.map_or_else(|| self.tcx.unit().clone(), |ret| self.read_ast_ty(ret));
+            let params = params.iter().map(|param| self.read_ast_ty(param.ty)).collect();
             body.variables.insert(*ident, Ty::from(TyKind::Function { params, ret }));
         }
         self.bodies.push(body);
@@ -84,10 +83,10 @@ impl Collector<'_, '_> {
         }
     }
 
-    fn read_ast_ty(&self, ty: &ast::Ty) -> Ty {
-        match ty {
+    fn read_ast_ty(&self, ty: ast::TypeId) -> Ty {
+        match self.ast.types[ty] {
             ast::Ty::Array(of) => TyKind::Array(self.read_ast_ty(of)).into(),
-            ast::Ty::Name(name) => self.read_named_ty(*name),
+            ast::Ty::Name(name) => self.read_named_ty(name),
         }
     }
 
@@ -166,7 +165,7 @@ impl Collector<'_, '_> {
             Expr::Let { ident, ty, expr } => {
                 let expr_ty = self.analyze_expr(*expr).clone();
                 if let Some(ty) = ty {
-                    let ty = self.read_ast_ty(ty);
+                    let ty = self.read_ast_ty(*ty);
                     self.tcx.eq(&expr_ty, &ty);
                 }
                 let body = self.bodies.last_mut().unwrap();
