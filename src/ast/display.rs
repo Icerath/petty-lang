@@ -112,6 +112,7 @@ impl Writer<'_> {
                 }
                 self.f.push('}');
             }
+            Expr::Block(block) => self.display_block(block),
             Expr::FnDecl { ident, params, ret, block } => {
                 self.inside_expr = inside_expr;
                 _ = write!(self.f, "fn {ident}(");
@@ -228,13 +229,16 @@ impl Writer<'_> {
     }
 
     fn display_block(&mut self, block: &Block) {
+        if !self.f.chars().next_back().is_some_and(char::is_whitespace) {
+            self.f.push(' ');
+        }
         self.inside_expr = false;
         if block.stmts.is_empty() {
-            self.f.push_str(" {}");
+            self.f.push_str("{}");
             return;
         }
         self.indent += 1;
-        self.f.push_str(" {");
+        self.f.push('{');
         self.ln();
         for (index, &expr) in block.stmts.iter().enumerate() {
             self.inside_expr = false;

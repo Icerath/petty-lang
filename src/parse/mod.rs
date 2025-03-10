@@ -284,6 +284,7 @@ fn parse_atom_with(stream: &mut Stream, tok: Token) -> Result<ExprId> {
     }
 
     let expr = match tok.kind {
+        TokenKind::LBrace => Ok(Expr::Block(Block::parse(stream)?)),
         TokenKind::Ident if kw!(fn) => parse_fn(stream),
         TokenKind::Ident if kw!(let) => parse_let(stream),
         TokenKind::Ident if kw!(while) => parse_while(stream),

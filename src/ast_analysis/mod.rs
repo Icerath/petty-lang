@@ -95,6 +95,7 @@ impl Collector<'_, '_> {
         }
     }
 
+    #[expect(clippy::too_many_lines)]
     fn analyze_expr(&mut self, id: ExprId) -> Ty {
         match &*self.ast.get(id) {
             Expr::Lit(lit) => self.analyze_lit(lit, id),
@@ -183,6 +184,19 @@ impl Collector<'_, '_> {
                 if let Some(els) = els {
                     self.analyze_block(&els.stmts);
                 }
+            }
+            Expr::Block(block) => {
+                let ty = if block.is_expr {
+                    let mut ty = None;
+                    for &id in &block.stmts {
+                        ty = Some(self.analyze_expr(id));
+                    }
+                    ty.unwrap()
+                } else {
+                    self.analyze_block(&block.stmts);
+                    self.tcx.unit().clone()
+                };
+                self.ty_info.expr_tys[id] = ty;
             }
             expr => todo!("{expr:?}"),
         }

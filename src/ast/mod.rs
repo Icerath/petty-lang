@@ -72,6 +72,7 @@ pub enum Expr {
     FieldAccess { expr: ExprId, field: Symbol },
     StructInit { ident: Symbol, args: ThinVec<StructInitField> },
     Lit(Lit),
+    Block(Block),
     Let { ident: Symbol, ty: Option<Ty>, expr: ExprId },
     While { condition: ExprId, block: Block },
     If { arms: ThinVec<IfStmt>, els: Option<Block> },
