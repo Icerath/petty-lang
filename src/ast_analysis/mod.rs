@@ -26,7 +26,7 @@ fn setup_ty_info(ast: &Ast, tcx: &mut TyCtx) -> TyInfo {
     let mut ty_info = TyInfo::default();
 
     ty_info.expr_tys.reserve_exact(ast.exprs.borrow().len());
-    let shared = tcx.bool().clone();
+    let shared = tcx.unit().clone();
     ty_info.expr_tys.extend(std::iter::repeat_n(shared, ast.exprs.borrow().len()));
     ty_info
 }
