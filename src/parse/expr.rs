@@ -44,7 +44,7 @@ pub fn parse_expr_inner(
         }
         _ = stream.next();
         let expr = parse_expr_inner(stream, precedence + 1, allow_struct_init)?;
-        root = stream.ast.add(Expr::Binary { lhs: root, op, rhs: expr });
+        root = stream.ast.exprs.push(Expr::Binary { lhs: root, op, rhs: expr });
     }
     Ok(root)
 }
@@ -58,24 +58,24 @@ fn parse_leaf_expr(stream: &mut Stream, allow_struct_init: bool) -> Result<ExprI
             TokenKind::LParen => {
                 _ = stream.next();
                 let args = stream.parse_separated(TokenKind::Comma, TokenKind::RParen)?;
-                expr = stream.ast.add(Expr::FnCall { function: expr, args });
+                expr = stream.ast.exprs.push(Expr::FnCall { function: expr, args });
             }
             TokenKind::Dot => 'block: {
                 _ = stream.next();
                 let field = stream.expect_ident()?;
                 if stream.peek()?.kind == TokenKind::LParen {
                     _ = stream.next();
-                    expr = stream.ast.add(Expr::FieldAccess { expr, field });
+                    expr = stream.ast.exprs.push(Expr::FieldAccess { expr, field });
                     break 'block;
                 }
                 let args = stream.parse_separated(TokenKind::Comma, TokenKind::RParen)?;
-                expr = stream.ast.add(Expr::MethodCall { expr, method: field, args });
+                expr = stream.ast.exprs.push(Expr::MethodCall { expr, method: field, args });
             }
             TokenKind::LBracket => {
                 _ = stream.next();
                 let index = stream.parse()?;
                 stream.expect(TokenKind::RBracket)?;
-                expr = stream.ast.add(Expr::Index { expr, index });
+                expr = stream.ast.exprs.push(Expr::Index { expr, index });
             }
             _ => break,
         }
@@ -83,13 +83,13 @@ fn parse_leaf_expr(stream: &mut Stream, allow_struct_init: bool) -> Result<ExprI
     if !allow_struct_init {
         return Ok(expr);
     }
-    let Expr::Ident(ident) = *stream.ast.get(expr) else {
+    let Expr::Ident(ident) = stream.ast.exprs[expr] else {
         return Ok(expr);
     };
     let TokenKind::LBrace = stream.peek()?.kind else { return Ok(expr) };
     _ = stream.next();
     let args = stream.parse_separated(TokenKind::Comma, TokenKind::RBrace)?;
-    Ok(stream.ast.add(Expr::StructInit { ident, args }))
+    Ok(stream.ast.exprs.push(Expr::StructInit { ident, args }))
 }
 
 fn parse_unary_expr(stream: &mut Stream, allow_struct_init: bool) -> Result<ExprId> {
@@ -108,7 +108,7 @@ fn parse_unary_expr(stream: &mut Stream, allow_struct_init: bool) -> Result<Expr
         }
         _ => return parse_paren_expr(stream),
     }?;
-    Ok(stream.ast.add(expr))
+    Ok(stream.ast.exprs.push(expr))
 }
 
 fn parse_paren_expr(stream: &mut Stream) -> Result<ExprId> {

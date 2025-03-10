@@ -1,9 +1,6 @@
 mod display;
 
-use std::{
-    cell::{Ref, RefCell},
-    fmt,
-};
+use std::fmt;
 
 use index_vec::IndexVec;
 use thin_vec::ThinVec;
@@ -11,29 +8,13 @@ use ustr::Ustr as Symbol;
 
 #[derive(Default)]
 pub struct Ast {
-    pub exprs: RefCell<IndexVec<ExprId, Expr>>,
-    pub top_level: RefCell<Vec<ExprId>>,
+    pub exprs: IndexVec<ExprId, Expr>,
+    pub top_level: Vec<ExprId>,
 }
 
 impl fmt::Debug for Ast {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let top = self.top_level.borrow();
-        top.fmt(f)
-    }
-}
-
-impl Ast {
-    pub fn push_top(&self, expr: ExprId) {
-        self.top_level.borrow_mut().push(expr);
-    }
-    pub fn add(&self, expr: Expr) -> ExprId {
-        let mut exprs = self.exprs.borrow_mut();
-        let id = ExprId::from(exprs.len());
-        exprs.push(expr);
-        id
-    }
-    pub fn get(&self, id: ExprId) -> Ref<Expr> {
-        std::cell::Ref::map(self.exprs.borrow(), |exprs| &exprs[id])
+        self.top_level.fmt(f)
     }
 }
 

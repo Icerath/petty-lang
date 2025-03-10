@@ -28,7 +28,7 @@ fn setup_ty_info(ast: &Ast, tcx: &mut TyCtx) -> TyInfo {
     let mut ty_info = TyInfo::default();
 
     let shared = tcx.unit().clone();
-    ty_info.expr_tys.extend(std::iter::repeat_n(shared, ast.exprs.borrow().len()));
+    ty_info.expr_tys.extend(std::iter::repeat_n(shared, ast.exprs.len()));
     ty_info
 }
 
@@ -36,7 +36,7 @@ pub fn analyze(ast: &Ast, tcx: &mut TyCtx) -> TyInfo {
     let ty_info = setup_ty_info(ast, tcx);
     let body = global_body(tcx);
     let mut collector = Collector { ty_info, ast, tcx, bodies: vec![body] };
-    collector.analyze_body(&ast.top_level.borrow());
+    collector.analyze_body(&ast.top_level);
     let mut ty_info = collector.ty_info;
 
     for ty in &mut ty_info.expr_tys {
@@ -64,8 +64,7 @@ impl Collector<'_, '_> {
         // for stmt in &*ast.top_level.borrow() {}
 
         for &id in stmts {
-            let expr = self.ast.get(id);
-            let Expr::FnDecl { ident, params, ret, .. } = &*expr else { continue };
+            let Expr::FnDecl { ident, params, ret, .. } = &self.ast.exprs[id] else { continue };
             let ret =
                 ret.as_ref().map_or_else(|| self.tcx.unit().clone(), |ret| self.read_ast_ty(ret));
             let params = params.iter().map(|param| self.read_ast_ty(&param.ty)).collect();
@@ -95,7 +94,7 @@ impl Collector<'_, '_> {
 
     #[expect(clippy::too_many_lines)]
     fn analyze_expr(&mut self, id: ExprId) -> Ty {
-        match &*self.ast.get(id) {
+        match &self.ast.exprs[id] {
             Expr::Lit(lit) => self.analyze_lit(lit, id),
             &Expr::Ident(ident) => _ = self.read_ident(ident, id),
             &Expr::Unary { expr, .. } => _ = self.analyze_expr(expr),

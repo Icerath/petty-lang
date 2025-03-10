@@ -13,18 +13,19 @@ use ustr::Ustr as Symbol;
 
 pub fn parse(src: &str) -> Result<Ast> {
     let lexer = Lexer::new(src);
-    let ast = Ast::default();
-    let mut stream = Stream { lexer, ast: &ast };
+    let mut ast = Ast::default();
+    let mut stream = Stream { lexer, ast: &mut ast };
+    let mut top_level = vec![];
     while stream.lexer.clone().next().is_some() {
-        ast.push_top(stream.parse()?);
+        top_level.push(stream.parse()?);
     }
+    ast.top_level = top_level;
     Ok(ast)
 }
 
-#[derive(Clone)]
 struct Stream<'src> {
     lexer: Lexer<'src>,
-    ast: &'src Ast,
+    ast: &'src mut Ast,
 }
 
 impl Stream<'_> {
@@ -34,8 +35,8 @@ impl Stream<'_> {
         }
         Err(self.handle_eof())
     }
-    fn peek(&self) -> Result<Token> {
-        self.clone().next()
+    fn peek(&mut self) -> Result<Token> {
+        Stream { lexer: self.lexer.clone(), ast: self.ast }.next()
     }
     #[inline(never)]
     #[cold]
@@ -312,5 +313,5 @@ fn parse_atom_with(stream: &mut Stream, tok: Token) -> Result<ExprId> {
             .with_source_code(stream.lexer.src().to_string()));
         }
     };
-    Ok(stream.ast.add(expr?))
+    Ok(stream.ast.exprs.push(expr?))
 }

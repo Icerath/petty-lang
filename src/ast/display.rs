@@ -16,7 +16,7 @@ impl fmt::Display for Ast {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         let f = String::new();
         let mut writer = Writer { ast: self, f, indent: 0, inside_expr: false };
-        for &expr in &*self.top_level.borrow() {
+        for &expr in &self.top_level {
             writer.display_expr(expr);
             writer.ln();
         }
@@ -41,7 +41,7 @@ impl Writer<'_> {
     fn display_expr(&mut self, expr: ExprId) {
         // FIXME: take precedence into account to use minimum parens needed
         let inside_expr = mem::replace(&mut self.inside_expr, true);
-        match &*self.ast.get(expr) {
+        match &self.ast.exprs[expr] {
             Expr::Lit(lit) => self.display_lit(lit),
             Expr::Binary { lhs, op, rhs } => {
                 if inside_expr {
