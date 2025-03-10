@@ -3,7 +3,7 @@ use std::{
     mem,
 };
 
-use crate::ast::{Ast, BinaryOp, Block, Expr, ExprId, Lit, Ty, UnaryOp};
+use crate::ast::{Ast, BinaryOp, BlockId, Expr, ExprId, Lit, Ty, UnaryOp};
 
 struct Writer<'ast> {
     ast: &'ast Ast,
@@ -112,7 +112,7 @@ impl Writer<'_> {
                 }
                 self.f.push('}');
             }
-            Expr::Block(block) => self.display_block(block),
+            Expr::Block(block) => self.display_block(*block),
             Expr::FnDecl { ident, params, ret, block } => {
                 self.inside_expr = inside_expr;
                 _ = write!(self.f, "fn {ident}(");
@@ -130,7 +130,7 @@ impl Writer<'_> {
                     self.display_ty(ret);
                 }
 
-                self.display_block(block);
+                self.display_block(*block);
             }
             Expr::Let { ident, ty, expr } => {
                 self.inside_expr = inside_expr;
@@ -149,7 +149,7 @@ impl Writer<'_> {
                 self.inside_expr = inside_expr;
                 self.f.push_str("while ");
                 self.display_expr(*condition);
-                self.display_block(block);
+                self.display_block(*block);
             }
             Expr::If { arms, els } => {
                 self.inside_expr = inside_expr;
@@ -159,12 +159,12 @@ impl Writer<'_> {
                     }
                     self.f.push_str("if ");
                     self.display_expr(arm.condition);
-                    self.display_block(&arm.body);
+                    self.display_block(arm.body);
                     if i + 1 != arms.len() {
                         self.ln();
                     }
                 }
-                if let Some(els) = els {
+                if let &Some(els) = els {
                     self.f.push_str("else ");
                     self.display_block(els);
                 }
@@ -228,7 +228,8 @@ impl Writer<'_> {
         }
     }
 
-    fn display_block(&mut self, block: &Block) {
+    fn display_block(&mut self, block: BlockId) {
+        let block = &self.ast.blocks[block];
         if !self.f.chars().next_back().is_some_and(char::is_whitespace) {
             self.f.push(' ');
         }

@@ -3,7 +3,7 @@ mod lex;
 mod token;
 
 use crate::ast::{
-    ArraySeg, Ast, BinaryOp, Block, Expr, ExprId, IfStmt, Lit, Param, StructInitField, Ty,
+    ArraySeg, Ast, BinaryOp, Block, BlockId, Expr, ExprId, IfStmt, Lit, Param, StructInitField, Ty,
 };
 use lex::Lexer;
 use miette::{LabeledSpan, Result, miette};
@@ -128,6 +128,12 @@ impl Parse for Block {
 impl Parse for ExprId {
     fn parse(stream: &mut Stream) -> Result<Self> {
         parse_expr(stream, true)
+    }
+}
+
+impl Parse for BlockId {
+    fn parse(stream: &mut Stream) -> Result<Self> {
+        Block::parse(stream).map(|block| stream.ast.blocks.push(block))
     }
 }
 
@@ -285,7 +291,7 @@ fn parse_atom_with(stream: &mut Stream, tok: Token) -> Result<ExprId> {
     }
 
     let expr = match tok.kind {
-        TokenKind::LBrace => Ok(Expr::Block(Block::parse(stream)?)),
+        TokenKind::LBrace => Ok(Expr::Block(stream.parse()?)),
         TokenKind::Ident if kw!(fn) => parse_fn(stream),
         TokenKind::Ident if kw!(let) => parse_let(stream),
         TokenKind::Ident if kw!(while) => parse_while(stream),

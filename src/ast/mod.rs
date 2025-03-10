@@ -9,7 +9,20 @@ use ustr::Ustr as Symbol;
 #[derive(Default)]
 pub struct Ast {
     pub exprs: IndexVec<ExprId, Expr>,
+    pub blocks: IndexVec<BlockId, Block>,
     pub top_level: Vec<ExprId>,
+}
+
+index_vec::define_index_type! {
+    pub struct ExprId = u32;
+
+    DISABLE_MAX_INDEX_CHECK = cfg!(not(debug_assertions));
+}
+
+index_vec::define_index_type! {
+    pub struct BlockId = u32;
+
+    DISABLE_MAX_INDEX_CHECK = cfg!(not(debug_assertions));
 }
 
 impl fmt::Debug for Ast {
@@ -27,7 +40,7 @@ pub struct Block {
 #[derive(Debug)]
 pub struct IfStmt {
     pub condition: ExprId,
-    pub body: Block,
+    pub body: BlockId,
 }
 
 #[derive(Debug)]
@@ -53,11 +66,11 @@ pub enum Expr {
     FieldAccess { expr: ExprId, field: Symbol },
     StructInit { ident: Symbol, args: ThinVec<StructInitField> },
     Lit(Lit),
-    Block(Block),
+    Block(BlockId),
     Let { ident: Symbol, ty: Option<Ty>, expr: ExprId },
-    While { condition: ExprId, block: Block },
-    If { arms: ThinVec<IfStmt>, els: Option<Block> },
-    FnDecl { ident: Symbol, params: ThinVec<Param>, ret: Option<Ty>, block: Block },
+    While { condition: ExprId, block: BlockId },
+    If { arms: ThinVec<IfStmt>, els: Option<BlockId> },
+    FnDecl { ident: Symbol, params: ThinVec<Param>, ret: Option<Ty>, block: BlockId },
 }
 
 #[derive(Debug)]
@@ -111,11 +124,6 @@ pub enum BinaryOp {
 pub enum UnaryOp {
     Neg,
     Not,
-}
-index_vec::define_index_type! {
-    pub struct ExprId = u32;
-
-    DISABLE_MAX_INDEX_CHECK = cfg!(not(debug_assertions));
 }
 
 impl fmt::Debug for Block {
