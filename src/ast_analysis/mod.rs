@@ -72,9 +72,18 @@ impl Collector<'_, '_> {
         self.bodies.pop().unwrap()
     }
 
-    fn analyze_block(&mut self, id: BlockId) {
+    fn analyze_block(&mut self, id: BlockId) -> Ty {
         let block = &self.ast.blocks[id];
-        self.analyze_block_exprs(&block.stmts);
+        if block.is_expr {
+            let mut ty = None;
+            for &id in &block.stmts {
+                ty = Some(self.analyze_expr(id));
+            }
+            ty.unwrap_or_else(|| self.tcx.unit().clone())
+        } else {
+            self.analyze_block_exprs(&block.stmts);
+            self.tcx.unit().clone()
+        }
     }
 
     fn analyze_block_exprs(&mut self, exprs: &[ExprId]) {
@@ -176,14 +185,24 @@ impl Collector<'_, '_> {
                 self.analyze_block(*block);
             }
             Expr::If { arms, els } => {
+                let mut expected_ty = None;
+
                 for arm in arms {
                     let ty = self.analyze_expr(arm.condition);
                     assert_eq!(*ty.kind(), TyKind::Bool);
-                    self.analyze_block(arm.body);
+                    let block_ty = self.analyze_block(arm.body);
+                    if let Some(expected_ty) = expected_ty.as_ref() {
+                        self.tcx.eq(expected_ty, &block_ty);
+                    } else {
+                        expected_ty = Some(block_ty);
+                    }
                 }
+                let expected_ty = expected_ty.unwrap();
                 if let &Some(els) = els {
-                    self.analyze_block(els);
+                    let block_ty = self.analyze_block(els);
+                    self.tcx.eq(&expected_ty, &block_ty);
                 }
+                self.ty_info.expr_tys[id] = expected_ty;
             }
             Expr::Block(block_id) => {
                 let block = &self.ast.blocks[*block_id];
