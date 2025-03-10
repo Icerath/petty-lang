@@ -2,14 +2,17 @@ mod expr;
 mod lex;
 mod token;
 
-use crate::ast::{
-    ArraySeg, Ast, BinaryOp, Block, BlockId, Expr, ExprId, IfStmt, Lit, Param, StructInitField, Ty,
+use crate::{
+    ast::{
+        ArraySeg, Ast, BinaryOp, Block, BlockId, Expr, ExprId, IfStmt, Lit, Param, StructInitField,
+        Ty,
+    },
+    symbol::Symbol,
 };
 use lex::Lexer;
 use miette::{LabeledSpan, Result, miette};
 use thin_vec::{ThinVec, thin_vec};
 use token::{Token, TokenKind};
-use ustr::Ustr as Symbol;
 
 pub fn parse(src: &str) -> Result<Ast> {
     let lexer = Lexer::new(src);

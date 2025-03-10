@@ -10,5 +10,5 @@ cast_possible_truncation = "allow"           # We do a lot of casts from usize -
 [dependencies]
 index_vec = "0.1.4"
 miette = { version = "7.5.0", features = ["fancy"] }
+symbol_table = { version = "0.4.0", features = ["global"] }
 thin-vec = "0.2.13"
-ustr = "1.1.0"

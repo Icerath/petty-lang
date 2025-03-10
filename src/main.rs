@@ -4,6 +4,7 @@ mod ast;
 mod ast_analysis;
 mod parse;
 mod span;
+mod symbol;
 mod ty;
 
 fn main() {

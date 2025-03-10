@@ -2,9 +2,9 @@ mod display;
 
 use std::fmt;
 
+use crate::symbol::Symbol;
 use index_vec::IndexVec;
 use thin_vec::ThinVec;
-use ustr::Ustr as Symbol;
 
 #[derive(Default)]
 pub struct Ast {

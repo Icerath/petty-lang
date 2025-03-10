@@ -1,10 +1,11 @@
 use crate::{
     ast::{self, Ast, BinaryOp, BlockId, Expr, ExprId, Lit},
+    symbol::Symbol,
     ty::{Ty, TyCtx, TyKind},
 };
+use std::collections::HashMap;
 
 use index_vec::IndexVec;
-use ustr::{Ustr as Symbol, UstrMap};
 
 #[derive(Default, Debug)]
 pub struct TyInfo {
@@ -13,8 +14,8 @@ pub struct TyInfo {
 
 #[derive(Default, Debug)]
 struct Body {
-    ty_names: UstrMap<Ty>,
-    variables: UstrMap<Ty>,
+    ty_names: HashMap<Symbol, Ty>,
+    variables: HashMap<Symbol, Ty>,
 }
 
 struct Collector<'ast, 'tcx> {

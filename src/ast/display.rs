@@ -4,7 +4,6 @@ use std::{
 };
 
 use crate::ast::{Ast, BinaryOp, BlockId, Expr, ExprId, Lit, Ty, UnaryOp};
-
 struct Writer<'ast> {
     ast: &'ast Ast,
     f: String,
