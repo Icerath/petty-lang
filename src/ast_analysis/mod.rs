@@ -2,11 +2,13 @@ use crate::{
     ast::{self, Ast, BinaryOp, Expr, ExprId, Lit},
     ty::{Ty, TyCtx, TyKind},
 };
+
+use index_vec::IndexVec;
 use ustr::{Ustr as Symbol, UstrMap};
 
 #[derive(Default, Debug)]
 pub struct TyInfo {
-    expr_tys: Vec<Ty>,
+    expr_tys: IndexVec<ExprId, Ty>,
 }
 
 #[derive(Default, Debug)]
@@ -25,7 +27,6 @@ struct Collector<'ast, 'tcx> {
 fn setup_ty_info(ast: &Ast, tcx: &mut TyCtx) -> TyInfo {
     let mut ty_info = TyInfo::default();
 
-    ty_info.expr_tys.reserve_exact(ast.exprs.borrow().len());
     let shared = tcx.unit().clone();
     ty_info.expr_tys.extend(std::iter::repeat_n(shared, ast.exprs.borrow().len()));
     ty_info

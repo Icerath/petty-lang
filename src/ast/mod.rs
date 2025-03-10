@@ -3,15 +3,15 @@ mod display;
 use std::{
     cell::{Ref, RefCell},
     fmt,
-    ops::{Index, IndexMut},
 };
 
+use index_vec::IndexVec;
 use thin_vec::ThinVec;
 use ustr::Ustr as Symbol;
 
 #[derive(Default)]
 pub struct Ast {
-    pub exprs: RefCell<Vec<Expr>>,
+    pub exprs: RefCell<IndexVec<ExprId, Expr>>,
     pub top_level: RefCell<Vec<ExprId>>,
 }
 
@@ -28,7 +28,7 @@ impl Ast {
     }
     pub fn add(&self, expr: Expr) -> ExprId {
         let mut exprs = self.exprs.borrow_mut();
-        let id = ExprId { index: exprs.len() as u32 };
+        let id = ExprId::from(exprs.len());
         exprs.push(expr);
         id
     }
@@ -131,36 +131,10 @@ pub enum UnaryOp {
     Neg,
     Not,
 }
+index_vec::define_index_type! {
+    pub struct ExprId = u32;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ExprId {
-    index: u32,
-}
-
-impl<T> Index<ExprId> for [T] {
-    type Output = T;
-    fn index(&self, index: ExprId) -> &Self::Output {
-        &self[index.index as usize]
-    }
-}
-
-impl<T> IndexMut<ExprId> for [T] {
-    fn index_mut(&mut self, index: ExprId) -> &mut Self::Output {
-        &mut self[index.index as usize]
-    }
-}
-
-impl<T> Index<ExprId> for Vec<T> {
-    type Output = T;
-    fn index(&self, index: ExprId) -> &Self::Output {
-        &self[index.index as usize]
-    }
-}
-
-impl<T> IndexMut<ExprId> for Vec<T> {
-    fn index_mut(&mut self, index: ExprId) -> &mut Self::Output {
-        &mut self[index.index as usize]
-    }
+    DISABLE_MAX_INDEX_CHECK = cfg!(not(debug_assertions));
 }
 
 impl fmt::Debug for Block {
