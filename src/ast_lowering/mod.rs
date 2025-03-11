@@ -57,7 +57,22 @@ impl Lowering<'_, '_> {
             &ast::Expr::Ident(symbol) => {
                 hir::Expr { ty: self.get_ty(expr_id).clone(), kind: ExprKind::Ident(symbol) }
             }
+            ast::Expr::FnCall { function, args } => self.lower_fn_call(*function, args, expr_id),
             expr => todo!("{expr:?}"),
+        }
+    }
+
+    fn lower_fn_call(
+        &mut self,
+        function: ast::ExprId,
+        args: &[ast::ExprId],
+        expr_id: ast::ExprId,
+    ) -> hir::Expr {
+        let function = self.lower(function);
+        let args = args.iter().map(|arg| self.lower(*arg)).collect();
+        hir::Expr {
+            ty: self.get_ty(expr_id).clone(),
+            kind: hir::ExprKind::FnCall { function, args },
         }
     }
 

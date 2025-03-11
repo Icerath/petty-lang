@@ -45,6 +45,7 @@ pub enum ExprKind {
     Unary { op: UnaryOp, expr: ExprId },
     Literal(Lit),
     Block(ThinVec<ExprId>),
+    FnCall { function: ExprId, args: ThinVec<ExprId> },
     // FnDecl { ident: Symbol, params: ThinVec<Param>, body: ExprId }, - Might be better repr
     FnDecl { ident: Symbol, params: ThinVec<Param>, ret: Ty, body: ThinVec<ExprId> },
     Let { ident: Symbol, expr: ExprId },
