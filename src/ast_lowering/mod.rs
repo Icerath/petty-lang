@@ -58,6 +58,10 @@ impl Lowering<'_, '_> {
                 hir::Expr { ty: self.get_ty(expr_id).clone(), kind: ExprKind::Ident(symbol) }
             }
             ast::Expr::FnCall { function, args } => self.lower_fn_call(*function, args, expr_id),
+            &ast::Expr::Index { expr, index } => hir::Expr {
+                ty: self.get_ty(expr_id).clone(),
+                kind: ExprKind::Index { expr: self.lower(expr), index: self.lower(index) },
+            },
             expr => todo!("{expr:?}"),
         }
     }
