@@ -60,6 +60,7 @@ impl TyCtx {
 
     pub fn infer(&self, ty: &Ty) -> Ty {
         match ty.kind() {
+            TyKind::Infer(var) if self.subs[var.index as usize] == *ty => panic!("Failed to infer"),
             TyKind::Infer(var) => self.infer(self.subs.get(var.index as usize).unwrap()),
             _ => ty.clone(),
         }
