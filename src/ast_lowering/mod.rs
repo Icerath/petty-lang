@@ -81,7 +81,11 @@ impl Lowering<'_, '_> {
     }
 
     fn lower_while_loop(&mut self, condition: ast::ExprId, body: ast::BlockId) -> hir::Expr {
-        let condition = self.lower(condition);
+        let condition = hir::Expr {
+            ty: self.tcx.bool().clone(),
+            kind: hir::ExprKind::Unary { op: hir::UnaryOp::Not, expr: self.lower(condition) },
+        };
+        let condition = self.hir.exprs.push(condition);
         let break_ = hir::Expr { ty: self.tcx.unit().clone(), kind: ExprKind::Break };
         let break_ = self.hir.exprs.push(break_);
         let if_stmt = hir::Expr {

@@ -55,8 +55,8 @@ pub enum ExprKind {
     Break,
 }
 
-type BinaryOp = crate::ast::BinaryOp;
-type UnaryOp = crate::ast::UnaryOp;
+pub type BinaryOp = crate::ast::BinaryOp;
+pub type UnaryOp = crate::ast::UnaryOp;
 
 #[derive(Debug)]
 pub enum Lit {
