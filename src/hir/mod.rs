@@ -1,12 +1,15 @@
 use index_vec::IndexVec;
 use thin_vec::ThinVec;
 
-use crate::{symbol::Symbol, ty::Ty};
+use crate::{
+    symbol::Symbol,
+    ty::{Ty, TyCtx},
+};
 
 #[derive(Default, Debug)]
 pub struct Hir {
     pub exprs: IndexVec<ExprId, Expr>,
-    pub root: Vec<Expr>,
+    pub root: Vec<ExprId>,
 }
 
 index_vec::define_index_type! {
@@ -27,12 +30,18 @@ pub struct Expr {
     pub kind: ExprKind,
 }
 
+impl Expr {
+    pub fn unit(tcx: &TyCtx) -> Self {
+        Self { ty: tcx.unit().clone(), kind: ExprKind::Literal(Lit::Unit) }
+    }
+}
+
 #[derive(Debug)]
 pub enum ExprKind {
     Binary { lhs: ExprId, op: BinaryOp, rhs: ExprId },
     Unary { op: UnaryOp, expr: ExprId },
     Literal(Lit),
-    Block(ThinVec<Expr>),
+    Block(ThinVec<ExprId>),
 }
 
 type BinaryOp = crate::ast::BinaryOp;
@@ -45,5 +54,4 @@ pub enum Lit {
     Int(i64),
     Char(char),
     String(Symbol),
-    Array(ThinVec<ExprId>),
 }
