@@ -1,4 +1,4 @@
-use thin_vec::{ThinVec, thin_vec};
+use thin_vec::ThinVec;
 
 use crate::{
     ast::{self, Ast},
@@ -99,12 +99,12 @@ impl Lowering<'_, '_> {
 
     fn lower_block_inner(&mut self, block_id: ast::BlockId) -> (Ty, ThinVec<hir::ExprId>) {
         let block = &self.ast.blocks[block_id];
-        let block_ty = if block.is_expr && !block.stmts.is_empty() {
+        let block_ty = if block.is_expr {
             self.get_ty(*block.stmts.last().unwrap()).clone()
         } else {
             self.tcx.unit().clone()
         };
-        let needs_unit = self.block_needs_terminating_unit(block, &block_ty);
+        let needs_unit = self.block_needs_terminating_unit(block);
 
         let mut new = ThinVec::with_capacity(block.stmts.len() + usize::from(needs_unit));
         for &expr in &block.stmts {
@@ -116,11 +116,16 @@ impl Lowering<'_, '_> {
         (block_ty, new)
     }
 
-    fn block_needs_terminating_unit(&self, block: &ast::Block, block_ty: &Ty) -> bool {
+    fn block_needs_terminating_unit(&self, block: &ast::Block) -> bool {
+        // if a block isn't terminated by a semicolon then it already returns the correct type.
         if block.is_expr {
             return false;
         }
-        let last = *block.stmts.last().expect("non-expression blocks should never be empty");
-        self.get_ty(last) != block_ty
+        match block.stmts.last() {
+            // we don't need a unit if the last expr is already a unit
+            Some(last) => self.get_ty(*last) != self.tcx.unit(),
+            // empty blocks don't need to need a terminating unit
+            None => false,
+        }
     }
 }

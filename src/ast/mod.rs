@@ -40,7 +40,7 @@ impl fmt::Debug for Ast {
 
 pub struct Block {
     pub stmts: ThinVec<ExprId>,
-    /// Will be false if the last expression if followed by a ';'.
+    /// Will be false if the last expression if followed by a ';' or the block is empty.
     pub is_expr: bool,
 }
 

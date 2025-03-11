@@ -109,7 +109,7 @@ trait Parse: Sized {
 impl Parse for Block {
     fn parse(stream: &mut Stream) -> Result<Self> {
         let mut stmts = thin_vec![];
-        let mut is_expr = true;
+        let mut is_expr = false;
 
         loop {
             let tok = stream.peek()?;
