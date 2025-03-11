@@ -44,7 +44,7 @@ impl Lowering<'_, '_> {
                 ty: self.ty_info.expr_tys[expr_id].clone(),
                 kind: hir::ExprKind::Binary { lhs: self.lower(lhs), op, rhs: self.lower(rhs) },
             },
-            &ast::Expr::Block(block) => self.lower_block(block, expr_id),
+            &ast::Expr::Block(block) => self.lower_block(block),
             ast::Expr::Lit(lit) => self.lower_literal(lit, expr_id),
             ast::Expr::FnDecl { ident, params, ret, block } => {
                 self.lower_fn_decl(*ident, params, *ret, *block, expr_id)
@@ -65,7 +65,6 @@ impl Lowering<'_, '_> {
             Some(ret) => self.ty_info.type_ids[ret].clone(),
             None => self.tcx.unit().clone(),
         };
-        // let block = self.lower_block(block);
         let params = params
             .iter()
             .map(|param| hir::Param {
@@ -73,7 +72,7 @@ impl Lowering<'_, '_> {
                 ty: self.ty_info.type_ids[param.ty].clone(),
             })
             .collect();
-        let body = thin_vec![]; // todo
+        let (_, body) = self.lower_block_inner(block);
 
         hir::Expr {
             ty: self.get_ty(expr_id).clone(),
@@ -93,9 +92,19 @@ impl Lowering<'_, '_> {
         hir::Expr { ty: self.get_ty(expr_id).clone(), kind: ExprKind::Literal(lit) }
     }
 
-    fn lower_block(&mut self, block_id: ast::BlockId, expr_id: ast::ExprId) -> hir::Expr {
+    fn lower_block(&mut self, block_id: ast::BlockId) -> hir::Expr {
+        let (block_ty, exprs) = self.lower_block_inner(block_id);
+        hir::Expr { ty: block_ty, kind: ExprKind::Block(exprs) }
+    }
+
+    fn lower_block_inner(&mut self, block_id: ast::BlockId) -> (Ty, ThinVec<hir::ExprId>) {
         let block = &self.ast.blocks[block_id];
-        let needs_unit = self.block_needs_terminating_unit(block, expr_id);
+        let block_ty = if block.is_expr && !block.stmts.is_empty() {
+            self.get_ty(*block.stmts.last().unwrap()).clone()
+        } else {
+            self.tcx.unit().clone()
+        };
+        let needs_unit = self.block_needs_terminating_unit(block, &block_ty);
 
         let mut new = ThinVec::with_capacity(block.stmts.len() + usize::from(needs_unit));
         for &expr in &block.stmts {
@@ -104,14 +113,14 @@ impl Lowering<'_, '_> {
         if needs_unit {
             new.push(self.hir.exprs.push(hir::Expr::unit(self.tcx)));
         }
-        hir::Expr { ty: self.get_ty(expr_id).clone(), kind: ExprKind::Block(new) }
+        (block_ty, new)
     }
 
-    fn block_needs_terminating_unit(&self, block: &ast::Block, expr_id: ast::ExprId) -> bool {
+    fn block_needs_terminating_unit(&self, block: &ast::Block, block_ty: &Ty) -> bool {
         if block.is_expr {
             return false;
         }
         let last = *block.stmts.last().expect("non-expression blocks should never be empty");
-        self.get_ty(last) != self.get_ty(expr_id)
+        self.get_ty(last) != block_ty
     }
 }

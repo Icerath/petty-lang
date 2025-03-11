@@ -28,6 +28,7 @@ fn main() {
     let ast = try_miette!(parse::parse(&src));
     let mut tcx = TyCtx::default();
     let analysis = ast_analysis::analyze(&ast, &mut tcx);
+    println!("{analysis:?}");
     let hir = ast_lowering::lower_ast(ast, analysis, &tcx);
     println!("{hir:?}");
 }
