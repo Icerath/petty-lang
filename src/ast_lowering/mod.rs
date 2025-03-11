@@ -53,8 +53,25 @@ impl Lowering<'_, '_> {
             }
             &ast::Expr::Let { ident, expr, .. } => self.lower_let_stmt(ident, expr),
             ast::Expr::If { arms, els } => self.lower_if_stmt(arms, *els, expr_id),
+            &ast::Expr::While { condition, block } => self.lower_while_loop(condition, block),
             expr => todo!("{expr:?}"),
         }
+    }
+
+    fn lower_while_loop(&mut self, condition: ast::ExprId, body: ast::BlockId) -> hir::Expr {
+        let condition = self.lower(condition);
+        let break_ = hir::Expr { ty: self.tcx.unit().clone(), kind: ExprKind::Break };
+        let break_ = self.hir.exprs.push(break_);
+        let if_stmt = hir::Expr {
+            ty: self.tcx.unit().clone(),
+            kind: ExprKind::If {
+                arms: ThinVec::from([hir::IfStmt { condition, body: ThinVec::from([break_]) }]),
+                els: ThinVec::new(),
+            },
+        };
+        let mut block = self.lower_block_inner(body).1;
+        block.insert(0, self.hir.exprs.push(if_stmt));
+        hir::Expr { ty: self.tcx.unit().clone(), kind: ExprKind::Loop(block) }
     }
 
     fn lower_if_stmt(

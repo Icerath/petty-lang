@@ -48,6 +48,8 @@ pub enum ExprKind {
     FnDecl { ident: Symbol, params: ThinVec<Param>, ret: Ty, body: ThinVec<ExprId> },
     Let { ident: Symbol, expr: ExprId },
     If { arms: ThinVec<IfStmt>, els: ThinVec<ExprId> },
+    Loop(ThinVec<ExprId>),
+    Break,
 }
 
 type BinaryOp = crate::ast::BinaryOp;
