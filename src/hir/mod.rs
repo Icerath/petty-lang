@@ -40,6 +40,7 @@ impl Expr {
 
 #[derive(Debug)]
 pub enum ExprKind {
+    Ident(Symbol),
     Binary { lhs: ExprId, op: BinaryOp, rhs: ExprId },
     Unary { op: UnaryOp, expr: ExprId },
     Literal(Lit),

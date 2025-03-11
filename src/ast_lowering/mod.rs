@@ -54,6 +54,9 @@ impl Lowering<'_, '_> {
             &ast::Expr::Let { ident, expr, .. } => self.lower_let_stmt(ident, expr),
             ast::Expr::If { arms, els } => self.lower_if_stmt(arms, *els, expr_id),
             &ast::Expr::While { condition, block } => self.lower_while_loop(condition, block),
+            &ast::Expr::Ident(symbol) => {
+                hir::Expr { ty: self.get_ty(expr_id).clone(), kind: ExprKind::Ident(symbol) }
+            }
             expr => todo!("{expr:?}"),
         }
     }
