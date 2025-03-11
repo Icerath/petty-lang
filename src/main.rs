@@ -30,5 +30,5 @@ fn main() {
     let analysis = ast_analysis::analyze(&ast, &mut tcx);
     println!("{analysis:?}");
     let hir = ast_lowering::lower_ast(ast, analysis, &tcx);
-    println!("{hir:?}");
+    println!("{hir}");
 }

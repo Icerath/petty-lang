@@ -1,4 +1,4 @@
-#![expect(dead_code)]
+mod display;
 
 use index_vec::IndexVec;
 use thin_vec::ThinVec;
