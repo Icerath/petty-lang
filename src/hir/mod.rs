@@ -59,6 +59,13 @@ pub enum Lit {
     Int(i64),
     Char(char),
     String(Symbol),
+    Array { segments: ThinVec<ArraySeg> },
+}
+
+#[derive(Debug)]
+pub struct ArraySeg {
+    pub expr: ExprId,
+    pub repeated: Option<ExprId>,
 }
 
 #[derive(Debug)]

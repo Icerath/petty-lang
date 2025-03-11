@@ -95,7 +95,14 @@ impl Lowering<'_, '_> {
             &ast::Lit::Int(int) => hir::Lit::Int(int),
             &ast::Lit::Char(char) => hir::Lit::Char(char),
             &ast::Lit::Str(str) => hir::Lit::String(str),
-            ast::Lit::Array { segments } => todo!("{segments:?}"),
+            ast::Lit::Array { segments } => {
+                let hir_segments = segments.iter().map(|segment| {
+                    let expr = self.lower(segment.expr);
+                    let repeated = segment.repeated.map(|expr| self.lower(expr));
+                    hir::ArraySeg { expr, repeated }
+                });
+                hir::Lit::Array { segments: hir_segments.collect() }
+            }
         };
         hir::Expr { ty: self.get_ty(expr_id).clone(), kind: ExprKind::Literal(lit) }
     }
