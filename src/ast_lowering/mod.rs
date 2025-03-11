@@ -1,4 +1,4 @@
-use thin_vec::ThinVec;
+use thin_vec::{ThinVec, thin_vec};
 
 use crate::{
     ast::{self, Ast},
@@ -61,22 +61,24 @@ impl Lowering<'_, '_> {
         block: ast::BlockId,
         expr_id: ast::ExprId,
     ) -> hir::Expr {
-        let ret = if let Some(ret) = ret { self.lower_ty(ret) } else { self.tcx.unit().clone() };
+        let ret = match ret {
+            Some(ret) => self.ty_info.type_ids[ret].clone(),
+            None => self.tcx.unit().clone(),
+        };
         // let block = self.lower_block(block);
-        let body = todo!();
         let params = params
             .iter()
-            .map(|param| hir::Param { ident: param.ident, ty: self.lower_ty(param.ty) })
+            .map(|param| hir::Param {
+                ident: param.ident,
+                ty: self.ty_info.type_ids[param.ty].clone(),
+            })
             .collect();
+        let body = thin_vec![]; // todo
 
         hir::Expr {
             ty: self.get_ty(expr_id).clone(),
             kind: hir::ExprKind::FnDecl { ident, params, ret, body },
         }
-    }
-
-    fn lower_ty(&self, ty: ast::TypeId) -> Ty {
-        todo!()
     }
 
     fn lower_literal(&mut self, lit: &ast::Lit, expr_id: ast::ExprId) -> hir::Expr {

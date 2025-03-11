@@ -1,5 +1,5 @@
 use crate::{
-    ast::{self, Ast, BinaryOp, BlockId, Expr, ExprId, Lit},
+    ast::{self, Ast, BinaryOp, BlockId, Expr, ExprId, Lit, TypeId},
     symbol::Symbol,
     ty::{Ty, TyCtx, TyKind},
 };
@@ -10,6 +10,7 @@ use index_vec::IndexVec;
 #[derive(Default, Debug)]
 pub struct TyInfo {
     pub expr_tys: IndexVec<ExprId, Ty>,
+    pub type_ids: IndexVec<TypeId, Ty>,
 }
 
 #[derive(Default, Debug)]
@@ -29,7 +30,8 @@ fn setup_ty_info(ast: &Ast, tcx: &mut TyCtx) -> TyInfo {
     let mut ty_info = TyInfo::default();
 
     let shared = tcx.unit().clone();
-    ty_info.expr_tys.extend(std::iter::repeat_n(shared, ast.exprs.len()));
+    ty_info.expr_tys.extend(std::iter::repeat_n(shared.clone(), ast.exprs.len()));
+    ty_info.type_ids.extend(std::iter::repeat_n(shared, ast.types.len()));
     ty_info
 }
 
@@ -63,7 +65,10 @@ impl Collector<'_, '_> {
 
         for &id in stmts {
             let Expr::FnDecl { ident, params, ret, .. } = &self.ast.exprs[id] else { continue };
-            let ret = ret.map_or_else(|| self.tcx.unit().clone(), |ret| self.read_ast_ty(ret));
+            let ret = match ret {
+                Some(ret) => self.read_ast_ty(*ret),
+                None => self.tcx.unit().clone(),
+            };
             let params = params.iter().map(|param| self.read_ast_ty(param.ty)).collect();
             body.variables.insert(*ident, Ty::from(TyKind::Function { params, ret }));
         }
@@ -92,11 +97,14 @@ impl Collector<'_, '_> {
         }
     }
 
-    fn read_ast_ty(&self, ty: ast::TypeId) -> Ty {
-        match self.ast.types[ty] {
+    fn read_ast_ty(&mut self, id: ast::TypeId) -> Ty {
+        let ty = match self.ast.types[id] {
             ast::Ty::Array(of) => TyKind::Array(self.read_ast_ty(of)).into(),
             ast::Ty::Name(name) => self.read_named_ty(name),
-        }
+        };
+        self.ty_info.type_ids[id] = ty.clone();
+
+        ty.clone()
     }
 
     fn read_named_ty(&self, name: Symbol) -> Ty {
