@@ -142,11 +142,9 @@ impl Collector<'_, '_> {
                 let rhs = self.analyze_expr(rhs);
                 self.tcx.eq(&lhs, &rhs);
 
-                let lhs = self.tcx.infer_shallow(&lhs);
-                let rhs = self.tcx.infer_shallow(&lhs);
+                self.tcx.eq(&lhs, self.tcx.int());
+                self.tcx.eq(&rhs, self.tcx.int());
 
-                let TyKind::Int = lhs.kind() else { panic!("expected `int`, found: {lhs:?}") };
-                let TyKind::Int = rhs.kind() else { panic!("expected `int`, found: {rhs:?}") };
                 let ty = match op {
                     BinaryOp::Range => TyKind::Range.into(),
                     BinaryOp::RangeInclusive => TyKind::RangeInclusive.into(),
@@ -216,8 +214,7 @@ impl Collector<'_, '_> {
 
                 for arm in arms {
                     let ty = self.analyze_expr(arm.condition);
-                    let ty = self.tcx.infer_shallow(&ty);
-                    assert_eq!(*ty.kind(), TyKind::Bool);
+                    self.tcx.eq(&ty, self.tcx.bool());
                     let block_ty = self.analyze_block(arm.body);
                     if let Some(expected_ty) = expected_ty.as_ref() {
                         self.tcx.eq(expected_ty, &block_ty);
