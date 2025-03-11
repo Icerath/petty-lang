@@ -118,6 +118,20 @@ impl Collector<'_, '_> {
             Expr::Lit(lit) => self.analyze_lit(lit, id),
             &Expr::Ident(ident) => _ = self.read_ident(ident, id),
             &Expr::Unary { expr, .. } => _ = self.analyze_expr(expr),
+            &Expr::Binary {
+                lhs,
+                rhs,
+                op:
+                    BinaryOp::Assign
+                    | BinaryOp::AddAssign
+                    | BinaryOp::SubAssign
+                    | BinaryOp::MulAssign
+                    | BinaryOp::DivAssign,
+            } => {
+                let lhs = self.analyze_expr(lhs);
+                let rhs = self.analyze_expr(rhs);
+                self.tcx.eq(&lhs, &rhs);
+            }
             &Expr::Binary { lhs, rhs, op: BinaryOp::Eq | BinaryOp::Neq } => {
                 let lhs = self.analyze_expr(lhs);
                 let rhs = self.analyze_expr(rhs);
