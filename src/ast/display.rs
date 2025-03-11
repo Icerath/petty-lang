@@ -211,6 +211,7 @@ impl Writer<'_> {
 
     fn display_lit(&mut self, lit: &Lit) {
         match lit {
+            Lit::Unit => self.f.push_str("()"),
             Lit::Bool(bool) => _ = write!(self.f, "{bool}"),
             Lit::Int(int) => _ = write!(self.f, "{int}"),
             Lit::Str(str) => _ = write!(self.f, "{:?}", &**str),

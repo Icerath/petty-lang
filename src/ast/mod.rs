@@ -94,10 +94,11 @@ pub struct ArraySeg {
 
 #[derive(Debug)]
 pub enum Lit {
+    Unit,
+    Bool(bool),
     Int(i64),
     Str(Symbol),
     Char(char),
-    Bool(bool),
     Array { segments: ThinVec<ArraySeg> },
 }
 

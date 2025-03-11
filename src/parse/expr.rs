@@ -114,6 +114,11 @@ fn parse_unary_expr(stream: &mut Stream, allow_struct_init: bool) -> Result<Expr
 fn parse_paren_expr(stream: &mut Stream) -> Result<ExprId> {
     let token = stream.next()?;
     if token.kind == TokenKind::LParen {
+        if stream.peek()?.kind == TokenKind::RParen {
+            _ = stream.next();
+            return Ok(stream.ast.exprs.push(Expr::Lit(Lit::Unit)));
+        }
+
         let expr = parse_expr_inner(stream, 0, true)?;
         stream.expect(TokenKind::RParen)?;
         return Ok(expr);

@@ -243,6 +243,7 @@ impl Collector<'_, '_> {
 
     fn analyze_lit(&mut self, lit: &Lit, id: ExprId) {
         let ty = match lit {
+            Lit::Unit => self.tcx.unit().clone(),
             Lit::Bool(..) => self.tcx.bool().clone(),
             Lit::Int(..) => self.tcx.int().clone(),
             Lit::Char(..) => self.tcx.char().clone(),

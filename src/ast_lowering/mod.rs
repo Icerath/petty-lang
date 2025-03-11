@@ -90,7 +90,7 @@ impl Lowering<'_, '_> {
 
     fn lower_literal(&mut self, lit: &ast::Lit, expr_id: ast::ExprId) -> hir::Expr {
         let lit = match lit {
-            // &ast::Lit::Unit => hir::Lit::Unit,
+            &ast::Lit::Unit => hir::Lit::Unit,
             &ast::Lit::Bool(bool) => hir::Lit::Bool(bool),
             &ast::Lit::Int(int) => hir::Lit::Int(int),
             &ast::Lit::Char(char) => hir::Lit::Char(char),
