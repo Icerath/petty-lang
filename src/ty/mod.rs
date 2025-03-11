@@ -58,10 +58,18 @@ impl TyCtx {
         id
     }
 
-    pub fn infer(&self, ty: &Ty) -> Ty {
+    pub fn infer_shallow(&self, ty: &Ty) -> Ty {
         match ty.kind() {
             TyKind::Infer(var) if self.subs[var.index as usize] == *ty => panic!("Failed to infer"),
-            TyKind::Infer(var) => self.infer(self.subs.get(var.index as usize).unwrap()),
+            TyKind::Infer(var) => self.infer_shallow(&self.subs[var.index as usize]),
+            _ => ty.clone(),
+        }
+    }
+
+    pub fn infer_deep(&self, ty: &Ty) -> Ty {
+        let ty = self.infer_shallow(ty);
+        match ty.kind() {
+            TyKind::Array(of) => TyKind::Array(self.infer_deep(of)).into(),
             _ => ty.clone(),
         }
     }
@@ -78,6 +86,11 @@ impl TyCtx {
 
     fn insert(&mut self, var: TyVid, ty: &Ty) {
         if let Some(sub) = self.subs.get(var.index as usize).cloned() {
+            if let &TyKind::Infer(sub) = sub.kind() {
+                if sub == var {
+                    self.subs[var.index as usize] = ty.clone();
+                }
+            }
             self.eq(ty, &sub);
             return;
         }

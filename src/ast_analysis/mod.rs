@@ -42,9 +42,8 @@ pub fn analyze(ast: &Ast, tcx: &mut TyCtx) -> TyInfo {
     collector.analyze_body_with(&ast.top_level, Body::default());
     let mut ty_info = collector.ty_info;
 
-    for ty in &mut ty_info.expr_tys {
-        *ty = tcx.infer(ty);
-    }
+    ty_info.expr_tys.iter_mut().for_each(|ty| *ty = tcx.infer_deep(ty));
+    ty_info.type_ids.iter_mut().for_each(|ty| *ty = tcx.infer_deep(ty));
 
     ty_info
 }
@@ -160,6 +159,7 @@ impl Collector<'_, '_> {
             &Expr::Index { expr, index } => {
                 let expr = self.analyze_expr(expr);
                 let index = self.analyze_expr(index);
+                let expr = self.tcx.infer_shallow(&expr);
                 let out = match (expr.kind(), index.kind()) {
                     (TyKind::Str, TyKind::Range | TyKind::RangeInclusive) => self.tcx.str().clone(),
                     (TyKind::Array(_), TyKind::Range | TyKind::RangeInclusive) => expr,
@@ -268,7 +268,9 @@ impl Collector<'_, '_> {
             Lit::Str(..) => self.tcx.str().clone(),
             Lit::Array { segments } => 'block: {
                 let mut segments = segments.iter();
-                let Some(first) = segments.next() else { break 'block self.tcx.new_infer() };
+                let Some(first) = segments.next() else {
+                    break 'block TyKind::Array(self.tcx.new_infer()).into();
+                };
                 let first_ty = self.analyze_expr(first.expr).clone();
 
                 for seg in segments {
