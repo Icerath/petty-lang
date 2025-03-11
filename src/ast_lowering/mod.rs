@@ -49,7 +49,15 @@ impl Lowering<'_, '_> {
             ast::Expr::FnDecl { ident, params, ret, block } => {
                 self.lower_fn_decl(*ident, params, *ret, *block, expr_id)
             }
+            &ast::Expr::Let { ident, expr, .. } => self.lower_let_stmt(ident, expr),
             expr => todo!("{expr:?}"),
+        }
+    }
+
+    fn lower_let_stmt(&mut self, ident: Symbol, expr: ast::ExprId) -> hir::Expr {
+        hir::Expr {
+            ty: self.tcx.unit().clone(),
+            kind: hir::ExprKind::Let { ident, expr: self.lower(expr) },
         }
     }
 
