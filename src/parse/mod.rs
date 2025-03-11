@@ -19,7 +19,11 @@ pub fn parse(src: &str) -> Result<Ast> {
     let mut ast = Ast::default();
     let mut stream = Stream { lexer, ast: &mut ast };
     let mut top_level = vec![];
-    while stream.lexer.clone().next().is_some() {
+    while let Some(next) = stream.lexer.clone().next() {
+        if next?.kind == TokenKind::Semicolon {
+            _ = stream.lexer.next();
+            continue;
+        }
         top_level.push(stream.parse()?);
     }
     ast.top_level = top_level;
