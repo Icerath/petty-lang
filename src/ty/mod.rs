@@ -3,11 +3,12 @@ mod common;
 use std::{fmt, hash::Hash, rc::Rc};
 
 use common::CommonTypes;
+use index_vec::IndexVec;
 use thin_vec::ThinVec;
 
 #[derive(Default, Debug)]
 pub struct TyCtx {
-    subs: Vec<Ty>,
+    subs: IndexVec<TyVid, Ty>,
     common: CommonTypes,
 }
 
@@ -28,9 +29,9 @@ impl From<TyKind> for Ty {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct TyVid {
-    index: u32,
+index_vec::define_index_type! {
+    pub struct TyVid = u32;
+    DISABLE_MAX_INDEX_CHECK = cfg!(not(debug_assertions));
 }
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -53,15 +54,14 @@ impl TyCtx {
     }
 
     pub fn vid(&mut self) -> TyVid {
-        let id = TyVid { index: self.subs.len() as u32 };
-        self.subs.push(Ty::from(TyKind::Infer(id)));
-        id
+        let id = self.subs.next_idx();
+        self.subs.push(Ty::from(TyKind::Infer(id)))
     }
 
     pub fn infer_shallow(&self, ty: &Ty) -> Ty {
-        match ty.kind() {
-            TyKind::Infer(var) if self.subs[var.index as usize] == *ty => panic!("Failed to infer"),
-            TyKind::Infer(var) => self.infer_shallow(&self.subs[var.index as usize]),
+        match *ty.kind() {
+            TyKind::Infer(var) if self.subs[var] == *ty => panic!("Failed to infer"),
+            TyKind::Infer(var) => self.infer_shallow(&self.subs[var]),
             _ => ty.clone(),
         }
     }
@@ -85,28 +85,28 @@ impl TyCtx {
     }
 
     fn insert(&mut self, var: TyVid, ty: &Ty) {
-        if let Some(sub) = self.subs.get(var.index as usize).cloned() {
+        if let Some(sub) = self.subs.get(var).cloned() {
             if let &TyKind::Infer(sub) = sub.kind() {
                 if sub == var {
-                    self.subs[var.index as usize] = ty.clone();
+                    self.subs[var] = ty.clone();
                 }
             }
             self.eq(ty, &sub);
             return;
         }
         assert!(!self.occurs_in(var, ty), "Infinite type: {var:?} - {ty:?}");
-        self.subs[var.index as usize] = ty.clone();
+        self.subs[var] = ty.clone();
     }
 
     fn occurs_in(&self, this: TyVid, ty: &Ty) -> bool {
         match ty.kind() {
-            TyKind::Infer(var) => {
-                if let Some(sub) = self.subs.get(var.index as usize) {
-                    if *sub.kind() != TyKind::Infer(*var) {
-                        return self.occurs_in(*var, sub);
+            &TyKind::Infer(var) => {
+                if let Some(sub) = self.subs.get(var) {
+                    if *sub.kind() != TyKind::Infer(var) {
+                        return self.occurs_in(var, sub);
                     }
                 }
-                this == *var
+                this == var
             }
             _ => false,
         }
