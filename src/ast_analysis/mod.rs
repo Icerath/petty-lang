@@ -141,6 +141,10 @@ impl Collector<'_, '_> {
                 let lhs = self.analyze_expr(lhs);
                 let rhs = self.analyze_expr(rhs);
                 self.tcx.eq(&lhs, &rhs);
+
+                let lhs = self.tcx.infer_shallow(&lhs);
+                let rhs = self.tcx.infer_shallow(&lhs);
+
                 let TyKind::Int = lhs.kind() else { panic!("expected `int`, found: {lhs:?}") };
                 let TyKind::Int = rhs.kind() else { panic!("expected `int`, found: {rhs:?}") };
                 let ty = match op {
@@ -212,6 +216,7 @@ impl Collector<'_, '_> {
 
                 for arm in arms {
                     let ty = self.analyze_expr(arm.condition);
+                    let ty = self.tcx.infer_shallow(&ty);
                     assert_eq!(*ty.kind(), TyKind::Bool);
                     let block_ty = self.analyze_block(arm.body);
                     if let Some(expected_ty) = expected_ty.as_ref() {
