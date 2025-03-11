@@ -42,6 +42,7 @@ pub enum ExprKind {
     Unary { op: UnaryOp, expr: ExprId },
     Literal(Lit),
     Block(ThinVec<ExprId>),
+    FnDecl { ident: Symbol, params: ThinVec<Param>, ret: Ty, body: ThinVec<ExprId> },
 }
 
 type BinaryOp = crate::ast::BinaryOp;
@@ -54,4 +55,10 @@ pub enum Lit {
     Int(i64),
     Char(char),
     String(Symbol),
+}
+
+#[derive(Debug)]
+pub struct Param {
+    pub ident: Symbol,
+    pub ty: Ty,
 }

@@ -4,6 +4,7 @@ use crate::{
     ast::{self, Ast},
     ast_analysis::TyInfo,
     hir::{self, ExprKind, Hir},
+    symbol::Symbol,
     ty::{Ty, TyCtx},
 };
 
@@ -45,8 +46,37 @@ impl Lowering<'_, '_> {
             },
             &ast::Expr::Block(block) => self.lower_block(block, expr_id),
             ast::Expr::Lit(lit) => self.lower_literal(lit, expr_id),
+            ast::Expr::FnDecl { ident, params, ret, block } => {
+                self.lower_fn_decl(*ident, params, *ret, *block, expr_id)
+            }
             expr => todo!("{expr:?}"),
         }
+    }
+
+    fn lower_fn_decl(
+        &mut self,
+        ident: Symbol,
+        params: &[ast::Param],
+        ret: Option<ast::TypeId>,
+        block: ast::BlockId,
+        expr_id: ast::ExprId,
+    ) -> hir::Expr {
+        let ret = if let Some(ret) = ret { self.lower_ty(ret) } else { self.tcx.unit().clone() };
+        // let block = self.lower_block(block);
+        let body = todo!();
+        let params = params
+            .iter()
+            .map(|param| hir::Param { ident: param.ident, ty: self.lower_ty(param.ty) })
+            .collect();
+
+        hir::Expr {
+            ty: self.get_ty(expr_id).clone(),
+            kind: hir::ExprKind::FnDecl { ident, params, ret, body },
+        }
+    }
+
+    fn lower_ty(&self, ty: ast::TypeId) -> Ty {
+        todo!()
     }
 
     fn lower_literal(&mut self, lit: &ast::Lit, expr_id: ast::ExprId) -> hir::Expr {
