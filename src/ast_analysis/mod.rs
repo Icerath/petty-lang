@@ -1,5 +1,5 @@
 use crate::{
-    ast::{self, Ast, BinaryOp, BlockId, Expr, ExprId, Lit, TypeId},
+    ast::{self, Ast, BinaryOp, Block, BlockId, Expr, ExprId, Lit, TypeId},
     symbol::Symbol,
     ty::{Ty, TyCtx, TyKind},
 };
@@ -39,9 +39,11 @@ pub fn analyze(ast: &Ast, tcx: &TyCtx) -> TyInfo {
     let ty_info = setup_ty_info(ast, tcx);
     let body = global_body(tcx);
     let mut collector = Collector { ty_info, ast, tcx, bodies: vec![body] };
-    collector.analyze_body_with(&ast.top_level, Body::default());
-    let mut ty_info = collector.ty_info;
+    let top_level_exprs = ast.top_level.iter().copied().collect();
+    let top_level = ast::Block { stmts: top_level_exprs, is_expr: false };
+    collector.analyze_body_with(&top_level, Body::default());
 
+    let mut ty_info = collector.ty_info;
     ty_info.expr_tys.iter_mut().for_each(|ty| *ty = tcx.infer_deep(ty));
     ty_info.type_ids.iter_mut().for_each(|ty| *ty = tcx.infer_deep(ty));
 
@@ -58,11 +60,11 @@ fn global_body(tcx: &TyCtx) -> Body {
 }
 
 impl Collector<'_, '_> {
-    fn analyze_body_with(&mut self, stmts: &[ExprId], mut body: Body) -> Body {
+    fn analyze_body_with(&mut self, block: &ast::Block, mut body: Body) -> (Ty, Body) {
         // look for structs/enums first.
         // for stmt in &*ast.top_level.borrow() {}
 
-        for &id in stmts {
+        for &id in &block.stmts {
             let Expr::FnDecl { ident, params, ret, .. } = &self.ast.exprs[id] else { continue };
             let ret = match ret {
                 Some(ret) => self.read_ast_ty(*ret),
@@ -72,12 +74,16 @@ impl Collector<'_, '_> {
             body.variables.insert(*ident, Ty::from(TyKind::Function { params, ret }));
         }
         self.bodies.push(body);
-        self.analyze_block_exprs(stmts);
-        self.bodies.pop().unwrap()
+        let out = self.analyze_block_inner(block);
+        (out, self.bodies.pop().unwrap())
     }
 
     fn analyze_block(&mut self, id: BlockId) -> Ty {
         let block = &self.ast.blocks[id];
+        self.analyze_block_inner(block)
+    }
+
+    fn analyze_block_inner(&mut self, block: &Block) -> Ty {
         if block.is_expr {
             let mut ty = None;
             for &id in &block.stmts {
@@ -187,14 +193,15 @@ impl Collector<'_, '_> {
             Expr::FnDecl { block, params, ident, .. } => {
                 let mut body = Body::default();
                 let fn_ty = self.bodies.last().unwrap().variables[ident].clone();
-                let TyKind::Function { params: param_tys, .. } = fn_ty.kind() else {
+                let TyKind::Function { params: param_tys, ret } = fn_ty.kind() else {
                     unreachable!()
                 };
                 for (param, ty) in std::iter::zip(params, param_tys) {
                     body.variables.insert(param.ident, ty.clone());
                 }
                 let block = &self.ast.blocks[*block];
-                self.analyze_body_with(&block.stmts, body);
+                let body_ret = self.analyze_body_with(block, body).0;
+                self.tcx.eq(&body_ret, ret);
             }
             Expr::Let { ident, ty, expr } => {
                 let expr_ty = self.analyze_expr(*expr).clone();
