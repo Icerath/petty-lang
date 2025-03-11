@@ -9,7 +9,7 @@ use index_vec::IndexVec;
 
 #[derive(Default, Debug)]
 pub struct TyInfo {
-    expr_tys: IndexVec<ExprId, Ty>,
+    pub expr_tys: IndexVec<ExprId, Ty>,
 }
 
 #[derive(Default, Debug)]

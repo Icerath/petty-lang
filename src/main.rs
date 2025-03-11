@@ -2,6 +2,8 @@ use ty::TyCtx;
 
 mod ast;
 mod ast_analysis;
+mod ast_lowering;
+mod hir;
 mod parse;
 mod span;
 mod symbol;
@@ -24,8 +26,8 @@ fn main() {
     let src = std + include_str!("../examples/brainfuck.pebble");
 
     let ast = try_miette!(parse::parse(&src));
-    println!("{ast}");
     let mut tcx = TyCtx::default();
     let analysis = ast_analysis::analyze(&ast, &mut tcx);
-    println!("{analysis:?}");
+    let hir = ast_lowering::lower_ast(ast, analysis, &tcx);
+    println!("{hir:?}");
 }
