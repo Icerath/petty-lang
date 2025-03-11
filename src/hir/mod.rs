@@ -1,3 +1,5 @@
+#![expect(dead_code)]
+
 use index_vec::IndexVec;
 use thin_vec::ThinVec;
 
@@ -42,6 +44,7 @@ pub enum ExprKind {
     Unary { op: UnaryOp, expr: ExprId },
     Literal(Lit),
     Block(ThinVec<ExprId>),
+    // FnDecl { ident: Symbol, params: ThinVec<Param>, body: ExprId }, - Might be better repr
     FnDecl { ident: Symbol, params: ThinVec<Param>, ret: Ty, body: ThinVec<ExprId> },
 }
 
