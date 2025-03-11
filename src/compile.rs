@@ -5,8 +5,8 @@ pub fn compile(src: &str) -> miette::Result<()> {
     let src = std + src;
 
     let ast = parse(&src)?;
-    let mut tcx = TyCtx::default();
-    let analysis = ast_analysis::analyze(&ast, &mut tcx);
+    let tcx = TyCtx::default();
+    let analysis = ast_analysis::analyze(&ast, &tcx);
     let hir = ast_lowering::lower_ast(ast, analysis, &tcx);
     println!("{hir}");
     Ok(())

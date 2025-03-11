@@ -23,10 +23,10 @@ struct Collector<'ast, 'tcx> {
     ty_info: TyInfo,
     bodies: Vec<Body>,
     ast: &'ast Ast,
-    tcx: &'tcx mut TyCtx,
+    tcx: &'tcx TyCtx,
 }
 
-fn setup_ty_info(ast: &Ast, tcx: &mut TyCtx) -> TyInfo {
+fn setup_ty_info(ast: &Ast, tcx: &TyCtx) -> TyInfo {
     let mut ty_info = TyInfo::default();
 
     let shared = tcx.unit().clone();
@@ -35,7 +35,7 @@ fn setup_ty_info(ast: &Ast, tcx: &mut TyCtx) -> TyInfo {
     ty_info
 }
 
-pub fn analyze(ast: &Ast, tcx: &mut TyCtx) -> TyInfo {
+pub fn analyze(ast: &Ast, tcx: &TyCtx) -> TyInfo {
     let ty_info = setup_ty_info(ast, tcx);
     let body = global_body(tcx);
     let mut collector = Collector { ty_info, ast, tcx, bodies: vec![body] };
@@ -48,7 +48,7 @@ pub fn analyze(ast: &Ast, tcx: &mut TyCtx) -> TyInfo {
     ty_info
 }
 
-fn global_body(tcx: &mut TyCtx) -> Body {
+fn global_body(tcx: &TyCtx) -> Body {
     let mut body = Body::default();
     let common =
         [("bool", tcx.bool()), ("int", tcx.int()), ("char", tcx.char()), ("str", tcx.str())]
@@ -230,8 +230,7 @@ impl Collector<'_, '_> {
                     let block_ty = self.analyze_block(els);
                     self.tcx.eq(&expected_ty, &block_ty);
                 } else {
-                    let unit = self.tcx.unit().clone(); // This should be allowed without a clone in the future.
-                    self.tcx.eq(&expected_ty, &unit);
+                    self.tcx.eq(&expected_ty, self.tcx.unit());
                 }
                 self.ty_info.expr_tys[id] = expected_ty;
             }

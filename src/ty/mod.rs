@@ -1,16 +1,10 @@
 mod common;
 
-use std::{fmt, hash::Hash, rc::Rc};
+use std::{cell::RefCell, fmt, hash::Hash, rc::Rc};
 
 use common::CommonTypes;
 use index_vec::IndexVec;
 use thin_vec::ThinVec;
-
-#[derive(Default, Debug)]
-pub struct TyCtx {
-    subs: IndexVec<TyVid, Ty>,
-    common: CommonTypes,
-}
 
 #[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Ty {
@@ -48,17 +42,43 @@ pub enum TyKind {
     Infer(TyVid),
 }
 
+#[derive(Default, Debug)]
+pub struct TyCtx {
+    inner: RefCell<TyCtxInner>,
+    common: CommonTypes,
+}
+
 impl TyCtx {
-    pub fn new_infer(&mut self) -> Ty {
+    pub fn new_infer(&self) -> Ty {
+        self.inner.borrow_mut().new_infer()
+    }
+    pub fn infer_shallow(&self, ty: &Ty) -> Ty {
+        self.inner.borrow().infer_shallow(ty)
+    }
+    pub fn infer_deep(&self, ty: &Ty) -> Ty {
+        self.inner.borrow().infer_deep(ty)
+    }
+    pub fn eq(&self, lhs: &Ty, rhs: &Ty) {
+        self.inner.borrow_mut().eq(lhs, rhs);
+    }
+}
+
+#[derive(Default, Debug)]
+struct TyCtxInner {
+    subs: IndexVec<TyVid, Ty>,
+}
+
+impl TyCtxInner {
+    fn new_infer(&mut self) -> Ty {
         Ty::from(TyKind::Infer(self.vid()))
     }
 
-    pub fn vid(&mut self) -> TyVid {
+    fn vid(&mut self) -> TyVid {
         let id = self.subs.next_idx();
         self.subs.push(Ty::from(TyKind::Infer(id)))
     }
 
-    pub fn infer_shallow(&self, ty: &Ty) -> Ty {
+    fn infer_shallow(&self, ty: &Ty) -> Ty {
         match *ty.kind() {
             TyKind::Infer(var) if self.subs[var] == *ty => panic!("Failed to infer"),
             TyKind::Infer(var) => self.infer_shallow(&self.subs[var]),
@@ -66,7 +86,7 @@ impl TyCtx {
         }
     }
 
-    pub fn infer_deep(&self, ty: &Ty) -> Ty {
+    fn infer_deep(&self, ty: &Ty) -> Ty {
         let ty = self.infer_shallow(ty);
         match ty.kind() {
             TyKind::Array(of) => TyKind::Array(self.infer_deep(of)).into(),
@@ -74,7 +94,7 @@ impl TyCtx {
         }
     }
 
-    pub fn eq(&mut self, lhs: &Ty, rhs: &Ty) {
+    fn eq(&mut self, lhs: &Ty, rhs: &Ty) {
         match (lhs.kind(), rhs.kind()) {
             (TyKind::Infer(l), TyKind::Infer(r)) if l == r => {}
             (TyKind::Infer(var), _) => self.insert(*var, rhs),
