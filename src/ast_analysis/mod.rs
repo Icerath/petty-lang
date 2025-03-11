@@ -99,6 +99,7 @@ impl Collector<'_, '_> {
 
     fn read_ast_ty(&mut self, id: ast::TypeId) -> Ty {
         let ty = match self.ast.types[id] {
+            ast::Ty::Unit => self.tcx.unit().clone(),
             ast::Ty::Array(of) => TyKind::Array(self.read_ast_ty(of)).into(),
             ast::Ty::Name(name) => self.read_named_ty(name),
         };
