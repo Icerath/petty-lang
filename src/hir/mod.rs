@@ -47,6 +47,7 @@ pub enum ExprKind {
     // FnDecl { ident: Symbol, params: ThinVec<Param>, body: ExprId }, - Might be better repr
     FnDecl { ident: Symbol, params: ThinVec<Param>, ret: Ty, body: ThinVec<ExprId> },
     Let { ident: Symbol, expr: ExprId },
+    If { arms: ThinVec<IfStmt>, els: ThinVec<ExprId> },
 }
 
 type BinaryOp = crate::ast::BinaryOp;
@@ -72,4 +73,10 @@ pub struct ArraySeg {
 pub struct Param {
     pub ident: Symbol,
     pub ty: Ty,
+}
+
+#[derive(Debug)]
+pub struct IfStmt {
+    pub condition: ExprId,
+    pub body: ThinVec<ExprId>,
 }

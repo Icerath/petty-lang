@@ -210,6 +210,9 @@ impl Collector<'_, '_> {
                 if let &Some(els) = els {
                     let block_ty = self.analyze_block(els);
                     self.tcx.eq(&expected_ty, &block_ty);
+                } else {
+                    let unit = self.tcx.unit().clone(); // This should be allowed without a clone in the future.
+                    self.tcx.eq(&expected_ty, &unit);
                 }
                 self.ty_info.expr_tys[id] = expected_ty;
             }

@@ -34,10 +34,12 @@ impl Lowering<'_, '_> {
         // Safety: We check once at lower_ast that ty_info can hold all of ast's expressions.
         &self.ty_info.expr_tys[expr_id]
     }
+
     fn lower(&mut self, ast_expr: ast::ExprId) -> hir::ExprId {
         let hir_expr = self.lower_inner(ast_expr);
         self.hir.exprs.push(hir_expr)
     }
+
     fn lower_inner(&mut self, expr_id: ast::ExprId) -> hir::Expr {
         match &self.ast.exprs[expr_id] {
             &ast::Expr::Binary { lhs, op, rhs } => hir::Expr {
@@ -50,8 +52,31 @@ impl Lowering<'_, '_> {
                 self.lower_fn_decl(*ident, params, *ret, *block, expr_id)
             }
             &ast::Expr::Let { ident, expr, .. } => self.lower_let_stmt(ident, expr),
+            ast::Expr::If { arms, els } => self.lower_if_stmt(arms, *els, expr_id),
             expr => todo!("{expr:?}"),
         }
+    }
+
+    fn lower_if_stmt(
+        &mut self,
+        arms: &[ast::IfStmt],
+        els: Option<ast::BlockId>,
+        id: ast::ExprId,
+    ) -> hir::Expr {
+        let arms = arms
+            .iter()
+            .map(|arm| hir::IfStmt {
+                condition: self.lower(arm.condition),
+                body: self.lower_block_inner(arm.body).1,
+            })
+            .collect();
+
+        let els = match els {
+            Some(els) => self.lower_block_inner(els).1,
+            None => ThinVec::new(),
+        };
+
+        hir::Expr { ty: self.get_ty(id).clone(), kind: ExprKind::If { arms, els } }
     }
 
     fn lower_let_stmt(&mut self, ident: Symbol, expr: ast::ExprId) -> hir::Expr {
