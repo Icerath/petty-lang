@@ -3,6 +3,7 @@ mod ast_analysis;
 mod ast_lowering;
 mod compile;
 mod hir;
+mod hir_codegen;
 mod parse;
 mod span;
 mod symbol;
