@@ -19,10 +19,10 @@ impl Span {
     pub fn shrink(self, n: u32) -> Self {
         (self.start + n..self.end - n).into()
     }
-    pub fn into_range(self) -> Range<u32> {
+    pub const fn into_range(self) -> Range<u32> {
         self.start..self.end
     }
-    pub fn into_range_usize(self) -> Range<usize> {
+    pub const fn into_range_usize(self) -> Range<usize> {
         self.start as usize..self.end as usize
     }
 }
@@ -34,7 +34,7 @@ impl From<Range<u32>> for Span {
 }
 
 impl Index<Span> for str {
-    type Output = str;
+    type Output = Self;
     fn index(&self, index: Span) -> &Self::Output {
         &self[index.into_range_usize()]
     }
@@ -42,6 +42,6 @@ impl Index<Span> for str {
 
 impl From<Span> for miette::SourceSpan {
     fn from(span: Span) -> Self {
-        miette::SourceSpan::from(span.into_range_usize())
+        Self::from(span.into_range_usize())
     }
 }

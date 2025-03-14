@@ -128,7 +128,7 @@ impl Parse for Block {
                 }
             }
         }
-        Ok(Block { stmts, is_expr })
+        Ok(Self { stmts, is_expr })
     }
 }
 
@@ -163,8 +163,8 @@ impl Parse for Ty {
             TokenKind::Not,
         ])?;
         Ok(match any.kind {
-            TokenKind::Not => Ty::Never,
-            TokenKind::Ident => Ty::Name(Symbol::from(&stream.lexer.src()[any.span])),
+            TokenKind::Not => Self::Never,
+            TokenKind::Ident => Self::Name(Symbol::from(&stream.lexer.src()[any.span])),
             TokenKind::LBracket => {
                 let of = stream.parse()?;
                 stream.expect(TokenKind::RBracket)?;
@@ -186,7 +186,7 @@ fn parse_fn(stream: &mut Stream) -> Result<Expr> {
 
     let chosen = stream.any(&[TokenKind::LBrace, TokenKind::ThinArrow])?;
     let mut ret = None;
-    if let TokenKind::ThinArrow = chosen.kind {
+    if chosen.kind == TokenKind::ThinArrow {
         ret = Some(stream.parse()?);
         stream.expect(TokenKind::LBrace)?;
     }
@@ -198,7 +198,7 @@ fn parse_let(stream: &mut Stream) -> Result<Expr> {
     let ident = stream.expect_ident()?;
     let tok = stream.any(&[TokenKind::Colon, TokenKind::Eq])?;
     let mut ty = None;
-    if let TokenKind::Colon = tok.kind {
+    if tok.kind == TokenKind::Colon {
         ty = Some(stream.parse()?);
         stream.expect(TokenKind::Eq)?;
     }
@@ -239,11 +239,12 @@ fn parse_ifchain(stream: &mut Stream) -> Result<Expr> {
 impl Parse for StructInitField {
     fn parse(stream: &mut Stream) -> Result<Self> {
         let field = stream.expect_ident()?;
-        let mut expr = None;
-        if stream.peek()?.kind == TokenKind::Colon {
+        let expr = if stream.peek()?.kind == TokenKind::Colon {
             _ = stream.next();
-            expr = Some(stream.parse()?);
-        }
+            Some(stream.parse()?)
+        } else {
+            None
+        };
         Ok(Self { field, expr })
     }
 }
@@ -251,11 +252,12 @@ impl Parse for StructInitField {
 impl Parse for ArraySeg {
     fn parse(stream: &mut Stream) -> Result<Self> {
         let expr = stream.parse()?;
-        let mut repeated = None;
-        if stream.peek()?.kind == TokenKind::Semicolon {
+        let repeated = if stream.peek()?.kind == TokenKind::Semicolon {
             _ = stream.next();
-            repeated = Some(stream.parse()?);
-        }
+            Some(stream.parse()?)
+        } else {
+            None
+        };
         Ok(Self { expr, repeated })
     }
 }

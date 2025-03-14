@@ -19,7 +19,7 @@ impl<'src> Lexer<'src> {
     pub fn current_pos(&self) -> u32 {
         (self.src.len() - self.chars.as_str().len()) as u32
     }
-    pub fn src(&self) -> &'src str {
+    pub const fn src(&self) -> &'src str {
         self.src
     }
     pub fn span_eof(&self) -> Span {

@@ -4,8 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [lints.clippy]
-pedantic = { level = "warn", priority = -1 }
-cast_possible_truncation = "allow"           # We do a lot of casts from usize -> u32
+nursery = { level = "warn", priority = -1 }
 
 [dependencies]
 index_vec = "0.1.4"

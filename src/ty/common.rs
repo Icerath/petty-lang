@@ -16,7 +16,7 @@ macro_rules! common {
             }
         }
         impl TyCtx {
-            $(pub fn $name(&self) -> &Ty {
+            $(pub const fn $name(&self) -> &Ty {
                 &self.common.$name
             })*
         }

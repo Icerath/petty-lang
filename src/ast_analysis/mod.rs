@@ -110,8 +110,7 @@ impl Collector<'_, '_> {
             ast::Ty::Name(name) => self.read_named_ty(name),
         };
         self.ty_info.type_ids[id] = ty.clone();
-
-        ty.clone()
+        ty
     }
 
     fn read_named_ty(&self, name: Symbol) -> Ty {
@@ -205,7 +204,7 @@ impl Collector<'_, '_> {
                 self.tcx.subtype(&body_ret, ret);
             }
             Expr::Let { ident, ty, expr } => {
-                let expr_ty = self.analyze_expr(*expr).clone();
+                let expr_ty = self.analyze_expr(*expr);
                 if let Some(ty) = ty {
                     let ty = self.read_ast_ty(*ty);
                     self.tcx.subtype(&expr_ty, &ty);
@@ -281,7 +280,7 @@ impl Collector<'_, '_> {
                 let Some(first) = segments.next() else {
                     break 'block TyKind::Array(self.tcx.new_infer()).into();
                 };
-                let first_ty = self.analyze_expr(first.expr).clone();
+                let first_ty = self.analyze_expr(first.expr);
 
                 for seg in segments {
                     let seg_ty = self.analyze_expr(seg.expr);

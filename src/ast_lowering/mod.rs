@@ -114,11 +114,7 @@ impl Lowering<'_, '_> {
             })
             .collect();
 
-        let els = match els {
-            Some(els) => self.lower_block_inner(els).1,
-            None => ThinVec::new(),
-        };
-
+        let els = els.map_or_else(ThinVec::new, |els| self.lower_block_inner(els).1);
         hir::Expr { ty: self.get_ty(id).clone(), kind: ExprKind::If { arms, els } }
     }
 
@@ -205,11 +201,6 @@ impl Lowering<'_, '_> {
         if block.is_expr {
             return false;
         }
-        match block.stmts.last() {
-            // we don't need a unit if the last expr is already a unit
-            Some(last) => self.get_ty(*last) != self.tcx.unit(),
-            // empty blocks don't need to need a terminating unit
-            None => false,
-        }
+        block.stmts.last().is_some_and(|last| self.get_ty(*last) != self.tcx.unit())
     }
 }
