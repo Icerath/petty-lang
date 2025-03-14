@@ -1,3 +1,2 @@
 let x: int = abort;
 let y: ! = abort;
-// let z: ! = 1; - correctly fails to compile
