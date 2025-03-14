@@ -137,7 +137,7 @@ impl Iterator for Lexer<'_> {
                 '\'' => self.char(),
                 '"' => self.str(),
                 '0'..='9' => self.int(),
-                'a'..='z' | 'A'..='Z' | '_' => self.ident(),
+                'a'..='z' | 'A'..='Z' | '_' => self.ident(span_start),
                 _ => {
                     let span = miette::LabeledSpan::at(
                         span_start as usize..self.current_pos() as usize,
@@ -193,10 +193,27 @@ impl Lexer<'_> {
         }
         TokenKind::Int
     }
-    fn ident(&mut self) -> TokenKind {
+    fn ident(&mut self, span_start: u32) -> TokenKind {
         while (self.chars.clone().next()).is_some_and(|c| c.is_ascii_alphabetic() || c == '_') {
             self.chars.next();
         }
-        TokenKind::Ident
+        let span = Span::from(span_start..self.current_pos());
+        ident_kind(&self.src()[span])
+    }
+}
+
+fn ident_kind(str: &str) -> TokenKind {
+    match str {
+        "true" => TokenKind::True,
+        "false" => TokenKind::False,
+        "abort" => TokenKind::Abort,
+        "let" => TokenKind::Let,
+        "while" => TokenKind::While,
+        "if" => TokenKind::If,
+        "else" => TokenKind::Else,
+        "fn" => TokenKind::Fn,
+        "return" => TokenKind::Return,
+        "break" => TokenKind::Break,
+        _ => TokenKind::Ident,
     }
 }

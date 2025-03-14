@@ -221,12 +221,12 @@ fn parse_ifchain(stream: &mut Stream) -> Result<Expr> {
         let body = stream.parse()?;
         arms.push(IfStmt { condition, body });
         let next = stream.peek()?;
-        if !(next.kind == TokenKind::Ident && &stream.lexer.src()[next.span] == "else") {
+        if next.kind != TokenKind::Else {
             break None;
         }
         _ = stream.next();
         let next = stream.peek()?;
-        if next.kind == TokenKind::Ident && &stream.lexer.src()[next.span] == "if" {
+        if next.kind == TokenKind::If {
             _ = stream.next();
             continue;
         }
@@ -303,12 +303,6 @@ impl TryFrom<TokenKind> for BinaryOp {
 }
 
 fn parse_atom_with(stream: &mut Stream, tok: Token) -> Result<ExprId> {
-    macro_rules! kw {
-        ($kw: ident) => {
-            &stream.lexer.src()[tok.span] == stringify!($kw)
-        };
-    }
-
     macro_rules! lit {
         ($lit: expr) => {
             Ok(Expr::Lit($lit))
@@ -316,13 +310,13 @@ fn parse_atom_with(stream: &mut Stream, tok: Token) -> Result<ExprId> {
     }
     let expr = match tok.kind {
         TokenKind::LBrace => Ok(Expr::Block(stream.parse()?)),
-        TokenKind::Ident if kw!(abort) => Ok(Expr::Lit(Lit::Abort)),
-        TokenKind::Ident if kw!(fn) => parse_fn(stream),
-        TokenKind::Ident if kw!(let) => parse_let(stream),
-        TokenKind::Ident if kw!(while) => parse_while(stream),
-        TokenKind::Ident if kw!(if) => parse_ifchain(stream),
-        TokenKind::Ident if &stream.lexer.src()[tok.span] == "true" => lit!(Lit::Bool(true)),
-        TokenKind::Ident if &stream.lexer.src()[tok.span] == "false" => lit!(Lit::Bool(false)),
+        TokenKind::Abort => lit!(Lit::Abort),
+        TokenKind::Fn => parse_fn(stream),
+        TokenKind::Let => parse_let(stream),
+        TokenKind::While => parse_while(stream),
+        TokenKind::If => parse_ifchain(stream),
+        TokenKind::True => lit!(Lit::Bool(true)),
+        TokenKind::False => lit!(Lit::Bool(false)),
         TokenKind::Int => lit!(Lit::Int(stream.lexer.src()[tok.span].parse::<i64>().unwrap())),
         TokenKind::Str => {
             // TODO: Escaping

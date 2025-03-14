@@ -40,6 +40,17 @@ pub enum TokenKind {
     Not,
     Greater,
     Less,
+    // Keywords
+    Abort,
+    Let,
+    While,
+    If,
+    Else,
+    Fn,
+    Return,
+    Break,
+    True,
+    False,
     // Literals
     Char,
     Int,
@@ -56,6 +67,16 @@ pub struct Token {
 impl TokenKind {
     pub const fn repr(self) -> &'static str {
         match self {
+            Self::Abort => "abort",
+            Self::Break => "break",
+            Self::Let => "let",
+            Self::While => "while",
+            Self::True => "true",
+            Self::False => "false",
+            Self::If => "if",
+            Self::Else => "else",
+            Self::Return => "return",
+            Self::Fn => "fn",
             Self::Char => "character",
             Self::Colon => ":",
             Self::Comma => ",",
