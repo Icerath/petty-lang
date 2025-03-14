@@ -28,7 +28,8 @@ common![
     bool: Bool,
     int: Int,
     char: Char,
-    str: Str
+    str: Str,
+    never: Never,
 ];
 
 impl fmt::Debug for CommonTypes {

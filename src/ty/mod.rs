@@ -30,6 +30,7 @@ index_vec::define_index_type! {
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum TyKind {
+    Never,
     Unit,
     Bool,
     Int,

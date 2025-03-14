@@ -95,6 +95,7 @@ pub struct ArraySeg {
 
 #[derive(Debug)]
 pub enum Lit {
+    Abort,
     Unit,
     Bool(bool),
     Int(i64),

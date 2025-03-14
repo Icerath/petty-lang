@@ -212,6 +212,7 @@ impl Writer<'_> {
 
     fn display_lit(&mut self, lit: &Lit) {
         match lit {
+            Lit::Abort => self.f.push_str("abort"),
             Lit::Unit => self.f.push_str("()"),
             Lit::Bool(bool) => _ = write!(self.f, "{bool}"),
             Lit::Int(int) => _ = write!(self.f, "{int}"),

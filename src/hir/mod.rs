@@ -60,6 +60,7 @@ pub type UnaryOp = crate::ast::UnaryOp;
 
 #[derive(Debug)]
 pub enum Lit {
+    Abort,
     Unit,
     Bool(bool),
     Int(i64),

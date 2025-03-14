@@ -306,9 +306,9 @@ fn parse_atom_with(stream: &mut Stream, tok: Token) -> Result<ExprId> {
             Ok(Expr::Lit($lit))
         };
     }
-
     let expr = match tok.kind {
         TokenKind::LBrace => Ok(Expr::Block(stream.parse()?)),
+        TokenKind::Ident if kw!(abort) => Ok(Expr::Lit(Lit::Abort)),
         TokenKind::Ident if kw!(fn) => parse_fn(stream),
         TokenKind::Ident if kw!(let) => parse_let(stream),
         TokenKind::Ident if kw!(while) => parse_while(stream),

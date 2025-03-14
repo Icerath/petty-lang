@@ -31,7 +31,8 @@ impl Gen for ExprId {
             ExprKind::Break => "break".generate(codegen),
             ExprKind::Ident(ident) => ident.as_str().generate(codegen),
             ExprKind::Literal(lit) => match lit {
-                Lit::Unit => codegen.f.push_str("()"),
+                Lit::Abort => r#"panic!("abort")"#.generate(codegen),
+                Lit::Unit => "()".generate(codegen),
                 Lit::Bool(bool) => _ = write!(codegen.f, "{bool}"),
                 Lit::Int(int) => _ = write!(codegen.f, "{int}i64"),
                 Lit::Char(char) => _ = write!(codegen.f, "{char:?}"),
@@ -154,6 +155,7 @@ impl Gen for [ExprId] {
 impl Gen for Ty {
     fn generate(&self, codegen: &mut Codegen) {
         match self.kind() {
+            TyKind::Never => "!".generate(codegen),
             TyKind::Unit => "()".generate(codegen),
             TyKind::Bool => "bool".generate(codegen),
             TyKind::Int => "i64".generate(codegen),
