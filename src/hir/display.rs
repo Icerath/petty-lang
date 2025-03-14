@@ -55,6 +55,10 @@ impl Writer<'_> {
         // FIXME: take precedence into account to use minimum parens needed
         let inside_expr = mem::replace(&mut self.inside_expr, true);
         match &self.hir.exprs[expr].kind {
+            ExprKind::Return(expr) => {
+                self.f.push_str("return");
+                self.display_expr(*expr);
+            }
             ExprKind::Break => self.f.push_str("break"),
             ExprKind::Literal(lit) => self.display_lit(lit),
             ExprKind::Binary { lhs, op, rhs } => {

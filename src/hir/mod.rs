@@ -53,6 +53,7 @@ pub enum ExprKind {
     If { arms: ThinVec<IfStmt>, els: ThinVec<ExprId> },
     Loop(ThinVec<ExprId>),
     Break,
+    Return(ExprId),
 }
 
 pub type BinaryOp = crate::ast::BinaryOp;

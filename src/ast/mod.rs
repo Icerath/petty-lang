@@ -79,6 +79,7 @@ pub enum Expr {
     Let { ident: Symbol, ty: Option<TypeId>, expr: ExprId },
     While { condition: ExprId, block: BlockId },
     If { arms: ThinVec<IfStmt>, els: Option<BlockId> },
+    Return(Option<ExprId>),
     FnDecl { ident: Symbol, params: ThinVec<Param>, ret: Option<TypeId>, block: BlockId },
 }
 

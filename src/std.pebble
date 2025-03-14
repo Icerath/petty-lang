@@ -1,5 +1,5 @@
 fn strlen(str: str) -> int {
-    1
+    return 1
 }
 fn str_find(haystack: str, needle: str) -> int {
     1

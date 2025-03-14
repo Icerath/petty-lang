@@ -28,6 +28,7 @@ impl Gen for ExprId {
     fn generate(&self, codegen: &mut Codegen) {
         let expr = &codegen.hir.exprs[*self];
         match &expr.kind {
+            ExprKind::Return(expr) => ("return ", expr).generate(codegen),
             ExprKind::Break => "break".generate(codegen),
             ExprKind::Ident(ident) => ident.as_str().generate(codegen),
             ExprKind::Literal(lit) => match lit {

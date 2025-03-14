@@ -255,6 +255,14 @@ impl Collector<'_, '_> {
                 };
                 self.ty_info.expr_tys[id] = ty;
             }
+            Expr::Return(expr) => {
+                let ty = expr
+                    .as_ref()
+                    .map_or_else(|| self.tcx.unit().clone(), |expr| self.analyze_expr(*expr));
+                dbg!(ty);
+                //todo!("{ty}");
+                self.ty_info.expr_tys[id] = self.tcx.never().clone();
+            }
             expr => todo!("{expr:?}"),
         }
         self.ty_info.expr_tys[id].clone()

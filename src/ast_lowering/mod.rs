@@ -62,6 +62,13 @@ impl Lowering<'_, '_> {
                 ty: self.get_ty(expr_id).clone(),
                 kind: ExprKind::Index { expr: self.lower(expr), index: self.lower(index) },
             },
+            &ast::Expr::Return(expr) => {
+                let inner = match expr {
+                    Some(expr) => self.lower(expr),
+                    None => self.hir.exprs.push(hir::Expr::unit(self.tcx)),
+                };
+                hir::Expr { ty: self.tcx.never().clone(), kind: ExprKind::Return(inner) }
+            }
             expr => todo!("{expr:?}"),
         }
     }
