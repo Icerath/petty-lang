@@ -31,6 +31,7 @@ impl Writer<'_> {
     fn display_ty(&mut self, ty: TypeId) {
         let ty = &self.ast.types[ty];
         match ty {
+            Ty::Never => self.f.push('!'),
             Ty::Unit => self.f.push_str("()"),
             Ty::Array(ty) => {
                 self.f.push('[');

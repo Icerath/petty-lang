@@ -58,6 +58,7 @@ pub struct Param {
 
 #[derive(Debug)]
 pub enum Ty {
+    Never,
     Unit,
     Name(Symbol),
     Array(TypeId),
