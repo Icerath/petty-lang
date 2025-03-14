@@ -8,7 +8,7 @@ fn main() {
     while instruction_ptr < strlen(input) {
         let instr = input[instruction_ptr];
         instruction_ptr += 1;
-        if (instr == '>') {
+        if instr == '>' {
             data_ptr += 1;
         } else if instr == '<' {
             data_ptr -= 1;
@@ -20,11 +20,11 @@ fn main() {
         } else if instr == ',' {
         } else if instr == '[' {
             if cells[data_ptr] == 0 {
-                instruction_ptr = (str_find(input[(instruction_ptr .. strlen(input))], "]") + 1);
+                instruction_ptr = str_find(input[instruction_ptr..strlen(input)], "]") + 1;
             }
         } else if instr == ']' {
             if cells[data_ptr] == 0 {
-                instruction_ptr = (str_rfind(input[(0 .. instruction_ptr)], "]") + 1);
+                instruction_ptr = str_rfind(input[0..instruction_ptr], "]") + 1;
             }
         }
     }
