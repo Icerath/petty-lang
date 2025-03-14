@@ -62,6 +62,9 @@ impl TyCtx {
     pub fn eq(&self, lhs: &Ty, rhs: &Ty) {
         self.inner.borrow_mut().eq(lhs, rhs);
     }
+    pub fn subtype(&self, lhs: &Ty, rhs: &Ty) {
+        self.inner.borrow_mut().subtype(lhs, rhs);
+    }
 }
 
 #[derive(Default, Debug)]
@@ -96,27 +99,47 @@ impl TyCtxInner {
     }
 
     fn eq(&mut self, lhs: &Ty, rhs: &Ty) {
+        self.try_eq(lhs, rhs).unwrap();
+    }
+
+    fn try_eq(&mut self, lhs: &Ty, rhs: &Ty) -> Result<(), [Ty; 2]> {
         match (lhs.kind(), rhs.kind()) {
-            (TyKind::Infer(l), TyKind::Infer(r)) if l == r => {}
-            (TyKind::Infer(var), _) => self.insert(*var, rhs),
-            (_, TyKind::Infer(var)) => self.insert(*var, lhs),
-            (TyKind::Array(lhs), TyKind::Array(rhs)) => self.eq(lhs, rhs),
-            (lhs, rhs) => assert_eq!(lhs, rhs),
+            (TyKind::Infer(l), TyKind::Infer(r)) if l == r => Ok(()),
+            (TyKind::Infer(var), _) => self.insertl(*var, rhs),
+            (_, TyKind::Infer(var)) => self.insertr(lhs, *var),
+            (TyKind::Array(lhs), TyKind::Array(rhs)) => self.try_eq(lhs, rhs),
+            (lhs, rhs) if lhs == rhs => Ok(()),
+            (..) => Err([lhs.clone(), rhs.clone()]),
         }
     }
 
-    fn insert(&mut self, var: TyVid, ty: &Ty) {
+    /// Says that `lhs` must be a subtype of `rhs`.
+    /// never is a subtype of everything.
+    fn subtype(&mut self, lhs: &Ty, rhs: &Ty) {
+        let Err([lhs, _rhs]) = self.try_eq(lhs, rhs) else { return };
+        assert_eq!(lhs.kind(), &TyKind::Never);
+    }
+
+    fn insertl(&mut self, var: TyVid, ty: &Ty) -> Result<(), [Ty; 2]> {
+        self.insert_inner(var, ty, true)
+    }
+
+    fn insertr(&mut self, ty: &Ty, var: TyVid) -> Result<(), [Ty; 2]> {
+        self.insert_inner(var, ty, false)
+    }
+
+    fn insert_inner(&mut self, var: TyVid, ty: &Ty, is_left: bool) -> Result<(), [Ty; 2]> {
         if let Some(sub) = self.subs.get(var).cloned() {
             if let &TyKind::Infer(sub) = sub.kind() {
                 if sub == var {
                     self.subs[var] = ty.clone();
                 }
             }
-            self.eq(ty, &sub);
-            return;
+            return if is_left { self.try_eq(&sub, ty) } else { self.try_eq(ty, &sub) };
         }
         assert!(!self.occurs_in(var, ty), "Infinite type: {var:?} - {ty:?}");
         self.subs[var] = ty.clone();
+        Ok(())
     }
 
     fn occurs_in(&self, this: TyVid, ty: &Ty) -> bool {

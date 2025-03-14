@@ -148,8 +148,8 @@ impl Collector<'_, '_> {
                 let rhs = self.analyze_expr(rhs);
                 self.tcx.eq(&lhs, &rhs);
 
-                self.tcx.eq(&lhs, self.tcx.int());
-                self.tcx.eq(&rhs, self.tcx.int());
+                self.tcx.subtype(&lhs, self.tcx.int());
+                self.tcx.subtype(&rhs, self.tcx.int());
 
                 let ty = match op {
                     BinaryOp::Range => TyKind::Range.into(),
@@ -186,7 +186,7 @@ impl Collector<'_, '_> {
 
                 for (arg, param) in std::iter::zip(args, params) {
                     let arg = self.analyze_expr(*arg);
-                    self.tcx.eq(&arg, param);
+                    self.tcx.subtype(&arg, param);
                 }
                 self.ty_info.expr_tys[id] = ret.clone();
             }
@@ -201,13 +201,13 @@ impl Collector<'_, '_> {
                 }
                 let block = &self.ast.blocks[*block];
                 let body_ret = self.analyze_body_with(block, body).0;
-                self.tcx.eq(&body_ret, ret);
+                self.tcx.subtype(&body_ret, ret);
             }
             Expr::Let { ident, ty, expr } => {
                 let expr_ty = self.analyze_expr(*expr).clone();
                 if let Some(ty) = ty {
                     let ty = self.read_ast_ty(*ty);
-                    self.tcx.eq(&expr_ty, &ty);
+                    self.tcx.subtype(&expr_ty, &ty);
                 }
                 let body = self.bodies.last_mut().unwrap();
                 body.variables.insert(*ident, expr_ty);
@@ -221,7 +221,7 @@ impl Collector<'_, '_> {
 
                 for arm in arms {
                     let ty = self.analyze_expr(arm.condition);
-                    self.tcx.eq(&ty, self.tcx.bool());
+                    self.tcx.subtype(&ty, self.tcx.bool());
                     let block_ty = self.analyze_block(arm.body);
                     if let Some(expected_ty) = expected_ty.as_ref() {
                         self.tcx.eq(expected_ty, &block_ty);
@@ -232,9 +232,9 @@ impl Collector<'_, '_> {
                 let expected_ty = expected_ty.unwrap();
                 if let &Some(els) = els {
                     let block_ty = self.analyze_block(els);
-                    self.tcx.eq(&expected_ty, &block_ty);
+                    self.tcx.subtype(&expected_ty, &block_ty);
                 } else {
-                    self.tcx.eq(&expected_ty, self.tcx.unit());
+                    self.tcx.subtype(&expected_ty, self.tcx.unit());
                 }
                 self.ty_info.expr_tys[id] = expected_ty;
             }
