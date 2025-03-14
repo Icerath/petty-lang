@@ -1,0 +1,4 @@
+
+fn hi() -> int {
+    return "str"
+}

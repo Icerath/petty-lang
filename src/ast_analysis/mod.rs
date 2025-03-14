@@ -13,10 +13,17 @@ pub struct TyInfo {
     pub type_ids: IndexVec<TypeId, Ty>,
 }
 
-#[derive(Default, Debug)]
+#[derive(Debug)]
 struct Body {
     ty_names: HashMap<Symbol, Ty>,
     variables: HashMap<Symbol, Ty>,
+    ret: Ty,
+}
+
+impl Body {
+    pub fn new(ret: Ty) -> Self {
+        Self { ty_names: HashMap::default(), variables: HashMap::default(), ret }
+    }
 }
 
 struct Collector<'ast, 'tcx> {
@@ -41,7 +48,7 @@ pub fn analyze(ast: &Ast, tcx: &TyCtx) -> TyInfo {
     let mut collector = Collector { ty_info, ast, tcx, bodies: vec![body] };
     let top_level_exprs = ast.top_level.iter().copied().collect();
     let top_level = ast::Block { stmts: top_level_exprs, is_expr: false };
-    collector.analyze_body_with(&top_level, Body::default());
+    collector.analyze_body_with(&top_level, Body::new(tcx.never().clone()));
 
     let mut ty_info = collector.ty_info;
     ty_info.expr_tys.iter_mut().for_each(|ty| *ty = tcx.infer_deep(ty));
@@ -51,7 +58,7 @@ pub fn analyze(ast: &Ast, tcx: &TyCtx) -> TyInfo {
 }
 
 fn global_body(tcx: &TyCtx) -> Body {
-    let mut body = Body::default();
+    let mut body = Body::new(tcx.never().clone());
     let common =
         [("bool", tcx.bool()), ("int", tcx.int()), ("char", tcx.char()), ("str", tcx.str())]
             .map(|(name, ty)| (Symbol::from(name), ty.clone()));
@@ -191,11 +198,11 @@ impl Collector<'_, '_> {
                 self.ty_info.expr_tys[id] = ret.clone();
             }
             Expr::FnDecl { block, params, ident, .. } => {
-                let mut body = Body::default();
                 let fn_ty = self.bodies.last().unwrap().variables[ident].clone();
                 let TyKind::Function { params: param_tys, ret } = fn_ty.kind() else {
                     unreachable!()
                 };
+                let mut body = Body::new(ret.clone());
                 for (param, ty) in std::iter::zip(params, param_tys) {
                     body.variables.insert(param.ident, ty.clone());
                 }
@@ -259,8 +266,8 @@ impl Collector<'_, '_> {
                 let ty = expr
                     .as_ref()
                     .map_or_else(|| self.tcx.unit().clone(), |expr| self.analyze_expr(*expr));
-                dbg!(ty);
-                //todo!("{ty}");
+                let expected = &self.bodies.last().unwrap().ret;
+                self.tcx.subtype(&ty, expected);
                 self.ty_info.expr_tys[id] = self.tcx.never().clone();
             }
             expr => todo!("{expr:?}"),
