@@ -205,12 +205,15 @@ impl Collector<'_, '_> {
             }
             Expr::Let { ident, ty, expr } => {
                 let expr_ty = self.analyze_expr(*expr);
-                if let Some(ty) = ty {
+                let ty = if let Some(ty) = ty {
                     let ty = self.read_ast_ty(*ty);
                     self.tcx.subtype(&expr_ty, &ty);
-                }
+                    ty
+                } else {
+                    expr_ty
+                };
                 let body = self.bodies.last_mut().unwrap();
-                body.variables.insert(*ident, expr_ty);
+                body.variables.insert(*ident, ty);
             }
             Expr::While { condition, block } => {
                 self.analyze_expr(*condition);

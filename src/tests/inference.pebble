@@ -1,4 +1,3 @@
-
 let condition = [];
 condition = [true];
 if condition[0] {};

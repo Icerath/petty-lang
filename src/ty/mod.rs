@@ -63,6 +63,7 @@ impl TyCtx {
     pub fn eq(&self, lhs: &Ty, rhs: &Ty) {
         self.inner.borrow_mut().eq(lhs, rhs);
     }
+    #[track_caller]
     pub fn subtype(&self, lhs: &Ty, rhs: &Ty) {
         self.inner.borrow_mut().subtype(lhs, rhs);
     }
