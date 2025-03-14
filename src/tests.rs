@@ -11,7 +11,13 @@ fn test_never() {
 }
 
 #[test]
-#[should_panic = ""]
+#[should_panic = "expected `!`, found `int`"]
 fn never_subtype() {
     compile(include_str!("tests/never_subtype.pebble")).unwrap();
+}
+
+#[test]
+#[should_panic = "expected `int`, found `str`"]
+fn fail_variables() {
+    compile(include_str!("tests/fail_variables.pebble")).unwrap();
 }

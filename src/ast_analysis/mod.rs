@@ -135,7 +135,7 @@ impl Collector<'_, '_> {
             } => {
                 let lhs = self.analyze_expr(lhs);
                 let rhs = self.analyze_expr(rhs);
-                self.tcx.eq(&lhs, &rhs);
+                self.tcx.subtype(&rhs, &lhs);
             }
             &Expr::Binary { lhs, rhs, op: BinaryOp::Eq | BinaryOp::Neq } => {
                 let lhs = self.analyze_expr(lhs);

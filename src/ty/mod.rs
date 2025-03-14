@@ -59,6 +59,7 @@ impl TyCtx {
     pub fn infer_deep(&self, ty: &Ty) -> Ty {
         self.inner.borrow().infer_deep(ty)
     }
+    #[track_caller]
     pub fn eq(&self, lhs: &Ty, rhs: &Ty) {
         self.inner.borrow_mut().eq(lhs, rhs);
     }
@@ -98,6 +99,7 @@ impl TyCtxInner {
         }
     }
 
+    #[track_caller]
     fn eq(&mut self, lhs: &Ty, rhs: &Ty) {
         self.try_eq(lhs, rhs).unwrap();
     }
@@ -115,9 +117,10 @@ impl TyCtxInner {
 
     /// Says that `lhs` must be a subtype of `rhs`.
     /// never is a subtype of everything.
+    #[track_caller]
     fn subtype(&mut self, lhs: &Ty, rhs: &Ty) {
-        let Err([lhs, _rhs]) = self.try_eq(lhs, rhs) else { return };
-        assert_eq!(lhs.kind(), &TyKind::Never);
+        let Err([lhs, rhs]) = self.try_eq(lhs, rhs) else { return };
+        assert!(lhs.kind() == &TyKind::Never, "expected `{rhs}`, found `{lhs}`",);
     }
 
     fn insertl(&mut self, var: TyVid, ty: &Ty) -> Result<(), [Ty; 2]> {
@@ -160,5 +163,37 @@ impl TyCtxInner {
 impl fmt::Debug for Ty {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Debug::fmt(&self.kind, f)
+    }
+}
+
+impl fmt::Display for TyKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Bool => write!(f, "bool"),
+            Self::Char => write!(f, "char"),
+            Self::Int => write!(f, "int"),
+            Self::Str => write!(f, "str"),
+            Self::Unit => write!(f, "()"),
+            Self::Never => write!(f, "!"),
+            Self::Range => write!(f, "Range"),
+            Self::RangeInclusive => write!(f, "RangeInclusive"),
+            Self::Array(of) => write!(f, "[{of}]"),
+            Self::Function { params, ret } => {
+                write!(f, "fn")?;
+                let mut debug_tuple = f.debug_tuple("");
+                for param in params {
+                    debug_tuple.field(param);
+                }
+                debug_tuple.finish()?;
+                write!(f, " -> {ret}")
+            }
+            Self::Infer(var) => write!(f, "infer<{}>", var.index()),
+        }
+    }
+}
+
+impl fmt::Display for Ty {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.kind().fmt(f)
     }
 }
