@@ -34,12 +34,11 @@ struct Collector<'ast, 'tcx> {
 }
 
 fn setup_ty_info(ast: &Ast, tcx: &TyCtx) -> TyInfo {
-    let mut ty_info = TyInfo::default();
-
     let shared = tcx.unit().clone();
-    ty_info.expr_tys.extend(std::iter::repeat_n(shared.clone(), ast.exprs.len()));
-    ty_info.type_ids.extend(std::iter::repeat_n(shared, ast.types.len()));
-    ty_info
+    TyInfo {
+        expr_tys: std::iter::repeat_n(shared.clone(), ast.exprs.len()).collect(),
+        type_ids: std::iter::repeat_n(shared, ast.types.len()).collect(),
+    }
 }
 
 pub fn analyze(ast: &Ast, tcx: &TyCtx) -> TyInfo {
