@@ -1,6 +1,9 @@
 use crate::ast::{BinaryOp, Expr, ExprId, Lit, UnaryOp};
 
-use super::{Stream, parse_atom_with, token::TokenKind};
+use super::{
+    Stream, parse_atom_with,
+    token::{Token, TokenKind},
+};
 use miette::Result;
 
 pub fn parse_expr_inner(
@@ -94,25 +97,23 @@ fn parse_leaf_expr(stream: &mut Stream, allow_struct_init: bool) -> Result<ExprI
 
 fn parse_unary_expr(stream: &mut Stream, allow_struct_init: bool) -> Result<ExprId> {
     _ = allow_struct_init;
-    let expr = match stream.peek()?.kind {
+    let token = stream.next()?;
+    let expr = match token.kind {
         kind @ (TokenKind::Minus | TokenKind::Not) => {
-            _ = stream.next();
-            Ok(Expr::Unary {
-                op: if kind == TokenKind::Minus { UnaryOp::Neg } else { UnaryOp::Not },
-                expr: parse_paren_expr(stream)?,
-            })
+            let op = if kind == TokenKind::Minus { UnaryOp::Neg } else { UnaryOp::Not };
+            let next = stream.next()?;
+            Expr::Unary { op, expr: parse_paren_expr(stream, next)? }
         }
         TokenKind::LBracket => {
-            _ = stream.next();
-            parse_array(stream)
+            let segments = stream.parse_separated(TokenKind::Comma, TokenKind::RBracket)?;
+            Expr::Lit(Lit::Array { segments })
         }
-        _ => return parse_paren_expr(stream),
-    }?;
+        _ => return parse_paren_expr(stream, token),
+    };
     Ok(stream.ast.exprs.push(expr))
 }
 
-fn parse_paren_expr(stream: &mut Stream) -> Result<ExprId> {
-    let token = stream.next()?;
+fn parse_paren_expr(stream: &mut Stream, token: Token) -> Result<ExprId> {
     if token.kind == TokenKind::LParen {
         if stream.peek()?.kind == TokenKind::RParen {
             _ = stream.next();
@@ -124,9 +125,4 @@ fn parse_paren_expr(stream: &mut Stream) -> Result<ExprId> {
         return Ok(expr);
     }
     parse_atom_with(stream, token)
-}
-
-fn parse_array(stream: &mut Stream) -> Result<Expr> {
-    let segments = stream.parse_separated(TokenKind::Comma, TokenKind::RBracket)?;
-    Ok(Expr::Lit(Lit::Array { segments }))
 }
