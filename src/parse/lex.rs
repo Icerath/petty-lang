@@ -35,127 +35,118 @@ impl<'src> Lexer<'src> {
 impl Iterator for Lexer<'_> {
     type Item = Result<Token>;
 
-    #[allow(clippy::too_many_lines)]
+    #[expect(clippy::cast_possible_truncation)]
     fn next(&mut self) -> Option<Self::Item> {
-        let mut span_start;
-        let mut char;
-
-        let kind = loop {
-            span_start = self.current_pos();
-            char = self.chars.next()?;
-            let kind = match char {
-                // Ignore
-                _ if char.is_whitespace() => {
-                    self.whitespace();
-                    continue;
-                }
-                '/' if self.chars.clone().next() == Some('/') => {
-                    self.line_comment();
-                    continue;
-                }
-
-                // Longer Symbols
-                '-' if self.chars.clone().next() == Some('>') => {
+        let char = loop {
+            match self.chars.next()? {
+                char if char.is_whitespace() => self.whitespace(),
+                '/' if self.chars.clone().next() == Some('/') => self.line_comment(),
+                '/' if self.chars.clone().next() == Some('*') => self.block_comment(),
+                char => break char,
+            }
+        };
+        let span_start = self.current_pos() - char.len_utf8() as u32;
+        let kind = match char {
+            // Longer Symbols
+            '-' if self.chars.clone().next() == Some('>') => {
+                self.chars.next();
+                TokenKind::ThinArrow
+            }
+            '.' if self.chars.clone().next() == Some('.') => {
+                self.chars.next();
+                if self.chars.clone().next() == Some('=') {
                     self.chars.next();
-                    TokenKind::ThinArrow
-                }
-                '.' if self.chars.clone().next() == Some('.') => {
-                    self.chars.next();
-                    if self.chars.clone().next() == Some('=') {
-                        self.chars.next();
-                        TokenKind::DotDotEq
-                    } else {
-                        TokenKind::DotDot
-                    }
-                }
-                '.' if self.chars.clone().next() == Some('.') => {
-                    self.chars.next();
+                    TokenKind::DotDotEq
+                } else {
                     TokenKind::DotDot
                 }
+            }
+            '.' if self.chars.clone().next() == Some('.') => {
+                self.chars.next();
+                TokenKind::DotDot
+            }
 
-                '+' if self.chars.clone().next() == Some('=') => {
-                    self.chars.next();
-                    TokenKind::PlusEq
-                }
-                '-' if self.chars.clone().next() == Some('=') => {
-                    self.chars.next();
-                    TokenKind::MinusEq
-                }
-                '*' if self.chars.clone().next() == Some('=') => {
-                    self.chars.next();
-                    TokenKind::MulEq
-                }
-                '/' if self.chars.clone().next() == Some('=') => {
-                    self.chars.next();
-                    TokenKind::DivEq
-                }
-                '%' if self.chars.clone().next() == Some('=') => {
-                    self.chars.next();
-                    TokenKind::ModEq
-                }
+            '+' if self.chars.clone().next() == Some('=') => {
+                self.chars.next();
+                TokenKind::PlusEq
+            }
+            '-' if self.chars.clone().next() == Some('=') => {
+                self.chars.next();
+                TokenKind::MinusEq
+            }
+            '*' if self.chars.clone().next() == Some('=') => {
+                self.chars.next();
+                TokenKind::MulEq
+            }
+            '/' if self.chars.clone().next() == Some('=') => {
+                self.chars.next();
+                TokenKind::DivEq
+            }
+            '%' if self.chars.clone().next() == Some('=') => {
+                self.chars.next();
+                TokenKind::ModEq
+            }
 
-                '=' if self.chars.clone().next() == Some('=') => {
-                    self.chars.next();
-                    TokenKind::EqEq
-                }
+            '=' if self.chars.clone().next() == Some('=') => {
+                self.chars.next();
+                TokenKind::EqEq
+            }
 
-                '!' if self.chars.clone().next() == Some('=') => {
-                    self.chars.next();
-                    TokenKind::Neq
-                }
-                '>' if self.chars.clone().next() == Some('=') => {
-                    self.chars.next();
-                    TokenKind::GreaterEq
-                }
-                '<' if self.chars.clone().next() == Some('=') => {
-                    self.chars.next();
-                    TokenKind::LessEq
-                }
+            '!' if self.chars.clone().next() == Some('=') => {
+                self.chars.next();
+                TokenKind::Neq
+            }
+            '>' if self.chars.clone().next() == Some('=') => {
+                self.chars.next();
+                TokenKind::GreaterEq
+            }
+            '<' if self.chars.clone().next() == Some('=') => {
+                self.chars.next();
+                TokenKind::LessEq
+            }
 
-                // Symbols
-                '.' => TokenKind::Dot,
-                ',' => TokenKind::Comma,
-                ';' => TokenKind::Semicolon,
-                ':' => TokenKind::Colon,
+            // Symbols
+            '.' => TokenKind::Dot,
+            ',' => TokenKind::Comma,
+            ';' => TokenKind::Semicolon,
+            ':' => TokenKind::Colon,
 
-                '{' => TokenKind::LBrace,
-                '}' => TokenKind::RBrace,
-                '[' => TokenKind::LBracket,
-                ']' => TokenKind::RBracket,
-                '(' => TokenKind::LParen,
-                ')' => TokenKind::RParen,
+            '{' => TokenKind::LBrace,
+            '}' => TokenKind::RBrace,
+            '[' => TokenKind::LBracket,
+            ']' => TokenKind::RBracket,
+            '(' => TokenKind::LParen,
+            ')' => TokenKind::RParen,
 
-                '+' => TokenKind::Plus,
-                '-' => TokenKind::Minus,
-                '*' => TokenKind::Star,
-                '/' => TokenKind::Slash,
-                '%' => TokenKind::Percent,
+            '+' => TokenKind::Plus,
+            '-' => TokenKind::Minus,
+            '*' => TokenKind::Star,
+            '/' => TokenKind::Slash,
+            '%' => TokenKind::Percent,
 
-                '=' => TokenKind::Eq,
-                '!' => TokenKind::Not,
-                '>' => TokenKind::Greater,
-                '<' => TokenKind::Less,
+            '=' => TokenKind::Eq,
+            '!' => TokenKind::Not,
+            '>' => TokenKind::Greater,
+            '<' => TokenKind::Less,
 
-                '\'' => self.char(),
-                '"' => self.str(),
-                '0'..='9' => self.int(),
-                'a'..='z' | 'A'..='Z' | '_' => self.ident(span_start),
-                _ => {
-                    let span = miette::LabeledSpan::at(
-                        span_start as usize..self.current_pos() as usize,
-                        "here",
-                    );
+            '\'' => self.char(),
+            '"' => self.str(),
+            '0'..='9' => self.int(),
+            'a'..='z' | 'A'..='Z' | '_' => self.ident(span_start),
+            _ => {
+                let span = miette::LabeledSpan::at(
+                    span_start as usize..self.current_pos() as usize,
+                    "here",
+                );
 
-                    return Some(Err(miette::miette!(
-                        labels = vec![span],
-                        "Unexpected character '{char}'"
-                    )
-                    .with_source_code(self.src.to_string())));
-                }
-            };
-            self.prev_end = span_start;
-            break kind;
+                return Some(Err(miette::miette!(
+                    labels = vec![span],
+                    "Unexpected character '{char}'"
+                )
+                .with_source_code(self.src.to_string())));
+            }
         };
+        self.prev_end = span_start;
         Some(Ok(Token { span: Span::from(span_start..self.current_pos()), kind }))
     }
 }
@@ -170,7 +161,11 @@ impl Lexer<'_> {
             self.chars.next();
         }
     }
-
+    fn block_comment(&mut self) {
+        _ = self.chars.next();
+        let Some(end) = self.chars.as_str().find("*/") else { return };
+        self.chars = self.chars.as_str()[end + 2..].chars();
+    }
     fn char(&mut self) -> TokenKind {
         if self.chars.next().is_some_and(|c| c == '\\') {
             self.chars.next();

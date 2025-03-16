@@ -18,7 +18,6 @@ impl fmt::Display for Mir {
                                 RValue::BinaryExpr { lhs, op, rhs } => {
                                     write!(f, "{op:?}({lhs}, {rhs})")
                                 }
-
                                 RValue::Use(arg) => write!(f, "{arg}"),
                                 RValue::Call { function, args } => {
                                     write!(f, "call {function}")?;
