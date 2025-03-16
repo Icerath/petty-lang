@@ -118,8 +118,7 @@ fn parse_paren_expr(stream: &mut Stream, token: Token) -> Result<ExprId> {
             _ = stream.next();
             return Ok(stream.ast.exprs.push(Expr::Lit(Lit::Unit)));
         }
-
-        let expr = parse_expr_inner(stream, 0, true)?;
+        let expr = stream.parse()?;
         stream.expect(TokenKind::RParen)?;
         return Ok(expr);
     }
