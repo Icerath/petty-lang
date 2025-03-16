@@ -104,10 +104,9 @@ fn parse_unary_expr(stream: &mut Stream, allow_struct_init: bool) -> Result<Expr
             let next = stream.next()?;
             Expr::Unary { op, expr: parse_paren_expr(stream, next)? }
         }
-        TokenKind::LBracket => {
-            let segments = stream.parse_separated(TokenKind::Comma, TokenKind::RBracket)?;
-            Expr::Lit(Lit::Array { segments })
-        }
+        TokenKind::LBracket => Expr::Lit(Lit::Array {
+            segments: stream.parse_separated(TokenKind::Comma, TokenKind::RBracket)?,
+        }),
         _ => return parse_paren_expr(stream, token),
     };
     Ok(stream.ast.exprs.push(expr))
