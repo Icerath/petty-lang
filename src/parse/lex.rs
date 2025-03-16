@@ -16,12 +16,14 @@ impl<'src> Lexer<'src> {
     pub fn new(src: &'src str) -> Self {
         Self { src, prev_end: 0, chars: src.chars() }
     }
-    pub fn current_pos(&self) -> u32 {
-        (self.src.len() - self.chars.as_str().len()) as u32
-    }
     pub const fn src(&self) -> &'src str {
         self.src
     }
+    #[expect(clippy::cast_possible_truncation)]
+    pub fn current_pos(&self) -> u32 {
+        (self.src.len() - self.chars.as_str().len()) as u32
+    }
+    #[expect(clippy::cast_possible_truncation)]
     pub fn span_eof(&self) -> Span {
         Span::from(self.current_pos()..self.src.len() as u32)
     }
