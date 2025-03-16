@@ -9,12 +9,12 @@ use super::token::{Token, TokenKind};
 pub struct Lexer<'src> {
     src: &'src str,
     chars: Chars<'src>,
-    prev_end: u32,
+    token_start: u32,
 }
 
 impl<'src> Lexer<'src> {
     pub fn new(src: &'src str) -> Self {
-        Self { src, prev_end: 0, chars: src.chars() }
+        Self { src, token_start: 0, chars: src.chars() }
     }
     pub const fn src(&self) -> &'src str {
         self.src
@@ -28,7 +28,7 @@ impl<'src> Lexer<'src> {
         Span::from(self.current_pos()..self.src.len() as u32)
     }
     pub fn span(&self) -> Span {
-        Span::from(self.prev_end..self.current_pos())
+        Span::from(self.token_start..self.current_pos())
     }
 }
 
@@ -45,7 +45,7 @@ impl Iterator for Lexer<'_> {
                 char => break char,
             }
         };
-        let span_start = self.current_pos() - char.len_utf8() as u32;
+        self.token_start = self.current_pos() - char.len_utf8() as u32;
         let kind = match char {
             // Longer Symbols
             '-' if self.chars.clone().next() == Some('>') => {
@@ -132,13 +132,9 @@ impl Iterator for Lexer<'_> {
             '\'' => self.char(),
             '"' => self.str(),
             '0'..='9' => self.int(),
-            'a'..='z' | 'A'..='Z' | '_' => self.ident(span_start),
+            'a'..='z' | 'A'..='Z' | '_' => self.ident(self.token_start),
             _ => {
-                let span = miette::LabeledSpan::at(
-                    span_start as usize..self.current_pos() as usize,
-                    "here",
-                );
-
+                let span = miette::LabeledSpan::at(self.span().into_range_usize(), "here");
                 return Some(Err(miette::miette!(
                     labels = vec![span],
                     "Unexpected character '{char}'"
@@ -146,8 +142,7 @@ impl Iterator for Lexer<'_> {
                 .with_source_code(self.src.to_string())));
             }
         };
-        self.prev_end = span_start;
-        Some(Ok(Token { span: Span::from(span_start..self.current_pos()), kind }))
+        Some(Ok(Token { span: Span::from(self.token_start..self.current_pos()), kind }))
     }
 }
 
