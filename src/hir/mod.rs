@@ -1,4 +1,5 @@
 mod display;
+mod lower;
 
 use index_vec::IndexVec;
 use thin_vec::ThinVec;
@@ -7,6 +8,8 @@ use crate::{
     symbol::Symbol,
     ty::{Ty, TyCtx},
 };
+
+pub use lower::lower;
 
 #[derive(Default, Debug)]
 pub struct Hir {

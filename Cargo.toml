@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [lints.clippy]
-nursery = { level = "warn", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
 
 [dependencies]
 index_vec = "0.1.4"
