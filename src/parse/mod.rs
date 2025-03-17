@@ -10,7 +10,7 @@ use crate::{
     symbol::Symbol,
 };
 use lex::Lexer;
-use miette::{LabeledSpan, Result, miette};
+use miette::{Error, LabeledSpan, Result, miette};
 use thin_vec::{ThinVec, thin_vec};
 use token::{Token, TokenKind};
 
@@ -71,15 +71,21 @@ impl Stream<'_> {
         if toks.contains(&token.kind) {
             return Ok(token);
         }
+        Err(self.any_failed(token, toks))
+    }
+    #[inline(never)]
+    #[cold]
+    fn any_failed(&mut self, found: Token, toks: &[TokenKind]) -> Error {
         let label = LabeledSpan::at(self.lexer.span(), "here");
-        Err(miette!(
+        miette!(
             labels = vec![label],
             "expected one of {}, found `{}`",
             toks.iter().map(|kind| format!("`{}`", kind.repr())).collect::<Vec<_>>().join(" or "),
-            token.kind.repr()
+            found.kind.repr()
         )
-        .with_source_code(self.lexer.src().to_string()))
+        .with_source_code(self.lexer.src().to_string())
     }
+
     fn expect_ident(&mut self) -> Result<Symbol> {
         let token = self.expect(TokenKind::Ident)?;
         Ok(Symbol::from(&self.lexer.src()[token.span]))
@@ -89,15 +95,19 @@ impl Stream<'_> {
     }
     fn parse_separated<T: Parse>(&mut self, sep: TokenKind, term: TokenKind) -> Result<ThinVec<T>> {
         let mut args = thin_vec![];
-        while self.peek()?.kind != term {
-            let expr = self.parse()?;
-            args.push(expr);
+        loop {
             if self.peek()?.kind == term {
+                _ = self.next();
                 break;
             }
-            self.expect(sep)?;
+            let expr = self.parse()?;
+            args.push(expr);
+            match self.next()? {
+                tok if tok.kind == term => break,
+                tok if tok.kind == sep => continue,
+                found => return Err(self.any_failed(found, &[sep, term])),
+            }
         }
-        _ = self.next();
         Ok(args)
     }
 }
