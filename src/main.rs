@@ -14,7 +14,7 @@ mod symbol;
 mod ty;
 
 fn main() {
-    match compile::compile(include_str!("../examples/brainfuck.pebble")) {
+    match compile::compile_and_dump(include_str!("../examples/brainfuck.pebble")) {
         Ok(()) => {}
         Err(err) => eprintln!("{err:?}"),
     }
