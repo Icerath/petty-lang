@@ -65,32 +65,29 @@ impl Lowering<'_> {
     }
 
     fn lower(&mut self, id: ExprId) -> Operand {
-        self.lower_inner(id)
+        match self.lower_inner(id) {
+            RValue::Use(operand) => operand,
+            rvalue => {
+                let place = self.new_place();
+                self.current().push(Statement::Assign { place, rvalue });
+                Operand::Place(place)
+            }
+        }
     }
 
     #[expect(clippy::too_many_lines)]
-    fn lower_inner(&mut self, id: ExprId) -> Operand {
+    fn lower_inner(&mut self, id: ExprId) -> RValue {
         // FIXME: we should return an rvalue and let lower handle whether or not to assign
         let expr = &self.hir.exprs[id];
         match &expr.kind {
-            ExprKind::Literal(lit) => match self.lit_rvalue(lit) {
-                RValue::Use(operand) => operand,
-                rvalue => {
-                    let place = self.new_place();
-                    self.current().push(Statement::Assign { place, rvalue });
-                    Operand::Place(place)
-                }
-            },
+            ExprKind::Literal(lit) => self.lit_rvalue(lit),
             ExprKind::Unary { op, expr } => {
                 let operand = self.lower(*expr);
                 let op = match op {
                     hir::UnaryOp::Not => mir::UnaryOp::Not,
                     hir::UnaryOp::Neg => mir::UnaryOp::Neg,
                 };
-                let rvalue = RValue::UnaryExpr { op, operand };
-                let place = self.new_place();
-                self.current().push(Statement::Assign { place, rvalue });
-                Operand::Place(place)
+                RValue::UnaryExpr { op, operand }
             }
             ExprKind::FnDecl(decl) => {
                 let hir::FnDecl { ident, params, body, .. } = &**decl;
@@ -103,19 +100,19 @@ impl Lowering<'_> {
                 }
                 self.finish_with(Terminator::Return(last));
                 self.bodies.pop().unwrap();
-                Operand::UNIT
+                RValue::Use(Operand::UNIT)
             }
             ExprKind::Let { ident, expr } => {
-                let expr = self.lower(*expr);
+                let rvalue = self.lower_inner(*expr);
                 let place = self.mir.bodies[self.bodies.last().unwrap().body].new_place();
                 self.bodies.last_mut().unwrap().variables.insert(*ident, place);
-                self.current().push(Statement::Assign { place, rvalue: RValue::Use(expr) });
-                Operand::Place(place)
+                self.current().push(Statement::Assign { place, rvalue });
+                RValue::Use(Operand::Place(place))
             }
             ExprKind::Return(expr) => {
                 let place = self.lower(*expr);
                 self.finish_with(Terminator::Return(place));
-                Operand::UNIT
+                RValue::Use(Operand::UNIT)
             }
             ExprKind::Loop(block) => {
                 let loop_block = self.body_ref().blocks.next_idx() + 3;
@@ -134,7 +131,7 @@ impl Lowering<'_> {
                     Terminator::Goto(block @ BlockId::PLACEHOLDER) => *block = after_loop,
                     _ => unreachable!(),
                 }
-                Operand::UNIT
+                RValue::Use(Operand::UNIT)
             }
             ExprKind::If { arms, els } => {
                 let mut jump_to_ends = Vec::with_capacity(arms.len());
@@ -168,10 +165,10 @@ impl Lowering<'_> {
                         _ => unreachable!(),
                     }
                 }
-                Operand::Place(out_place)
+                RValue::Use(Operand::Place(out_place))
             }
             ExprKind::Assignment { lhs, expr } => {
-                let rvalue = RValue::Use(self.lower(*expr));
+                let rvalue = self.lower_inner(*expr);
                 let (place, deref) = self.get_lvalue_place(lhs);
                 let stmt = if deref {
                     Statement::DerefAssign { place, rvalue }
@@ -179,46 +176,33 @@ impl Lowering<'_> {
                     Statement::Assign { place, rvalue }
                 };
                 self.current().push(stmt);
-                Operand::Constant(Constant::Unit)
+                RValue::Use(Operand::Constant(Constant::Unit))
             }
             &ExprKind::Binary { lhs, op, rhs } => {
                 let lhs = self.lower(lhs);
                 let rhs = self.lower(rhs);
-                let rvalue = RValue::BinaryExpr { lhs, op, rhs };
-                let place = self.new_place();
-                self.current().push(Statement::Assign { place, rvalue });
-                Operand::Place(place)
+                RValue::BinaryExpr { lhs, op, rhs }
             }
             ExprKind::Ident(ident) => match self.load_ident(*ident) {
-                RValue::Use(operand) => operand,
-                rvalue => {
-                    let place = self.new_place();
-                    self.current().push(Statement::Assign { place, rvalue });
-                    Operand::Place(place)
-                }
+                RValue::Use(operand) => RValue::Use(operand),
+                rvalue => rvalue,
             },
             ExprKind::FnCall { function, args } => {
                 let function = self.lower(*function);
                 let args = args.iter().map(|arg| self.lower(*arg)).collect();
 
-                let rvalue = RValue::Call { function, args };
-                let place = self.new_place();
-                self.current().push(Statement::Assign { place, rvalue });
-                Operand::Place(place)
+                RValue::Call { function, args }
             }
             ExprKind::Break => {
                 self.finish_with(Terminator::Goto(self.last_loop));
-                Operand::UNIT
+                RValue::Use(Operand::UNIT)
             }
             ExprKind::Index { expr, index } => {
                 let indexee = self.lower(*expr);
                 let index = self.lower(*index);
-                let rvalue = RValue::Index { indexee, index };
-                let place = self.new_place();
-                self.current().push(Statement::Assign { place, rvalue });
-                Operand::Place(place)
+                RValue::Index { indexee, index }
             }
-            ExprKind::Block(exprs) => self.block_expr(exprs),
+            ExprKind::Block(exprs) => RValue::Use(self.block_expr(exprs)),
         }
     }
 
