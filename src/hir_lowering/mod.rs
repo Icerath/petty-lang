@@ -1,7 +1,7 @@
 use std::{collections::HashMap, mem};
 
 use crate::{
-    hir::{self, ExprId, ExprKind, Hir, LValue, Lit},
+    hir::{self, ArraySeg, ExprId, ExprKind, Hir, LValue, Lit},
     mir::{
         self, Block, BlockId, Body, BodyId, Constant, Mir, Operand, Place, RValue, Statement,
         Terminator,
@@ -261,17 +261,39 @@ impl Lowering<'_> {
         panic!();
     }
 
-    #[expect(clippy::match_same_arms)]
-    fn lit_rvalue(&self, lit: &Lit) -> RValue {
-        _ = self;
+    fn lit_rvalue(&mut self, lit: &Lit) -> RValue {
         match *lit {
             Lit::Unit => RValue::Use(Operand::Constant(Constant::Unit)),
             Lit::Bool(bool) => RValue::Use(Operand::Constant(Constant::Bool(bool))),
             Lit::Int(int) => RValue::Use(Operand::Constant(Constant::Int(int))),
             Lit::Char(char) => RValue::Use(Operand::Constant(Constant::Char(char))),
             Lit::String(str) => RValue::Use(Operand::Constant(Constant::Str(str))),
-            Lit::Array { .. } => RValue::Abort, // TODO
+            Lit::Array { ref segments } => self.lower_array_lit(segments),
             Lit::Abort => RValue::Abort,
         }
+    }
+
+    fn lower_array_lit(&mut self, segments: &[ArraySeg]) -> RValue {
+        if segments.is_empty() {
+            return RValue::Use(Operand::Constant(Constant::EmptyArray));
+        }
+        let array = self.new_place();
+        let throwaway = self.new_place();
+        self.current().push(Statement::Assign {
+            place: array,
+            rvalue: RValue::Use(Operand::Constant(Constant::EmptyArray)),
+        });
+        for seg in segments {
+            let value = self.lower(seg.expr);
+            let repeat = match seg.repeated {
+                Some(repeated) => self.lower(repeated),
+                None => Operand::Constant(Constant::Int(1)),
+            };
+            self.current().push(Statement::Assign {
+                place: throwaway,
+                rvalue: RValue::Extend { array, value, repeat },
+            });
+        }
+        RValue::Use(Operand::Place(array))
     }
 }

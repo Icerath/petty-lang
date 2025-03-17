@@ -36,6 +36,9 @@ impl fmt::Display for Mir {
                                 RValue::Index { indexee, index } => {
                                     write!(f, "index {indexee}[{index}])")
                                 }
+                                RValue::Extend { array, value, repeat } => {
+                                    write!(f, "extend _{array:?}[{value}; [{repeat}]]")
+                                }
                                 RValue::IndexRef { indexee, index } => {
                                     write!(f, "index ref {indexee}[{index})]")
                                 }
@@ -88,6 +91,7 @@ impl fmt::Display for Operand {
 impl fmt::Display for Constant {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::EmptyArray => write!(f, "[]"),
             Self::Unit => write!(f, "()"),
             Self::Bool(bool) => write!(f, "{bool}"),
             Self::Int(int) => write!(f, "{int}"),

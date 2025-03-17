@@ -66,6 +66,7 @@ pub enum Statement {
 
 #[derive(Debug)]
 pub enum RValue {
+    Extend { array: Place, value: Operand, repeat: Operand },
     Index { indexee: Operand, index: Operand },
     IndexRef { indexee: Operand, index: Operand },
     Abort,
@@ -89,6 +90,7 @@ impl Operand {
 #[derive(Debug, PartialEq, Eq)]
 pub enum Constant {
     Unit,
+    EmptyArray,
     Bool(bool),
     Int(i64),
     Char(char),
@@ -96,7 +98,7 @@ pub enum Constant {
     Func(BodyId),
 }
 
-type BinaryOp = crate::hir::BinaryOp;
+pub type BinaryOp = crate::hir::BinaryOp;
 
 #[derive(Debug, Clone, Copy)]
 pub enum UnaryOp {
