@@ -298,10 +298,15 @@ impl Collector<'_, '_> {
                     break 'block TyKind::Array(self.tcx.new_infer()).into();
                 };
                 let first_ty = self.analyze_expr(first.expr);
-
+                if let Some(repeated) = first.repeated {
+                    self.tcx.eq(&self.analyze_expr(repeated), self.tcx.int());
+                }
                 for seg in segments {
                     let seg_ty = self.analyze_expr(seg.expr);
                     self.tcx.eq(&first_ty, &seg_ty);
+                    if let Some(repeated) = seg.repeated {
+                        self.tcx.eq(&self.analyze_expr(repeated), self.tcx.int());
+                    }
                 }
                 TyKind::Array(first_ty).into()
             }
