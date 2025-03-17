@@ -55,7 +55,25 @@ pub enum ExprKind {
     Return(ExprId),
 }
 
-pub type BinaryOp = crate::ast::BinaryOp;
+#[derive(Debug, Clone, Copy)]
+pub enum BinaryOp {
+    Add,
+    Sub,
+    Mul,
+    Div,
+    Mod,
+
+    Range,
+    RangeInclusive,
+
+    Less,
+    Greater,
+    LessEq,
+    GreaterEq,
+    Eq,
+    Neq,
+}
+
 pub type UnaryOp = crate::ast::UnaryOp;
 
 #[derive(Debug)]

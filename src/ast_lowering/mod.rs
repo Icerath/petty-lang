@@ -86,10 +86,28 @@ impl Lowering<'_, '_> {
                 };
                 hir::Expr { ty: self.ty_info.expr_tys[expr_id].clone(), kind }
             }
-            &ast::Expr::Binary { lhs, op, rhs } => hir::Expr {
-                ty: self.ty_info.expr_tys[expr_id].clone(),
-                kind: hir::ExprKind::Binary { lhs: self.lower(lhs), op, rhs: self.lower(rhs) },
-            },
+            &ast::Expr::Binary { lhs, op, rhs } => {
+                let op = match op {
+                    BinaryOp::Add => hir::BinaryOp::Add,
+                    BinaryOp::Sub => hir::BinaryOp::Sub,
+                    BinaryOp::Mul => hir::BinaryOp::Mul,
+                    BinaryOp::Div => hir::BinaryOp::Div,
+                    BinaryOp::Mod => hir::BinaryOp::Mod,
+                    BinaryOp::Less => hir::BinaryOp::Less,
+                    BinaryOp::Greater => hir::BinaryOp::Greater,
+                    BinaryOp::LessEq => hir::BinaryOp::LessEq,
+                    BinaryOp::GreaterEq => hir::BinaryOp::GreaterEq,
+                    BinaryOp::Eq => hir::BinaryOp::Eq,
+                    BinaryOp::Neq => hir::BinaryOp::Neq,
+                    BinaryOp::Range => hir::BinaryOp::Range,
+                    BinaryOp::RangeInclusive => hir::BinaryOp::RangeInclusive,
+                    _ => unreachable!("{op:?}"),
+                };
+                hir::Expr {
+                    ty: self.ty_info.expr_tys[expr_id].clone(),
+                    kind: hir::ExprKind::Binary { lhs: self.lower(lhs), op, rhs: self.lower(rhs) },
+                }
+            }
             &ast::Expr::Block(block) => self.lower_block(block),
             ast::Expr::Lit(lit) => self.lower_literal(lit, expr_id),
             ast::Expr::FnDecl { ident, params, ret, block } => {

@@ -177,24 +177,20 @@ impl Writer<'_> {
         use BinaryOp as B;
         let str = match op {
             B::Add => "+",
-            B::AddAssign => "+=",
+            B::Sub => "-",
+            B::Mul => "*",
             B::Div => "/",
-            B::DivAssign => "/=",
+            B::Mod => "%",
+
+            B::Range => "..",
+            B::RangeInclusive => "..=",
+
             B::Eq => "==",
             B::Greater => ">",
             B::GreaterEq => ">=",
             B::Less => "<",
             B::LessEq => "<=",
-            B::Mod => "%",
-            B::ModAssign => "%=",
-            B::Mul => "*",
-            B::MulAssign => "*=",
             B::Neq => "!=",
-            B::Range => "..",
-            B::RangeInclusive => "..=",
-            B::Sub => "-",
-            B::SubAssign => "-=",
-            B::Assign => "=",
         };
         self.f.push_str(str);
     }
