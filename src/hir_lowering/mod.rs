@@ -1,15 +1,13 @@
 use std::{collections::HashMap, mem};
 
 use crate::{
-    hir,
+    hir::{self, ExprId, ExprKind, Hir, Lit},
     mir::{
         self, Block, BlockId, Body, BodyId, Constant, Mir, Operand, Place, RValue, Statement,
         Terminator,
     },
     symbol::Symbol,
 };
-
-use super::{ExprId, ExprKind, Hir, Lit};
 
 pub fn lower(hir: &Hir) -> Mir {
     let mut mir = Mir::default();

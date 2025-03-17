@@ -6,6 +6,7 @@ mod ast_analysis;
 mod ast_lowering;
 mod compile;
 mod hir;
+mod hir_lowering;
 mod mir;
 mod parse;
 mod span;

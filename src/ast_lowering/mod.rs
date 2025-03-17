@@ -8,7 +8,7 @@ use crate::{
     ty::{Ty, TyCtx},
 };
 
-pub fn lower_ast(mut ast: Ast, ty_info: TyInfo, tcx: &TyCtx) -> Hir {
+pub fn lower(mut ast: Ast, ty_info: TyInfo, tcx: &TyCtx) -> Hir {
     assert_eq!(ast.exprs.len(), ty_info.expr_tys.len());
     let top_level = std::mem::take(&mut ast.top_level);
     let mut lowering = Lowering { ast: &ast, hir: Hir::default(), tcx, ty_info };
