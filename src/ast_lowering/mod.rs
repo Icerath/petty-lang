@@ -1,7 +1,7 @@
 use thin_vec::ThinVec;
 
 use crate::{
-    ast::{self, Ast},
+    ast::{self, Ast, BinaryOp},
     ast_analysis::TyInfo,
     hir::{self, ExprKind, Hir},
     symbol::Symbol,
@@ -40,8 +40,26 @@ impl Lowering<'_, '_> {
         self.hir.exprs.push(hir_expr)
     }
 
+    fn lower_lvalue(&mut self, expr_id: ast::ExprId) -> hir::LValue {
+        match &self.ast.exprs[expr_id] {
+            &ast::Expr::Ident(name) => hir::LValue::Name(name),
+            ast::Expr::Index { expr, index } => {
+                let indexee = Box::new(self.lower_lvalue(*expr));
+                hir::LValue::Index { indexee, index: self.lower(*index) }
+            }
+            _ => panic!("Invalid lhs of assignment"),
+        }
+    }
+
     fn lower_inner(&mut self, expr_id: ast::ExprId) -> hir::Expr {
         match &self.ast.exprs[expr_id] {
+            &ast::Expr::Binary { lhs, op: BinaryOp::Assign, rhs } => {
+                let kind = hir::ExprKind::Assignment {
+                    lhs: self.lower_lvalue(lhs),
+                    expr: self.lower(rhs),
+                };
+                hir::Expr { ty: self.ty_info.expr_tys[expr_id].clone(), kind }
+            }
             &ast::Expr::Binary { lhs, op, rhs } => hir::Expr {
                 ty: self.ty_info.expr_tys[expr_id].clone(),
                 kind: hir::ExprKind::Binary { lhs: self.lower(lhs), op, rhs: self.lower(rhs) },

@@ -1,7 +1,7 @@
 use std::{collections::HashMap, mem};
 
 use crate::{
-    hir::{self, ExprId, ExprKind, Hir, Lit},
+    hir::{self, ExprId, ExprKind, Hir, LValue, Lit},
     mir::{
         self, Block, BlockId, Body, BodyId, Constant, Mir, Operand, Place, RValue, Statement,
         Terminator,
@@ -169,6 +169,17 @@ impl Lowering<'_> {
                 }
                 Operand::Place(out_place)
             }
+            ExprKind::Assignment { lhs, expr } => {
+                let rvalue = RValue::Use(self.lower(*expr));
+                let (place, deref) = self.get_lvalue_place(lhs);
+                let stmt = if deref {
+                    Statement::DerefAssign { place, rvalue }
+                } else {
+                    Statement::Assign { place, rvalue }
+                };
+                self.current().push(stmt);
+                Operand::Constant(Constant::Unit)
+            }
             &ExprKind::Binary { lhs, op, rhs } => {
                 let lhs = self.lower(lhs);
                 let rhs = self.lower(rhs);
@@ -207,6 +218,25 @@ impl Lowering<'_> {
                 Operand::Place(place)
             }
             ExprKind::Block(exprs) => self.block_expr(exprs),
+        }
+    }
+
+    fn get_lvalue_place(&mut self, lvalue: &LValue) -> (Place, bool) {
+        match lvalue {
+            hir::LValue::Name(name) => (self.bodies.last().unwrap().variables[name], false),
+            hir::LValue::Index { indexee, index } => {
+                let index = self.lower(*index);
+                let (place, deref) = self.get_lvalue_place(indexee);
+                let new_place = self.new_place();
+
+                let inner_indexee =
+                    if deref { Operand::Deref(place) } else { Operand::Place(place) };
+                self.current().push(Statement::Assign {
+                    place: new_place,
+                    rvalue: RValue::IndexRef { indexee: inner_indexee, index },
+                });
+                (new_place, true)
+            }
         }
     }
 

@@ -25,11 +25,6 @@ impl BlockId {
     pub const PLACEHOLDER: Self = Self { _raw: u16::MAX };
 }
 
-impl Place {
-    pub const PLACEHOLDER: Self = Self { _raw: u16::MAX };
-    pub const RETURN: Self = Self { _raw: 0 };
-}
-
 #[derive(Default, Debug)]
 pub struct Mir {
     pub bodies: IndexVec<BodyId, Body>,
@@ -66,11 +61,13 @@ pub enum Terminator {
 #[derive(Debug)]
 pub enum Statement {
     Assign { place: Place, rvalue: RValue },
+    DerefAssign { place: Place, rvalue: RValue },
 }
 
 #[derive(Debug)]
 pub enum RValue {
     Index { indexee: Operand, index: Operand },
+    IndexRef { indexee: Operand, index: Operand },
     Abort,
     Use(Operand),
     BinaryExpr { lhs: Operand, op: BinaryOp, rhs: Operand },
@@ -78,11 +75,11 @@ pub enum RValue {
     Call { function: Operand, args: ThinVec<Operand> },
 }
 
-// FIXME: Too big
 #[derive(Debug, PartialEq, Eq)]
 pub enum Operand {
     Constant(Constant),
     Place(Place),
+    Deref(Place),
 }
 
 impl Operand {

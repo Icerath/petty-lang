@@ -8,7 +8,7 @@ use crate::{
     ty::TyKind,
 };
 
-use super::ExprKind;
+use super::{ExprKind, LValue};
 
 struct Writer<'hir> {
     hir: &'hir Hir,
@@ -73,6 +73,11 @@ impl Writer<'_> {
                 if inside_expr {
                     self.f.push(')');
                 }
+            }
+            ExprKind::Assignment { lhs, expr } => {
+                self.display_lvalue(lhs);
+                self.f.push_str(" = ");
+                self.display_expr(*expr);
             }
             ExprKind::Ident(ident) => self.f.push_str(ident),
             ExprKind::FnCall { function, args } => {
@@ -147,6 +152,17 @@ impl Writer<'_> {
             }
         }
         self.inside_expr = inside_expr;
+    }
+    fn display_lvalue(&mut self, lvalue: &LValue) {
+        match lvalue {
+            LValue::Name(name) => self.f.push_str(name),
+            LValue::Index { indexee, index } => {
+                self.display_lvalue(indexee);
+                self.f.push('[');
+                self.display_expr(*index);
+                self.f.push(']');
+            }
+        }
     }
 
     fn display_unary_op(&mut self, op: UnaryOp) {

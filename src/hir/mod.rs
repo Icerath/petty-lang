@@ -16,13 +16,11 @@ pub struct Hir {
 
 index_vec::define_index_type! {
     pub struct ExprId = u32;
-
     DISABLE_MAX_INDEX_CHECK = cfg!(not(debug_assertions));
 }
 
 index_vec::define_index_type! {
     pub struct BlockId = u32;
-
     DISABLE_MAX_INDEX_CHECK = cfg!(not(debug_assertions));
 }
 
@@ -42,6 +40,7 @@ impl Expr {
 pub enum ExprKind {
     Ident(Symbol),
     Binary { lhs: ExprId, op: BinaryOp, rhs: ExprId },
+    Assignment { lhs: LValue, expr: ExprId },
     Unary { op: UnaryOp, expr: ExprId },
     Literal(Lit),
     Block(ThinVec<ExprId>),
@@ -86,4 +85,10 @@ pub struct Param {
 pub struct IfStmt {
     pub condition: ExprId,
     pub body: ThinVec<ExprId>,
+}
+
+#[derive(Debug)]
+pub enum LValue {
+    Name(Symbol),
+    Index { indexee: Box<LValue>, index: ExprId },
 }

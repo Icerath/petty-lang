@@ -11,7 +11,13 @@ impl fmt::Display for Mir {
                 for statement in &block.statements {
                     write!(f, "{}", Indent(2))?;
                     match statement {
-                        Statement::Assign { place, rvalue } => {
+                        Statement::DerefAssign { place, rvalue }
+                        | Statement::Assign { place, rvalue } => {
+                            let is_deref = matches!(statement, Statement::DerefAssign { .. });
+
+                            if is_deref {
+                                write!(f, "deref ")?;
+                            }
                             write!(f, "_{place:?} = ")?;
                             match rvalue {
                                 RValue::Abort => write!(f, "abort"),
@@ -28,7 +34,10 @@ impl fmt::Display for Mir {
                                     write!(f, ")")
                                 }
                                 RValue::Index { indexee, index } => {
-                                    write!(f, "Index({indexee}, {index})")
+                                    write!(f, "index {indexee}[{index}])")
+                                }
+                                RValue::IndexRef { indexee, index } => {
+                                    write!(f, "index ref {indexee}[{index})]")
                                 }
                                 RValue::UnaryExpr { op, operand } => match op {
                                     UnaryOp::Neg => write!(f, "neg {operand}"),
@@ -69,6 +78,7 @@ impl fmt::Display for Indent {
 impl fmt::Display for Operand {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Deref(place) => write!(f, "deref _{place:?}"),
             Self::Place(place) => write!(f, "_{place:?}"),
             Self::Constant(constant) => write!(f, "const {constant}"),
         }
