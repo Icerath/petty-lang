@@ -3,7 +3,7 @@ use thin_vec::ThinVec;
 use crate::{
     ast::{self, Ast, BinaryOp},
     ast_analysis::TyInfo,
-    hir::{self, ExprKind, Hir},
+    hir::{self, Expr, ExprKind, Hir},
     symbol::Symbol,
     ty::{Ty, TyCtx},
 };
@@ -53,6 +53,32 @@ impl Lowering<'_, '_> {
 
     fn lower_inner(&mut self, expr_id: ast::ExprId) -> hir::Expr {
         match &self.ast.exprs[expr_id] {
+            &ast::Expr::Binary {
+                lhs,
+                op:
+                    op @ (BinaryOp::AddAssign
+                    | BinaryOp::SubAssign
+                    | BinaryOp::MulAssign
+                    | BinaryOp::DivAssign
+                    | BinaryOp::ModAssign),
+                rhs,
+            } => {
+                let expr = {
+                    let op = match op {
+                        BinaryOp::AddAssign => hir::BinaryOp::Add,
+                        BinaryOp::SubAssign => hir::BinaryOp::Sub,
+                        BinaryOp::MulAssign => hir::BinaryOp::Mul,
+                        BinaryOp::DivAssign => hir::BinaryOp::Div,
+                        BinaryOp::ModAssign => hir::BinaryOp::Mod,
+                        _ => unreachable!(),
+                    };
+                    let kind = ExprKind::Binary { lhs: self.lower(lhs), op, rhs: self.lower(rhs) };
+                    self.hir.exprs.push(Expr { kind, ty: self.ty_info.expr_tys[rhs].clone() })
+                };
+
+                let kind = hir::ExprKind::Assignment { lhs: self.lower_lvalue(lhs), expr };
+                hir::Expr { ty: self.ty_info.expr_tys[expr_id].clone(), kind }
+            }
             &ast::Expr::Binary { lhs, op: BinaryOp::Assign, rhs } => {
                 let kind = hir::ExprKind::Assignment {
                     lhs: self.lower_lvalue(lhs),
