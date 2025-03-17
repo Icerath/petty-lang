@@ -1,5 +1,5 @@
 use crate::{
-    ast::{self, Ast, BinaryOp, Block, BlockId, Expr, ExprId, Lit, TypeId},
+    ast::{self, Ast, BinaryOp, Block, BlockId, Expr, ExprId, Lit, TypeId, UnaryOp},
     symbol::Symbol,
     ty::{Ty, TyCtx, TyKind},
 };
@@ -118,12 +118,19 @@ impl Collector<'_, '_> {
         self.bodies.iter().rev().find_map(|body| body.ty_names.get(&name)).unwrap().clone()
     }
 
+    #[must_use]
     #[expect(clippy::too_many_lines)]
     fn analyze_expr(&mut self, id: ExprId) -> Ty {
         match &self.ast.exprs[id] {
             Expr::Lit(lit) => self.analyze_lit(lit, id),
             &Expr::Ident(ident) => _ = self.read_ident(ident, id),
-            &Expr::Unary { expr, .. } => _ = self.analyze_expr(expr),
+            &Expr::Unary { expr, op } => {
+                let operand = self.analyze_expr(expr);
+                match op {
+                    UnaryOp::Neg => self.tcx.subtype(&operand, self.tcx.bool()),
+                    UnaryOp::Not => self.tcx.subtype(&operand, self.tcx.int()),
+                }
+            }
             &Expr::Binary {
                 lhs,
                 rhs,
@@ -138,7 +145,17 @@ impl Collector<'_, '_> {
                 let rhs = self.analyze_expr(rhs);
                 self.tcx.subtype(&rhs, &lhs);
             }
-            &Expr::Binary { lhs, rhs, op: BinaryOp::Eq | BinaryOp::Neq } => {
+            &Expr::Binary {
+                lhs,
+                rhs,
+                op:
+                    BinaryOp::Less
+                    | BinaryOp::Greater
+                    | BinaryOp::LessEq
+                    | BinaryOp::GreaterEq
+                    | BinaryOp::Eq
+                    | BinaryOp::Neq,
+            } => {
                 let lhs = self.analyze_expr(lhs);
                 let rhs = self.analyze_expr(rhs);
                 self.tcx.eq(&lhs, &rhs);
@@ -217,7 +234,7 @@ impl Collector<'_, '_> {
                 body.variables.insert(*ident, ty);
             }
             Expr::While { condition, block } => {
-                self.analyze_expr(*condition);
+                self.tcx.subtype(&self.analyze_expr(*condition), self.tcx.bool());
                 self.analyze_block(*block);
             }
             Expr::If { arms, els } => {
