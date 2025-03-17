@@ -45,14 +45,21 @@ pub enum ExprKind {
     Literal(Lit),
     Block(ThinVec<ExprId>),
     FnCall { function: ExprId, args: ThinVec<ExprId> },
-    Index { expr: ExprId, index: ExprId }, // Should this just be a BinaryOp?
-    // FnDecl { ident: Symbol, params: ThinVec<Param>, body: ExprId }, - Might be better repr
-    FnDecl { ident: Symbol, params: ThinVec<Param>, ret: Ty, body: ThinVec<ExprId> },
+    Index { expr: ExprId, index: ExprId },
+    FnDecl(Box<FnDecl>),
     Let { ident: Symbol, expr: ExprId },
     If { arms: ThinVec<IfStmt>, els: ThinVec<ExprId> },
     Loop(ThinVec<ExprId>),
     Break,
     Return(ExprId),
+}
+
+#[derive(Debug)]
+pub struct FnDecl {
+    pub ident: Symbol,
+    pub params: Vec<Param>,
+    pub ret: Ty,
+    pub body: ThinVec<ExprId>,
 }
 
 #[derive(Debug, Clone, Copy)]

@@ -92,7 +92,8 @@ impl Lowering<'_> {
                 self.current().push(Statement::Assign { place, rvalue });
                 Operand::Place(place)
             }
-            ExprKind::FnDecl { ident, params, body, .. } => {
+            ExprKind::FnDecl(decl) => {
+                let hir::FnDecl { ident, params, body, .. } = &**decl;
                 let body_id = self.mir.bodies.push(Body::new(params.len()));
                 self.bodies.last_mut().unwrap().functions.insert(*ident, body_id);
                 self.bodies.push(BodyInfo::new(body_id));

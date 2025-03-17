@@ -8,7 +8,7 @@ use crate::{
     ty::TyKind,
 };
 
-use super::{ExprKind, LValue};
+use super::{ExprKind, FnDecl, LValue};
 
 struct Writer<'hir> {
     hir: &'hir Hir,
@@ -106,7 +106,8 @@ impl Writer<'_> {
                 }
             }
             ExprKind::Block(block) => self.display_block(block),
-            ExprKind::FnDecl { ident, params, ret, body } => {
+            ExprKind::FnDecl(decl) => {
+                let FnDecl { ident, params, ret, body } = &**decl;
                 self.inside_expr = inside_expr;
                 _ = write!(self.f, "fn {ident}(");
 

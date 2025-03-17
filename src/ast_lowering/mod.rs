@@ -217,7 +217,7 @@ impl Lowering<'_, '_> {
 
         hir::Expr {
             ty: self.get_ty(expr_id).clone(),
-            kind: hir::ExprKind::FnDecl { ident, params, ret, body },
+            kind: hir::ExprKind::FnDecl(Box::new(hir::FnDecl { ident, params, ret, body })),
         }
     }
 
