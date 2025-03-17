@@ -90,21 +90,16 @@ impl Collector<'_, '_> {
     }
 
     fn analyze_block_inner(&mut self, block: &Block) -> Ty {
-        if block.is_expr {
-            let mut ty = None;
-            for &id in &block.stmts {
-                ty = Some(self.analyze_expr(id));
-            }
-            ty.unwrap_or_else(|| self.tcx.unit().clone())
-        } else {
-            self.analyze_block_exprs(&block.stmts);
-            self.tcx.unit().clone()
+        let mut ty = None;
+        for &id in &block.stmts {
+            ty = Some(self.analyze_expr(id));
         }
-    }
-
-    fn analyze_block_exprs(&mut self, exprs: &[ExprId]) {
-        for &id in exprs {
-            self.analyze_expr(id);
+        if block.is_expr {
+            ty.unwrap_or_else(|| self.tcx.unit().clone())
+        } else if ty.is_some_and(|ty| *ty.kind() == TyKind::Never) {
+            self.tcx.never().clone()
+        } else {
+            self.tcx.unit().clone()
         }
     }
 
