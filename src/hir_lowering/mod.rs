@@ -107,7 +107,7 @@ impl Lowering<'_> {
                 let place = self.mir.bodies[self.bodies.last().unwrap().body].new_place();
                 self.bodies.last_mut().unwrap().variables.insert(*ident, place);
                 self.current().push(Statement::Assign { place, rvalue });
-                RValue::Use(Operand::Place(place))
+                RValue::Use(Operand::UNIT)
             }
             ExprKind::Return(expr) => {
                 let place = self.lower(*expr);
