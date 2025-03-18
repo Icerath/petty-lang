@@ -20,6 +20,8 @@ pub fn lower(hir: &Hir) -> Mir {
     for &expr in &hir.root {
         lowering.lower(expr);
     }
+    // TODO: Instead produce an error for any non-body expr in the global scope (probably before type analysis?)
+    assert!(lowering.mir.bodies.first().unwrap().blocks.is_empty());
     lowering.mir
 }
 

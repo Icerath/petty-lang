@@ -1,3 +1,5 @@
-let condition = [];
-condition = [true];
-if condition[0] {};
+fn main() {
+    let condition = [];
+    condition = [true];
+    if condition[0] {};
+}

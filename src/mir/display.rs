@@ -4,7 +4,7 @@ use super::{Constant, Mir, Operand, RValue, Statement, Terminator, UnaryOp};
 
 impl fmt::Display for Mir {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for (id, body) in self.bodies.iter_enumerated() {
+        for (id, body) in self.bodies.iter_enumerated().skip(1) {
             writeln!(f, "fn{id:?}() {{")?;
             for (id, block) in body.blocks.iter_enumerated() {
                 writeln!(f, "{}bb{id:?}: {{", Indent(1))?;

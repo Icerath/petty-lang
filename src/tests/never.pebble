@@ -1,5 +1,7 @@
-let x: int = abort;
-let y: ! = abort;
+fn main() {
+    let x: int = abort;
+    let y: ! = abort;
 
-let z: int = abort;
-z = 1;
+    let z: int = abort;
+    z = 1;
+}

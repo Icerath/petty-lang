@@ -1,2 +1,4 @@
-let x: int = 1;
-x = "1";
+fn main() {
+    let x: int = 1;
+    x = "1";
+}
