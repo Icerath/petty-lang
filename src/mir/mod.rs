@@ -1,3 +1,5 @@
+#![expect(dead_code)]
+
 mod display;
 
 use index_vec::IndexVec;
@@ -74,6 +76,7 @@ pub enum RValue {
     BinaryExpr { lhs: Operand, op: BinaryOp, rhs: Operand },
     UnaryExpr { op: UnaryOp, operand: Operand },
     Call { function: Operand, args: ThinVec<Operand> },
+    Instrinsic(Instrinsic),
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -85,6 +88,11 @@ pub enum Operand {
 
 impl Operand {
     pub const UNIT: Self = Self::Constant(Constant::Unit);
+
+    // returns an operand to read to nth argument, used in intrinsics
+    pub fn arg(nth: usize) -> Self {
+        Self::Place(nth.into())
+    }
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -104,4 +112,11 @@ pub type BinaryOp = crate::hir::BinaryOp;
 pub enum UnaryOp {
     Not,
     Neg,
+}
+
+#[derive(Debug)]
+pub enum Instrinsic {
+    Strlen(Operand),
+    StrFind(Operand, Operand),
+    StrRFind(Operand, Operand),
 }

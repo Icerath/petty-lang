@@ -46,6 +46,7 @@ impl fmt::Display for Mir {
                                     UnaryOp::Neg => write!(f, "neg {operand}"),
                                     UnaryOp::Not => write!(f, "not {operand}"),
                                 },
+                                RValue::Instrinsic(instrinsic) => write!(f, "{instrinsic:?}"),
                             }?;
                         }
                     }
