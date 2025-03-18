@@ -5,7 +5,7 @@ use super::{Constant, Mir, Operand, RValue, Statement, Terminator, UnaryOp};
 impl fmt::Display for Mir {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for (id, body) in self.bodies.iter_enumerated() {
-            writeln!(f, "fn _{id:?}() {{")?;
+            writeln!(f, "fn{id:?}() {{")?;
             for (id, block) in body.blocks.iter_enumerated() {
                 writeln!(f, "{}bb{id:?}: {{", Indent(1))?;
                 for statement in &block.statements {
@@ -84,13 +84,16 @@ impl fmt::Display for Operand {
         match self {
             Self::Deref(place) => write!(f, "deref _{place:?}"),
             Self::Place(place) => write!(f, "_{place:?}"),
-            Self::Constant(constant) => write!(f, "const {constant}"),
+            Self::Constant(constant) => write!(f, "{constant}"),
         }
     }
 }
 
 impl fmt::Display for Constant {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if !matches!(self, Self::Func(..)) {
+            write!(f, "const ")?;
+        }
         match self {
             Self::EmptyArray => write!(f, "[]"),
             Self::Unit => write!(f, "()"),
@@ -98,7 +101,7 @@ impl fmt::Display for Constant {
             Self::Int(int) => write!(f, "{int}"),
             Self::Char(char) => write!(f, "{char:?}"),
             Self::Str(str) => write!(f, "{str:?}"),
-            Self::Func(id) => write!(f, "function {id:?}"),
+            Self::Func(id) => write!(f, "fn{id:?}"),
         }
     }
 }
