@@ -154,10 +154,7 @@ impl Lowering<'_> {
                         tru: self.body_ref().blocks.next_idx() + 1,
                     });
                     let block_out = self.block_expr(&arm.body);
-                    self.current().push(Statement::Assign {
-                        place: out_place,
-                        rvalue: RValue::Use(block_out),
-                    });
+                    self.current().push(Statement::Assign { place: out_place, rvalue: block_out });
                     jump_to_ends.push(self.finish_with(Terminator::Goto(BlockId::PLACEHOLDER)));
                     let current_block = self.body_ref().blocks.next_idx();
                     match &mut self.body_mut().blocks[to_fix].terminator {
@@ -212,7 +209,7 @@ impl Lowering<'_> {
                 let index = self.lower(*index);
                 RValue::Index { indexee, index }
             }
-            ExprKind::Block(exprs) => RValue::Use(self.block_expr(exprs)),
+            ExprKind::Block(exprs) => self.block_expr(exprs),
         }
     }
 
@@ -235,12 +232,16 @@ impl Lowering<'_> {
         }
     }
 
-    fn block_expr(&mut self, exprs: &[ExprId]) -> Operand {
-        let mut place = None;
-        for &expr in exprs {
-            place = Some(self.lower(expr));
+    fn block_expr(&mut self, exprs: &[ExprId]) -> RValue {
+        let mut rvalue = None;
+        for (i, &expr) in exprs.iter().enumerate() {
+            if i == exprs.len() - 1 {
+                rvalue = Some(self.lower_inner(expr));
+                break;
+            }
+            self.lower(expr);
         }
-        place.unwrap_or(Operand::UNIT)
+        rvalue.unwrap_or(RValue::Use(Operand::UNIT))
     }
 
     fn load_ident(&self, ident: Symbol) -> RValue {
