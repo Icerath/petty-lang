@@ -230,18 +230,16 @@ fn parse_ifchain(stream: &mut Stream) -> Result<Expr> {
         stream.expect(TokenKind::LBrace)?;
         let body = stream.parse()?;
         arms.push(IfStmt { condition, body });
-        let next = stream.peek()?;
-        if next.kind != TokenKind::Else {
+        if stream.peek()?.kind != TokenKind::Else {
             break None;
         }
         _ = stream.next();
-        let next = stream.peek()?;
-        if next.kind == TokenKind::If {
+        if stream.peek()?.kind == TokenKind::If {
             _ = stream.next();
-            continue;
+        } else {
+            stream.expect(TokenKind::LBrace)?;
+            break Some(stream.parse()?);
         }
-        stream.expect(TokenKind::LBrace)?;
-        break Some(stream.parse()?);
     };
     Ok(Expr::If { arms, els })
 }
