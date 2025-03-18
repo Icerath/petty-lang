@@ -37,7 +37,7 @@ impl fmt::Display for Mir {
                                     write!(f, "index {indexee}[{index}])")
                                 }
                                 RValue::Extend { array, value, repeat } => {
-                                    write!(f, "extend _{array:?}[{value}; [{repeat}]]")
+                                    write!(f, "extend _{array:?}[{value}; {repeat}]")
                                 }
                                 RValue::IndexRef { indexee, index } => {
                                     write!(f, "index ref {indexee}[{index})]")
