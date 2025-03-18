@@ -162,9 +162,8 @@ impl Lowering<'_> {
                         _ => unreachable!(),
                     }
                 }
-                for &expr in els {
-                    self.lower(expr);
-                }
+                let els_out = self.block_expr(els);
+                self.current().push(Statement::Assign { place: out_place, rvalue: els_out });
                 let current = self.finish_next();
                 for block in jump_to_ends {
                     match &mut self.body_mut().blocks[block].terminator {
