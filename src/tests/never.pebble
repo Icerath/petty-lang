@@ -1,4 +1,4 @@
-fn main() {
+fn never() {
     let x: int = abort;
     let y: ! = abort;
 

@@ -1,4 +1,4 @@
-use crate::{ast_analysis, ast_lowering, hir_lowering, parse::parse, ty::TyCtx};
+use crate::{ast_analysis, ast_lowering, hir_lowering, mir_interpreter, parse::parse, ty::TyCtx};
 
 #[allow(dead_code)]
 pub fn compile(src: &str) -> miette::Result<()> {
@@ -29,5 +29,6 @@ fn compile_inner(src: &str, dump: bool) -> miette::Result<()> {
     dump!(hir);
     let mir = hir_lowering::lower(&hir);
     dump!(mir);
+    mir_interpreter::interpret(&mir);
     Ok(())
 }

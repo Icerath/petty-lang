@@ -8,6 +8,7 @@ mod compile;
 mod hir;
 mod hir_lowering;
 mod mir;
+mod mir_interpreter;
 mod parse;
 mod span;
 mod symbol;
