@@ -9,6 +9,7 @@ use crate::{
         Terminator,
     },
     symbol::Symbol,
+    ty::TyKind,
 };
 
 pub fn lower(hir: &Hir) -> Mir {
@@ -89,8 +90,8 @@ impl Lowering<'_> {
             ExprKind::Unary { op, expr } => {
                 let operand = self.lower(*expr);
                 let op = match op {
-                    hir::UnaryOp::Not => mir::UnaryOp::Not,
-                    hir::UnaryOp::Neg => mir::UnaryOp::Neg,
+                    hir::UnaryOp::Not => mir::UnaryOp::BoolNot,
+                    hir::UnaryOp::Neg => mir::UnaryOp::IntNeg,
                 };
                 RValue::UnaryExpr { op, operand }
             }
@@ -194,8 +195,35 @@ impl Lowering<'_> {
                 RValue::Use(Operand::Constant(Constant::Unit))
             }
             &ExprKind::Binary { lhs, op, rhs } => {
+                let ty = &self.hir.exprs[lhs].ty;
+                let op = match (ty.kind(), op) {
+                    (TyKind::Int, op) => match op {
+                        hir::BinaryOp::Add => mir::BinaryOp::IntAdd,
+                        hir::BinaryOp::Sub => mir::BinaryOp::IntSub,
+                        hir::BinaryOp::Mul => mir::BinaryOp::IntMul,
+                        hir::BinaryOp::Div => mir::BinaryOp::IntDiv,
+                        hir::BinaryOp::Mod => mir::BinaryOp::IntMod,
+                        hir::BinaryOp::Less => mir::BinaryOp::IntLess,
+                        hir::BinaryOp::Greater => mir::BinaryOp::IntGreater,
+                        hir::BinaryOp::LessEq => mir::BinaryOp::IntLessEq,
+                        hir::BinaryOp::GreaterEq => mir::BinaryOp::IntGreaterEq,
+                        hir::BinaryOp::Eq => mir::BinaryOp::IntEq,
+                        hir::BinaryOp::Neq => mir::BinaryOp::IntNeq,
+                        hir::BinaryOp::Range => mir::BinaryOp::IntRange,
+                        hir::BinaryOp::RangeInclusive => mir::BinaryOp::IntRangeInclusive,
+                    },
+                    (TyKind::Char, op) => match op {
+                        hir::BinaryOp::Eq => mir::BinaryOp::CharEq,
+                        hir::BinaryOp::Neq => mir::BinaryOp::CharNeq,
+                        _ => unreachable!("char - {op:?}"),
+                    },
+
+                    (ty, op) => unreachable!("{ty:?} - {op:?}"),
+                };
+
                 let lhs = self.lower(lhs);
                 let rhs = self.lower(rhs);
+
                 RValue::BinaryExpr { lhs, op, rhs }
             }
             ExprKind::Ident(ident) => match self.load_ident(*ident) {
@@ -213,9 +241,20 @@ impl Lowering<'_> {
                 RValue::Use(Operand::UNIT)
             }
             ExprKind::Index { expr, index } => {
-                let indexee = self.lower(*expr);
-                let index = self.lower(*index);
-                RValue::Index { indexee, index }
+                let lhs = self.lower(*expr);
+                let rhs = self.lower(*index);
+                let op = if self.hir.exprs[*expr].ty.kind() == &TyKind::Str {
+                    if self.hir.exprs[*index].ty.kind() == &TyKind::Range {
+                        mir::BinaryOp::StrIndexSlice
+                    } else {
+                        mir::BinaryOp::StrIndex
+                    }
+                } else if self.hir.exprs[*index].ty.kind() == &TyKind::Range {
+                    mir::BinaryOp::ArrayIndexRange
+                } else {
+                    mir::BinaryOp::ArrayIndex
+                };
+                RValue::BinaryExpr { lhs, op, rhs }
             }
             ExprKind::Block(exprs) => self.block_expr(exprs),
         }
@@ -225,15 +264,14 @@ impl Lowering<'_> {
         match lvalue {
             hir::LValue::Name(name) => (self.bodies.last().unwrap().variables[name], false),
             hir::LValue::Index { indexee, index } => {
-                let index = self.lower(*index);
+                let rhs = self.lower(*index);
                 let (place, deref) = self.get_lvalue_place(indexee);
                 let new_place = self.new_place();
 
-                let inner_indexee =
-                    if deref { Operand::Deref(place) } else { Operand::Place(place) };
+                let lhs = if deref { Operand::Deref(place) } else { Operand::Place(place) };
                 self.current().stmts.push(Statement::Assign {
                     place: new_place,
-                    rvalue: RValue::IndexRef { indexee: inner_indexee, index },
+                    rvalue: RValue::BinaryExpr { lhs, op: mir::BinaryOp::ArrayIndexRef, rhs },
                 });
                 (new_place, true)
             }

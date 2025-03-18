@@ -1,4 +1,4 @@
-use std::{cell::Cell, fmt, rc::Rc};
+use std::{cell::Cell, fmt, ops::Range, rc::Rc};
 
 use arcstr::ArcStr;
 use index_vec::IndexSlice;
@@ -19,11 +19,25 @@ impl Value {
     fn unwrap_int(&self) -> i64 {
         value!(Int, self)
     }
+    fn unwrap_int_usize(&self) -> usize {
+        let int = self.unwrap_int();
+        int.try_into().unwrap_or_else(|_| panic!("{int}"))
+    }
     fn unwrap_char(&self) -> char {
         value!(Char, self)
     }
     fn unwrap_str(&self) -> ArcStr {
         value!(Str, self)
+    }
+    fn unwrap_range(&self) -> Range<i64> {
+        self.with(|kind| match kind {
+            ValueKind::Range(out) => Range::clone(out),
+            other => unreachable!("Expected {}, found {other:?}", stringify!($ty)),
+        })
+    }
+    fn unwrap_range_usize(&self) -> Range<usize> {
+        let range = self.unwrap_range();
+        usize::try_from(range.start).unwrap()..usize::try_from(range.end).unwrap()
     }
     fn unwrap_fn(&self) -> BodyId {
         value!(Fn, self)
@@ -37,8 +51,8 @@ impl Value {
 }
 
 use crate::mir::{
-    BinaryOp, BlockId, BodyId, Constant, Instrinsic, Mir, Operand, Place, RValue, Statement,
-    Terminator, UnaryOp,
+    BinaryOp, BlockId, BodyId, Constant, Mir, Operand, Place, RValue, Statement, Terminator,
+    UnaryOp,
 };
 
 pub fn interpret(mir: &Mir) {
@@ -69,6 +83,7 @@ enum ValueKind {
     Array(ThinVec<Value>),
     Bool(bool),
     Int(i64),
+    Range(Box<Range<i64>>),
     Char(char),
     Str(ArcStr),
     Fn(BodyId),
@@ -150,56 +165,82 @@ impl Interpreter<'_> {
                 let args = args.iter().map(|arg| self.operand(arg, places)).collect();
                 self.run(call_body, args)
             }
-            RValue::Instrinsic(intrinsic) => self.intrinsic(intrinsic, places),
             RValue::BinaryExpr { lhs, op, rhs } => {
                 let lhs = self.operand(lhs, places);
                 let rhs = self.operand(rhs, places);
                 match op {
-                    BinaryOp::Add => ValueKind::Int(lhs.unwrap_int() + rhs.unwrap_int()).into(),
-                    BinaryOp::Less => self.bool(lhs.unwrap_int() < rhs.unwrap_int()),
-                    BinaryOp::Greater => self.bool(lhs.unwrap_int() > rhs.unwrap_int()),
-                    BinaryOp::LessEq => self.bool(lhs.unwrap_int() <= rhs.unwrap_int()),
-                    BinaryOp::GreaterEq => self.bool(lhs.unwrap_int() >= rhs.unwrap_int()),
-                    BinaryOp::Eq => self.bool(lhs.unwrap_char() == rhs.unwrap_char()),
-                    _ => todo!("{op:?}"),
+                    BinaryOp::IntAdd => ValueKind::Int(lhs.unwrap_int() + rhs.unwrap_int()).into(),
+                    BinaryOp::IntSub => ValueKind::Int(lhs.unwrap_int() - rhs.unwrap_int()).into(),
+                    BinaryOp::IntMul => ValueKind::Int(lhs.unwrap_int() * rhs.unwrap_int()).into(),
+                    BinaryOp::IntDiv => ValueKind::Int(lhs.unwrap_int() / rhs.unwrap_int()).into(),
+                    BinaryOp::IntMod => ValueKind::Int(lhs.unwrap_int() % rhs.unwrap_int()).into(),
+                    BinaryOp::IntLess => self.bool(lhs.unwrap_int() < rhs.unwrap_int()),
+                    BinaryOp::IntGreater => self.bool(lhs.unwrap_int() > rhs.unwrap_int()),
+                    BinaryOp::IntLessEq => self.bool(lhs.unwrap_int() <= rhs.unwrap_int()),
+                    BinaryOp::IntGreaterEq => self.bool(lhs.unwrap_int() >= rhs.unwrap_int()),
+                    BinaryOp::IntEq => self.bool(lhs.unwrap_int() == rhs.unwrap_int()),
+                    BinaryOp::IntNeq => self.bool(lhs.unwrap_int() != rhs.unwrap_int()),
+                    BinaryOp::IntRange => {
+                        ValueKind::Range(Box::new(lhs.unwrap_int()..rhs.unwrap_int())).into()
+                    }
+                    BinaryOp::IntRangeInclusive =>
+                    {
+                        #[expect(clippy::range_plus_one)]
+                        ValueKind::Range(Box::new(lhs.unwrap_int()..rhs.unwrap_int() + 1)).into()
+                    }
+
+                    BinaryOp::CharEq => self.bool(lhs.unwrap_char() == rhs.unwrap_char()),
+                    BinaryOp::CharNeq => self.bool(lhs.unwrap_char() != rhs.unwrap_char()),
+
+                    BinaryOp::StrEq => self.bool(lhs.unwrap_str() == rhs.unwrap_str()),
+                    BinaryOp::StrNeq => self.bool(lhs.unwrap_str() != rhs.unwrap_str()),
+                    BinaryOp::StrIndex => {
+                        ValueKind::Char(lhs.unwrap_str().as_bytes()[rhs.unwrap_int_usize()] as char)
+                            .into()
+                    }
+                    BinaryOp::StrIndexSlice => {
+                        ValueKind::Str(lhs.unwrap_str()[rhs.unwrap_range_usize()].into()).into()
+                    }
+                    BinaryOp::StrFind => ValueKind::Int(
+                        lhs.unwrap_str()
+                            .find(rhs.unwrap_str().as_str())
+                            .unwrap()
+                            .try_into()
+                            .unwrap(),
+                    )
+                    .into(),
+                    BinaryOp::StrRFind => ValueKind::Int(
+                        lhs.unwrap_str()
+                            .rfind(rhs.unwrap_str().as_str())
+                            .unwrap()
+                            .try_into()
+                            .unwrap(),
+                    )
+                    .into(),
+                    BinaryOp::ArrayIndexRange => todo!(),
+                    BinaryOp::ArrayIndexRef | BinaryOp::ArrayIndex => {
+                        let index = rhs.unwrap_int_usize();
+                        lhs.unwrap_with_arrayref(|array| array[index].clone())
+                    }
                 }
             }
             RValue::UnaryExpr { op, operand } => {
                 let operand = self.operand(operand, places);
                 match op {
-                    UnaryOp::Neg => ValueKind::Int(-operand.unwrap_int()).into(),
-                    UnaryOp::Not => self.bool(!operand.unwrap_bool()),
+                    UnaryOp::BoolNot => self.bool(!operand.unwrap_bool()),
+                    UnaryOp::IntNeg => ValueKind::Int(-operand.unwrap_int()).into(),
+                    UnaryOp::IntToStr => {
+                        ValueKind::Str(operand.unwrap_int().to_string().into()).into()
+                    }
+                    UnaryOp::StrPrint => {
+                        println!("{}", operand.unwrap_str());
+                        self.unit()
+                    }
+                    UnaryOp::StrLen => {
+                        ValueKind::Int(operand.unwrap_str().len().try_into().unwrap()).into()
+                    }
                 }
             }
-            RValue::IndexRef { indexee, index } | RValue::Index { indexee, index } => {
-                // TODO: separate array indexing and string indexing
-                let index: usize = self.operand(index, places).unwrap_int().try_into().unwrap();
-                let indexee = self.operand(indexee, places);
-                indexee.with(|kind| match kind {
-                    ValueKind::Str(str) => ValueKind::Char(str.as_bytes()[index] as char).into(),
-                    ValueKind::Array(array) => array[index].clone(),
-                    _ => unreachable!(),
-                })
-            }
-        }
-    }
-
-    fn intrinsic(
-        &mut self,
-        intrinsic: &Instrinsic,
-        places: &mut IndexSlice<Place, [Value]>,
-    ) -> Value {
-        match intrinsic {
-            Instrinsic::IntToStr(arg) => {
-                let int = self.operand(arg, places).unwrap_int();
-                ValueKind::Str(ArcStr::from(int.to_string())).into()
-            }
-            Instrinsic::Strlen(arg) => {
-                let str = self.operand(arg, places).unwrap_str();
-                #[expect(clippy::cast_possible_wrap)]
-                ValueKind::Int(str.len() as _).into()
-            }
-            _ => todo!("{intrinsic:?}"),
         }
     }
 

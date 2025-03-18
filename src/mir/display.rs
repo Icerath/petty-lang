@@ -1,6 +1,6 @@
 use std::fmt;
 
-use super::{Constant, Mir, Operand, RValue, Statement, Terminator, UnaryOp};
+use super::{Constant, Mir, Operand, RValue, Statement, Terminator};
 
 impl fmt::Display for Mir {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -33,20 +33,12 @@ impl fmt::Display for Mir {
                                     }
                                     write!(f, ")")
                                 }
-                                RValue::Index { indexee, index } => {
-                                    write!(f, "index {indexee}[{index}])")
-                                }
                                 RValue::Extend { array, value, repeat } => {
                                     write!(f, "extend _{array:?}[{value}; {repeat}]")
                                 }
-                                RValue::IndexRef { indexee, index } => {
-                                    write!(f, "index ref {indexee}[{index})]")
+                                RValue::UnaryExpr { op, operand } => {
+                                    write!(f, "{op:?}({operand:?})")
                                 }
-                                RValue::UnaryExpr { op, operand } => match op {
-                                    UnaryOp::Neg => write!(f, "neg {operand}"),
-                                    UnaryOp::Not => write!(f, "not {operand}"),
-                                },
-                                RValue::Instrinsic(instrinsic) => write!(f, "{instrinsic:?}"),
                             }?;
                         }
                     }

@@ -70,14 +70,11 @@ pub enum Statement {
 #[derive(Debug)]
 pub enum RValue {
     Extend { array: Place, value: Operand, repeat: Operand },
-    Index { indexee: Operand, index: Operand },
-    IndexRef { indexee: Operand, index: Operand },
     Abort,
     Use(Operand),
     BinaryExpr { lhs: Operand, op: BinaryOp, rhs: Operand },
     UnaryExpr { op: UnaryOp, operand: Operand },
     Call { function: Operand, args: ThinVec<Operand> },
-    Instrinsic(Instrinsic),
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -107,12 +104,46 @@ pub enum Constant {
     Func(BodyId),
 }
 
-pub type BinaryOp = crate::hir::BinaryOp;
+#[derive(Debug, PartialEq, PartialOrd, Clone, Copy)]
+pub enum BinaryOp {
+    IntAdd,
+    IntSub,
+    IntMul,
+    IntDiv,
+    IntMod,
+    IntLess,
+    IntGreater,
+    IntLessEq,
+    IntGreaterEq,
+    IntEq,
+    IntNeq,
+    IntRange,
+    IntRangeInclusive,
+
+    CharEq,
+    CharNeq,
+
+    StrEq,
+    StrNeq,
+    StrFind,
+    StrRFind,
+    StrIndex,
+    StrIndexSlice,
+
+    ArrayIndexRange,
+    ArrayIndex,
+    ArrayIndexRef,
+}
 
 #[derive(Debug, Clone, Copy)]
 pub enum UnaryOp {
-    Not,
-    Neg,
+    BoolNot,
+
+    IntToStr,
+    IntNeg,
+
+    StrLen,
+    StrPrint,
 }
 
 #[derive(Debug)]
