@@ -98,6 +98,11 @@ impl Lowering<'_> {
                 self.bodies.push(BodyInfo::new(body_id));
                 if self.bodies.len() == 2 && self.try_instrinsic(*ident) {
                 } else {
+                    for (i, param) in params.iter().enumerate() {
+                        (self.bodies.last_mut().unwrap())
+                            .variables
+                            .insert(param.ident, Place::from(i));
+                    }
                     let mut last = Operand::UNIT;
                     for expr in body {
                         last = self.lower(*expr);
