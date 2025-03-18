@@ -122,8 +122,7 @@ impl Parse for Block {
         let mut is_expr = false;
 
         loop {
-            let tok = stream.peek()?;
-            match tok.kind {
+            match stream.peek()?.kind {
                 TokenKind::RBrace => {
                     _ = stream.next();
                     break;
