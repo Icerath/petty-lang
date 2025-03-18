@@ -32,12 +32,12 @@ struct BodyInfo {
     body: BodyId,
     functions: HashMap<Symbol, BodyId>,
     variables: HashMap<Symbol, Place>,
-    current: Vec<Statement>,
+    stmts: Vec<Statement>,
 }
 
 impl BodyInfo {
     pub fn new(body: BodyId) -> Self {
-        Self { body, functions: HashMap::default(), variables: HashMap::default(), current: vec![] }
+        Self { body, functions: HashMap::default(), variables: HashMap::default(), stmts: vec![] }
     }
 }
 
@@ -48,13 +48,14 @@ impl Lowering<'_> {
     fn body_mut(&mut self) -> &mut Body {
         &mut self.mir.bodies[self.bodies.last().unwrap().body]
     }
-    fn current(&mut self) -> &mut Vec<Statement> {
-        &mut self.bodies.last_mut().unwrap().current
+    fn current(&mut self) -> &mut BodyInfo {
+        self.bodies.last_mut().unwrap()
     }
     fn finish_with(&mut self, terminator: Terminator) -> BlockId {
-        let prev_block = Block { statements: mem::take(self.current()), terminator };
+        let prev_block = Block { statements: mem::take(&mut self.current().stmts), terminator };
         self.body_mut().blocks.push(prev_block)
     }
+    // returns the next block's id
     fn finish_next(&mut self) -> BlockId {
         let next_block = self.body_mut().blocks.next_idx() + 1;
         self.finish_with(Terminator::Goto(next_block));
@@ -69,7 +70,7 @@ impl Lowering<'_> {
             RValue::Use(operand) => operand,
             rvalue => {
                 let place = self.new_place();
-                self.current().push(Statement::Assign { place, rvalue });
+                self.current().stmts.push(Statement::Assign { place, rvalue });
                 Operand::Place(place)
             }
         }
@@ -92,16 +93,14 @@ impl Lowering<'_> {
             ExprKind::FnDecl(decl) => {
                 let hir::FnDecl { ident, params, body, .. } = &**decl;
 
-                assert!(self.current().is_empty(), "TODO");
+                assert!(self.current().stmts.is_empty(), "TODO");
                 let body_id = self.mir.bodies.push(Body::new(params.len()));
-                self.bodies.last_mut().unwrap().functions.insert(*ident, body_id);
+                self.current().functions.insert(*ident, body_id);
                 self.bodies.push(BodyInfo::new(body_id));
                 if self.bodies.len() == 2 && self.try_instrinsic(*ident) {
                 } else {
                     for (i, param) in params.iter().enumerate() {
-                        (self.bodies.last_mut().unwrap())
-                            .variables
-                            .insert(param.ident, Place::from(i));
+                        self.current().variables.insert(param.ident, Place::from(i));
                     }
                     let mut last = Operand::UNIT;
                     for expr in body {
@@ -115,8 +114,8 @@ impl Lowering<'_> {
             ExprKind::Let { ident, expr } => {
                 let rvalue = self.lower_inner(*expr);
                 let place = self.mir.bodies[self.bodies.last().unwrap().body].new_place();
-                self.bodies.last_mut().unwrap().variables.insert(*ident, place);
-                self.current().push(Statement::Assign { place, rvalue });
+                self.current().variables.insert(*ident, place);
+                self.current().stmts.push(Statement::Assign { place, rvalue });
                 RValue::Use(Operand::UNIT)
             }
             ExprKind::Return(expr) => {
@@ -154,7 +153,9 @@ impl Lowering<'_> {
                         tru: self.body_ref().blocks.next_idx() + 1,
                     });
                     let block_out = self.block_expr(&arm.body);
-                    self.current().push(Statement::Assign { place: out_place, rvalue: block_out });
+                    self.current()
+                        .stmts
+                        .push(Statement::Assign { place: out_place, rvalue: block_out });
                     jump_to_ends.push(self.finish_with(Terminator::Goto(BlockId::PLACEHOLDER)));
                     let current_block = self.body_ref().blocks.next_idx();
                     match &mut self.body_mut().blocks[to_fix].terminator {
@@ -163,7 +164,7 @@ impl Lowering<'_> {
                     }
                 }
                 let els_out = self.block_expr(els);
-                self.current().push(Statement::Assign { place: out_place, rvalue: els_out });
+                self.current().stmts.push(Statement::Assign { place: out_place, rvalue: els_out });
                 let current = self.finish_next();
                 for block in jump_to_ends {
                     match &mut self.body_mut().blocks[block].terminator {
@@ -181,7 +182,7 @@ impl Lowering<'_> {
                 } else {
                     Statement::Assign { place, rvalue }
                 };
-                self.current().push(stmt);
+                self.current().stmts.push(stmt);
                 RValue::Use(Operand::Constant(Constant::Unit))
             }
             &ExprKind::Binary { lhs, op, rhs } => {
@@ -222,7 +223,7 @@ impl Lowering<'_> {
 
                 let inner_indexee =
                     if deref { Operand::Deref(place) } else { Operand::Place(place) };
-                self.current().push(Statement::Assign {
+                self.current().stmts.push(Statement::Assign {
                     place: new_place,
                     rvalue: RValue::IndexRef { indexee: inner_indexee, index },
                 });
@@ -273,7 +274,7 @@ impl Lowering<'_> {
         }
         let array = self.new_place();
         let throwaway = self.new_place();
-        self.current().push(Statement::Assign {
+        self.current().stmts.push(Statement::Assign {
             place: array,
             rvalue: RValue::Use(Operand::Constant(Constant::EmptyArray)),
         });
@@ -283,7 +284,7 @@ impl Lowering<'_> {
                 Some(repeated) => self.lower(repeated),
                 None => Operand::Constant(Constant::Int(1)),
             };
-            self.current().push(Statement::Assign {
+            self.current().stmts.push(Statement::Assign {
                 place: throwaway,
                 rvalue: RValue::Extend { array, value, repeat },
             });
@@ -299,7 +300,9 @@ impl Lowering<'_> {
             _ => return false,
         };
         let place = self.new_place();
-        self.current().push(Statement::Assign { place, rvalue: RValue::Instrinsic(instrinsic) });
+        self.current()
+            .stmts
+            .push(Statement::Assign { place, rvalue: RValue::Instrinsic(instrinsic) });
         self.finish_with(Terminator::Return(Operand::Place(place)));
         true
     }
