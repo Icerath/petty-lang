@@ -17,6 +17,7 @@ fn main() {
         } else if instr == '-' {
             cells[data_ptr] -= 1;
         } else if instr == '.' {
+            print(int_to_str(cells[data_ptr]));
         } else if instr == ',' {
         } else if instr == '[' {
             if cells[data_ptr] == 0 {

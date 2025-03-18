@@ -119,4 +119,6 @@ pub enum Instrinsic {
     Strlen(Operand),
     StrFind(Operand, Operand),
     StrRFind(Operand, Operand),
+    IntToStr(Operand),
+    PrintStr(Operand),
 }

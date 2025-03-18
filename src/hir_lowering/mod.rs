@@ -1,10 +1,12 @@
+mod intrinsics;
+
 use std::{collections::HashMap, mem};
 
 use crate::{
     hir::{self, ArraySeg, ExprId, ExprKind, Hir, LValue, Lit},
     mir::{
-        self, Block, BlockId, Body, BodyId, Constant, Instrinsic, Mir, Operand, Place, RValue,
-        Statement, Terminator,
+        self, Block, BlockId, Body, BodyId, Constant, Mir, Operand, Place, RValue, Statement,
+        Terminator,
     },
     symbol::Symbol,
 };
@@ -290,20 +292,5 @@ impl Lowering<'_> {
             });
         }
         RValue::Use(Operand::Place(array))
-    }
-
-    fn try_instrinsic(&mut self, ident: Symbol) -> bool {
-        let instrinsic = match ident.as_str() {
-            "strlen" => Instrinsic::Strlen(Operand::arg(0)),
-            "str_find" => Instrinsic::StrFind(Operand::arg(0), Operand::arg(1)),
-            "str_rfind" => Instrinsic::StrRFind(Operand::arg(0), Operand::arg(1)),
-            _ => return false,
-        };
-        let place = self.new_place();
-        self.current()
-            .stmts
-            .push(Statement::Assign { place, rvalue: RValue::Instrinsic(instrinsic) });
-        self.finish_with(Terminator::Return(Operand::Place(place)));
-        true
     }
 }

@@ -1,3 +1,5 @@
 fn strlen(str: str) -> int { abort }
 fn str_find(haystack: str, needle: str) -> int { abort }
 fn str_rfind(haystack: str, needle: str) -> int { abort }
+fn int_to_str(int: int) -> str { abort }
+fn print(str: str) { abort }
