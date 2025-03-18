@@ -30,6 +30,7 @@ impl BlockId {
 #[derive(Default, Debug)]
 pub struct Mir {
     pub bodies: IndexVec<BodyId, Body>,
+    pub main_body: Option<BodyId>,
 }
 
 #[derive(Debug)]
