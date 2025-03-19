@@ -1,58 +1,61 @@
+mod array;
+
 use std::{
-    cell::Cell,
-    fmt,
     io::{self, Write},
     ops::Range,
-    rc::Rc,
 };
 
 use arcstr::ArcStr;
+use array::Array;
 use index_vec::IndexSlice;
-use thin_vec::ThinVec;
 
 macro_rules! value {
     ($ty:ident, $value: expr) => {{
-        ($value).with(|kind| match kind {
-            ValueKind::$ty(out) => out.clone(),
+        match $value {
+            Value::$ty(out) => out.clone(),
             other => unreachable!("Expected {}, found {other:?}", stringify!($ty)),
-        })
+        }
     }};
 }
+
 impl Value {
-    fn unwrap_bool(&self) -> bool {
+    fn unwrap_bool(&mut self) -> bool {
         value!(Bool, self)
     }
-    fn unwrap_int(&self) -> i64 {
+    fn unwrap_int(&mut self) -> i64 {
         value!(Int, self)
     }
-    fn unwrap_int_usize(&self) -> usize {
+    fn unwrap_int_usize(&mut self) -> usize {
         let int = self.unwrap_int();
         int.try_into().unwrap_or_else(|_| panic!("{int}"))
     }
-    fn unwrap_char(&self) -> char {
+    fn unwrap_char(&mut self) -> char {
         value!(Char, self)
     }
-    fn unwrap_str(&self) -> ArcStr {
+    fn unwrap_str(&mut self) -> ArcStr {
         value!(Str, self)
     }
-    fn unwrap_range(&self) -> Range<i64> {
-        self.with(|kind| match kind {
-            ValueKind::Range(out) => Range::clone(out),
+    fn unwrap_range(&mut self) -> Range<i64> {
+        match self {
+            Value::Range(out) => Range::clone(out),
             other => unreachable!("Expected {}, found {other:?}", stringify!($ty)),
-        })
+        }
     }
-    fn unwrap_range_usize(&self) -> Range<usize> {
+    fn unwrap_range_usize(&mut self) -> Range<usize> {
         let range = self.unwrap_range();
         usize::try_from(range.start).unwrap()..usize::try_from(range.end).unwrap()
     }
-    fn unwrap_fn(&self) -> BodyId {
+    fn unwrap_fn(&mut self) -> BodyId {
         value!(Fn, self)
     }
-    fn unwrap_with_arrayref<T>(&self, f: impl FnOnce(&mut ThinVec<Value>) -> T) -> T {
-        self.with(|kind| match kind {
-            ValueKind::Array(array) => f(array),
-            other => unreachable!("Expected {}, found {other:?}", "array"),
-        })
+    fn unwrap_array(&mut self) -> Array {
+        value!(Array, self)
+    }
+    fn unwrap_arrayref(&mut self) -> (Array, u32) {
+        match self {
+            Value::ArrayRef { array, index } => (array.clone(), *index),
+            _ => unreachable!(),
+        }
     }
 }
 
@@ -63,74 +66,38 @@ use crate::mir::{
 
 pub fn interpret(mir: &Mir) {
     let Some(main) = mir.main_body else { return };
-    let bool = [ValueKind::Bool(false).into(), ValueKind::Bool(true).into()];
-    let ints = std::array::from_fn(|i| ValueKind::Int(i.try_into().unwrap()).into());
-    let mut interpreter = Interpreter { mir, unit: ValueKind::Unit.into(), bool, ints };
+    let mut interpreter = Interpreter { mir };
     interpreter.run(main, vec![]);
 }
 
 struct Interpreter<'mir> {
     mir: &'mir Mir,
-    unit: Value,
-    bool: [Value; 2],
-    ints: [Value; 256],
 }
 
+#[expect(clippy::unused_self)]
 impl Interpreter<'_> {
     fn int(&self, int: i64) -> Value {
-        match u8::try_from(int) {
-            Ok(u8) => self.ints[u8 as usize].clone(),
-            Err(_) => ValueKind::Int(int).into(),
-        }
+        Value::Int(int)
     }
     fn bool(&self, bool: bool) -> Value {
-        self.bool[usize::from(bool)].clone()
+        Value::Bool(bool)
     }
     fn unit(&self) -> Value {
-        self.unit.clone()
+        Value::Unit
     }
 }
 
-#[derive(Clone, Debug)]
-enum ValueKind {
+#[derive(Debug, Clone)]
+enum Value {
     Unit,
-    Array(ThinVec<Value>),
+    Array(Array),
     Bool(bool),
     Int(i64),
     Range(Box<Range<i64>>),
     Char(char),
     Str(ArcStr),
     Fn(BodyId),
-    ArrayRef { array: Value, index: u32 },
-}
-
-impl From<ValueKind> for Value {
-    fn from(kind: ValueKind) -> Self {
-        Self { ptr: Rc::new(Cell::new(kind)) }
-    }
-}
-
-#[derive(Clone)]
-struct Value {
-    ptr: Rc<Cell<ValueKind>>,
-}
-
-impl Value {
-    fn with<T>(&self, f: impl FnOnce(&mut ValueKind) -> T) -> T {
-        let mut kind = self.ptr.replace(ValueKind::Unit);
-        let out = f(&mut kind);
-        self.ptr.set(kind);
-        out
-    }
-}
-
-impl fmt::Debug for Value {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let kind = self.ptr.replace(ValueKind::Unit);
-        let result = kind.fmt(f);
-        self.ptr.set(kind);
-        result
-    }
+    ArrayRef { array: Array, index: u32 },
 }
 
 impl Interpreter<'_> {
@@ -151,11 +118,8 @@ impl Interpreter<'_> {
                         let deref = matches!(stmt, Statement::DerefAssign { .. });
                         let rvalue = self.rvalue(rvalue, &mut places);
                         if deref {
-                            let (array, index) = places[place].with(|kind| match kind {
-                                ValueKind::ArrayRef { array, index } => (array.clone(), *index),
-                                _ => unreachable!(),
-                            });
-                            array.unwrap_with_arrayref(|array| array[index as usize] = rvalue);
+                            let (array, index) = places[place].unwrap_arrayref();
+                            array.set(index as _, rvalue);
                         } else {
                             places[place] = rvalue;
                         }
@@ -180,8 +144,7 @@ impl Interpreter<'_> {
             RValue::Extend { array, value, repeat } => {
                 let value = self.operand(value, places);
                 let repeat: usize = self.operand(repeat, places).unwrap_int().try_into().unwrap();
-                places[*array]
-                    .unwrap_with_arrayref(|array| array.extend(std::iter::repeat_n(value, repeat)));
+                places[*array].unwrap_array().extend(value, repeat);
                 self.unit()
             }
             RValue::Call { function, args } => {
@@ -190,8 +153,8 @@ impl Interpreter<'_> {
                 self.run(call_body, args)
             }
             RValue::BinaryExpr { lhs, op, rhs } => {
-                let lhs = self.operand(lhs, places);
-                let rhs = self.operand(rhs, places);
+                let mut lhs = self.operand(lhs, places);
+                let mut rhs = self.operand(rhs, places);
                 match op {
                     BinaryOp::IntAdd => self.int(lhs.unwrap_int() + rhs.unwrap_int()),
                     BinaryOp::IntSub => self.int(lhs.unwrap_int() - rhs.unwrap_int()),
@@ -205,12 +168,12 @@ impl Interpreter<'_> {
                     BinaryOp::IntEq => self.bool(lhs.unwrap_int() == rhs.unwrap_int()),
                     BinaryOp::IntNeq => self.bool(lhs.unwrap_int() != rhs.unwrap_int()),
                     BinaryOp::IntRange => {
-                        ValueKind::Range(Box::new(lhs.unwrap_int()..rhs.unwrap_int())).into()
+                        Value::Range(Box::new(lhs.unwrap_int()..rhs.unwrap_int()))
                     }
                     BinaryOp::IntRangeInclusive =>
                     {
                         #[expect(clippy::range_plus_one)]
-                        ValueKind::Range(Box::new(lhs.unwrap_int()..rhs.unwrap_int() + 1)).into()
+                        Value::Range(Box::new(lhs.unwrap_int()..rhs.unwrap_int() + 1))
                     }
 
                     BinaryOp::CharEq => self.bool(lhs.unwrap_char() == rhs.unwrap_char()),
@@ -219,11 +182,10 @@ impl Interpreter<'_> {
                     BinaryOp::StrEq => self.bool(lhs.unwrap_str() == rhs.unwrap_str()),
                     BinaryOp::StrNeq => self.bool(lhs.unwrap_str() != rhs.unwrap_str()),
                     BinaryOp::StrIndex => {
-                        ValueKind::Char(lhs.unwrap_str().as_bytes()[rhs.unwrap_int_usize()] as char)
-                            .into()
+                        Value::Char(lhs.unwrap_str().as_bytes()[rhs.unwrap_int_usize()] as char)
                     }
                     BinaryOp::StrIndexSlice => {
-                        ValueKind::Str(lhs.unwrap_str()[rhs.unwrap_range_usize()].into()).into()
+                        Value::Str(lhs.unwrap_str()[rhs.unwrap_range_usize()].into())
                     }
                     BinaryOp::StrFind => self.int(
                         lhs.unwrap_str()
@@ -242,25 +204,23 @@ impl Interpreter<'_> {
                     BinaryOp::ArrayIndexRange => todo!(),
                     BinaryOp::ArrayIndex => {
                         let index = rhs.unwrap_int_usize();
-                        lhs.unwrap_with_arrayref(|array| array[index].clone())
+                        lhs.unwrap_array().get(index).unwrap()
                     }
                     BinaryOp::ArrayIndexRef => {
                         let index = rhs.unwrap_int_usize().try_into().unwrap();
-                        (ValueKind::ArrayRef { array: lhs, index }).into()
+                        Value::ArrayRef { array: lhs.unwrap_array(), index }
                     }
                 }
             }
             RValue::UnaryExpr { op, operand } => {
-                let operand = self.operand(operand, places);
+                let mut operand = self.operand(operand, places);
                 match op {
                     UnaryOp::BoolNot => self.bool(!operand.unwrap_bool()),
 
                     UnaryOp::IntNeg => self.int(-operand.unwrap_int()),
-                    UnaryOp::IntToStr => {
-                        ValueKind::Str(operand.unwrap_int().to_string().into()).into()
-                    }
+                    UnaryOp::IntToStr => Value::Str(operand.unwrap_int().to_string().into()),
                     UnaryOp::Chr => {
-                        ValueKind::Char(u8::try_from(operand.unwrap_int()).unwrap() as char).into()
+                        Value::Char(u8::try_from(operand.unwrap_int()).unwrap() as char)
                     }
 
                     UnaryOp::PrintChar => {
@@ -284,12 +244,12 @@ impl Interpreter<'_> {
         match *operand {
             Operand::Constant(ref constant) => match *constant {
                 Constant::Unit => self.unit(),
-                Constant::EmptyArray => ValueKind::Array(ThinVec::default()).into(),
+                Constant::EmptyArray => Value::Array(Array::default()),
                 Constant::Bool(bool) => self.bool(bool),
                 Constant::Int(int) => self.int(int),
-                Constant::Char(char) => ValueKind::Char(char).into(),
-                Constant::Str(str) => ValueKind::Str(str.as_str().into()).into(),
-                Constant::Func(body) => ValueKind::Fn(body).into(),
+                Constant::Char(char) => Value::Char(char),
+                Constant::Str(str) => Value::Str(str.as_str().into()),
+                Constant::Func(body) => Value::Fn(body),
             },
             Operand::Deref(_place) => todo!(),
             Operand::Place(place) => places[place].clone(),
