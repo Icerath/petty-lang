@@ -64,7 +64,8 @@ use crate::mir::{
 pub fn interpret(mir: &Mir) {
     let Some(main) = mir.main_body else { return };
     let bool = [ValueKind::Bool(false).into(), ValueKind::Bool(true).into()];
-    let mut interpreter = Interpreter { mir, unit: ValueKind::Unit.into(), bool };
+    let ints = std::array::from_fn(|i| ValueKind::Int(i.try_into().unwrap()).into());
+    let mut interpreter = Interpreter { mir, unit: ValueKind::Unit.into(), bool, ints };
     interpreter.run(main, vec![]);
 }
 
@@ -72,9 +73,16 @@ struct Interpreter<'mir> {
     mir: &'mir Mir,
     unit: Value,
     bool: [Value; 2],
+    ints: [Value; 256],
 }
 
 impl Interpreter<'_> {
+    fn int(&self, int: i64) -> Value {
+        match u8::try_from(int) {
+            Ok(u8) => self.ints[u8 as usize].clone(),
+            Err(_) => ValueKind::Int(int).into(),
+        }
+    }
     fn bool(&self, bool: bool) -> Value {
         self.bool[usize::from(bool)].clone()
     }
@@ -164,7 +172,7 @@ impl Interpreter<'_> {
             };
         }
     }
-    #[expect(clippy::too_many_lines)]
+    #[allow(clippy::too_many_lines)]
     fn rvalue(&mut self, rvalue: &RValue, places: &mut IndexSlice<Place, [Value]>) -> Value {
         match rvalue {
             RValue::Abort => panic!("abort"),
@@ -185,11 +193,11 @@ impl Interpreter<'_> {
                 let lhs = self.operand(lhs, places);
                 let rhs = self.operand(rhs, places);
                 match op {
-                    BinaryOp::IntAdd => ValueKind::Int(lhs.unwrap_int() + rhs.unwrap_int()).into(),
-                    BinaryOp::IntSub => ValueKind::Int(lhs.unwrap_int() - rhs.unwrap_int()).into(),
-                    BinaryOp::IntMul => ValueKind::Int(lhs.unwrap_int() * rhs.unwrap_int()).into(),
-                    BinaryOp::IntDiv => ValueKind::Int(lhs.unwrap_int() / rhs.unwrap_int()).into(),
-                    BinaryOp::IntMod => ValueKind::Int(lhs.unwrap_int() % rhs.unwrap_int()).into(),
+                    BinaryOp::IntAdd => self.int(lhs.unwrap_int() + rhs.unwrap_int()),
+                    BinaryOp::IntSub => self.int(lhs.unwrap_int() - rhs.unwrap_int()),
+                    BinaryOp::IntMul => self.int(lhs.unwrap_int() * rhs.unwrap_int()),
+                    BinaryOp::IntDiv => self.int(lhs.unwrap_int() / rhs.unwrap_int()),
+                    BinaryOp::IntMod => self.int(lhs.unwrap_int() % rhs.unwrap_int()),
                     BinaryOp::IntLess => self.bool(lhs.unwrap_int() < rhs.unwrap_int()),
                     BinaryOp::IntGreater => self.bool(lhs.unwrap_int() > rhs.unwrap_int()),
                     BinaryOp::IntLessEq => self.bool(lhs.unwrap_int() <= rhs.unwrap_int()),
@@ -217,22 +225,20 @@ impl Interpreter<'_> {
                     BinaryOp::StrIndexSlice => {
                         ValueKind::Str(lhs.unwrap_str()[rhs.unwrap_range_usize()].into()).into()
                     }
-                    BinaryOp::StrFind => ValueKind::Int(
+                    BinaryOp::StrFind => self.int(
                         lhs.unwrap_str()
                             .find(rhs.unwrap_str().as_str())
                             .unwrap()
                             .try_into()
                             .unwrap(),
-                    )
-                    .into(),
-                    BinaryOp::StrRFind => ValueKind::Int(
+                    ),
+                    BinaryOp::StrRFind => self.int(
                         lhs.unwrap_str()
                             .rfind(rhs.unwrap_str().as_str())
                             .unwrap()
                             .try_into()
                             .unwrap(),
-                    )
-                    .into(),
+                    ),
                     BinaryOp::ArrayIndexRange => todo!(),
                     BinaryOp::ArrayIndex => {
                         let index = rhs.unwrap_int_usize();
@@ -249,7 +255,7 @@ impl Interpreter<'_> {
                 match op {
                     UnaryOp::BoolNot => self.bool(!operand.unwrap_bool()),
 
-                    UnaryOp::IntNeg => ValueKind::Int(-operand.unwrap_int()).into(),
+                    UnaryOp::IntNeg => self.int(-operand.unwrap_int()),
                     UnaryOp::IntToStr => {
                         ValueKind::Str(operand.unwrap_int().to_string().into()).into()
                     }
@@ -268,9 +274,7 @@ impl Interpreter<'_> {
                         println!("{}", operand.unwrap_str());
                         self.unit()
                     }
-                    UnaryOp::StrLen => {
-                        ValueKind::Int(operand.unwrap_str().len().try_into().unwrap()).into()
-                    }
+                    UnaryOp::StrLen => self.int(operand.unwrap_str().len().try_into().unwrap()),
                 }
             }
         }
@@ -282,7 +286,7 @@ impl Interpreter<'_> {
                 Constant::Unit => self.unit(),
                 Constant::EmptyArray => ValueKind::Array(ThinVec::default()).into(),
                 Constant::Bool(bool) => self.bool(bool),
-                Constant::Int(int) => ValueKind::Int(int).into(),
+                Constant::Int(int) => self.int(int),
                 Constant::Char(char) => ValueKind::Char(char).into(),
                 Constant::Str(str) => ValueKind::Str(str.as_str().into()).into(),
                 Constant::Func(body) => ValueKind::Fn(body).into(),
