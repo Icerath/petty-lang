@@ -17,7 +17,7 @@ pub fn lower(hir: &Hir) -> Mir {
     let root_body = mir.bodies.push(Body::new(0));
     let bodies = vec![BodyInfo::new(root_body)];
 
-    let mut lowering = Lowering { hir, mir, bodies, last_loop: BlockId::PLACEHOLDER };
+    let mut lowering = Lowering { hir, mir, bodies };
     for &expr in &hir.root {
         lowering.lower(expr);
     }
@@ -30,7 +30,6 @@ struct Lowering<'hir> {
     hir: &'hir Hir,
     mir: Mir,
     bodies: Vec<BodyInfo>,
-    last_loop: BlockId,
 }
 
 struct BodyInfo {
@@ -38,11 +37,18 @@ struct BodyInfo {
     functions: HashMap<Symbol, BodyId>,
     variables: HashMap<Symbol, Place>,
     stmts: Vec<Statement>,
+    breaks: Vec<BlockId>,
 }
 
 impl BodyInfo {
     pub fn new(body: BodyId) -> Self {
-        Self { body, functions: HashMap::default(), variables: HashMap::default(), stmts: vec![] }
+        Self {
+            body,
+            functions: HashMap::default(),
+            variables: HashMap::default(),
+            stmts: vec![],
+            breaks: vec![],
+        }
     }
 }
 
@@ -139,21 +145,21 @@ impl Lowering<'_> {
                 RValue::Use(Operand::Unreachable)
             }
             ExprKind::Loop(block) => {
-                let loop_block = self.body_ref().blocks.next_idx() + 3;
-                // TODO: remove extra blocks
-                self.finish_with(Terminator::Goto(loop_block));
-                let break_block = self.finish_with(Terminator::Goto(BlockId::PLACEHOLDER));
-                self.finish_next();
+                let loop_block = self.finish_next();
 
-                let prev_loop = mem::replace(&mut self.last_loop, break_block);
+                let prev_loop = mem::take(&mut self.current().breaks);
                 for &expr in block {
                     self.lower(expr);
                 }
-                self.last_loop = prev_loop;
                 let after_loop = self.finish_with(Terminator::Goto(loop_block)) + 1;
-                match &mut self.body_mut().blocks[break_block].terminator {
-                    Terminator::Goto(block @ BlockId::PLACEHOLDER) => *block = after_loop,
-                    _ => unreachable!(),
+
+                let breaks = mem::replace(&mut self.current().breaks, prev_loop);
+
+                for block in breaks {
+                    match &mut self.body_mut().blocks[block].terminator {
+                        Terminator::Goto(block @ BlockId::PLACEHOLDER) => *block = after_loop,
+                        _ => unreachable!(),
+                    }
                 }
                 RValue::Use(Operand::UNIT)
             }
@@ -262,7 +268,8 @@ impl Lowering<'_> {
                 RValue::Call { function, args }
             }
             ExprKind::Break => {
-                self.finish_with(Terminator::Goto(self.last_loop));
+                let block = self.finish_with(Terminator::Goto(BlockId::PLACEHOLDER));
+                self.current().breaks.push(block);
                 RValue::Use(Operand::Unreachable)
             }
             ExprKind::Index { expr, index } => {
