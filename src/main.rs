@@ -1,4 +1,4 @@
-use std::{path::PathBuf, time::Instant};
+use std::path::PathBuf;
 
 use clap::Parser;
 
@@ -13,6 +13,7 @@ mod hir;
 mod hir_lowering;
 mod mir;
 mod mir_interpreter;
+mod mir_optimizations;
 mod parse;
 mod span;
 mod symbol;
@@ -28,13 +29,8 @@ struct Args {
 fn main() {
     let args = Args::parse();
     let src = std::fs::read_to_string(&args.path).unwrap();
-    let start = Instant::now();
-    match compile::compile_and_dump(&src) {
+    match compile::compile(&src, args.verbose) {
         Ok(()) => {}
         Err(err) => eprintln!("{err:?}"),
-    }
-    if args.verbose {
-        eprintln!();
-        eprintln!("Time taken: {:?}", start.elapsed());
     }
 }

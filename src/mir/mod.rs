@@ -61,6 +61,29 @@ pub enum Terminator {
     Return(Operand),
 }
 
+impl Terminator {
+    pub fn with_jumps(&self, mut f: impl FnMut(BlockId)) {
+        match *self {
+            Self::Return(..) => {}
+            Self::Goto(jump) => f(jump),
+            Self::Branch { fals, tru, .. } => {
+                f(fals);
+                f(tru);
+            }
+        }
+    }
+    pub fn with_jumps_mut(&mut self, mut f: impl FnMut(&mut BlockId)) {
+        match self {
+            Self::Return(..) => {}
+            Self::Goto(jump) => f(jump),
+            Self::Branch { fals, tru, .. } => {
+                f(fals);
+                f(tru);
+            }
+        }
+    }
+}
+
 #[derive(Debug)]
 pub enum Statement {
     Assign { place: Place, rvalue: RValue },
