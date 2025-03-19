@@ -1,3 +1,7 @@
+use std::{path::PathBuf, time::Instant};
+
+use clap::Parser;
+
 #[cfg(test)]
 mod tests;
 
@@ -14,9 +18,23 @@ mod span;
 mod symbol;
 mod ty;
 
+#[derive(Parser)]
+struct Args {
+    path: PathBuf,
+    #[arg(long, short)]
+    verbose: bool,
+}
+
 fn main() {
-    match compile::compile_and_dump(include_str!("../examples/brainfuck.pebble")) {
+    let args = Args::parse();
+    let src = std::fs::read_to_string(&args.path).unwrap();
+    let start = Instant::now();
+    match compile::compile_and_dump(&src) {
         Ok(()) => {}
         Err(err) => eprintln!("{err:?}"),
+    }
+    if args.verbose {
+        eprintln!();
+        eprintln!("Time taken: {:?}", start.elapsed());
     }
 }

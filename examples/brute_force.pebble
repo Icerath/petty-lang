@@ -1,0 +1,14 @@
+fn main() {
+    let sum = 0;
+    let i = 0;
+    while i < 10000 {
+        i += 1;
+        let j = 0;
+        while j < 10000 {
+            j += 1;
+            sum += 1;
+        }
+    }
+
+    print(int_to_str(sum));
+}
