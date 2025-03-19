@@ -4,7 +4,7 @@ fn main() {
     while i < 10000 {
         i += 1;
         let j = 0;
-        while j < 10000 {
+        while j < 1000 {
             j += 1;
             sum += 1;
         }

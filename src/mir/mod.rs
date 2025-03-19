@@ -78,11 +78,18 @@ pub enum RValue {
     Call { function: Operand, args: ThinVec<Operand> },
 }
 
+impl RValue {
+    pub fn is_unreachable(&self) -> bool {
+        matches!(self, Self::Use(Operand::Unreachable))
+    }
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub enum Operand {
     Constant(Constant),
     Place(Place),
     Deref(Place),
+    Unreachable,
 }
 
 impl Operand {

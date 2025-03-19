@@ -136,7 +136,7 @@ impl Lowering<'_> {
             ExprKind::Return(expr) => {
                 let place = self.lower(*expr);
                 self.finish_with(Terminator::Return(place));
-                RValue::Use(Operand::UNIT)
+                RValue::Use(Operand::Unreachable)
             }
             ExprKind::Loop(block) => {
                 let loop_block = self.body_ref().blocks.next_idx() + 3;
@@ -168,14 +168,16 @@ impl Lowering<'_> {
                         tru: self.body_ref().blocks.next_idx() + 1,
                     });
                     let block_out = self.block_expr(&arm.body);
-                    if is_unit {
-                        self.process(block_out);
-                    } else {
-                        self.current()
-                            .stmts
-                            .push(Statement::Assign { place: out_place, rvalue: block_out });
+                    if !block_out.is_unreachable() {
+                        if is_unit {
+                            self.process(block_out);
+                        } else {
+                            self.current()
+                                .stmts
+                                .push(Statement::Assign { place: out_place, rvalue: block_out });
+                        }
+                        jump_to_ends.push(self.finish_with(Terminator::Goto(BlockId::PLACEHOLDER)));
                     }
-                    jump_to_ends.push(self.finish_with(Terminator::Goto(BlockId::PLACEHOLDER)));
                     let current_block = self.body_ref().blocks.next_idx();
                     match &mut self.body_mut().blocks[to_fix].terminator {
                         Terminator::Branch { fals, .. } => *fals = current_block,
@@ -183,12 +185,14 @@ impl Lowering<'_> {
                     }
                 }
                 let els_out = self.block_expr(els);
-                if is_unit {
-                    self.process(els_out);
-                } else {
-                    self.current()
-                        .stmts
-                        .push(Statement::Assign { place: out_place, rvalue: els_out });
+                if !els_out.is_unreachable() {
+                    if is_unit {
+                        self.process(els_out);
+                    } else {
+                        self.current()
+                            .stmts
+                            .push(Statement::Assign { place: out_place, rvalue: els_out });
+                    }
                 }
 
                 let current = self.finish_next();
@@ -259,7 +263,7 @@ impl Lowering<'_> {
             }
             ExprKind::Break => {
                 self.finish_with(Terminator::Goto(self.last_loop));
-                RValue::Use(Operand::UNIT)
+                RValue::Use(Operand::Unreachable)
             }
             ExprKind::Index { expr, index } => {
                 let lhs = self.lower(*expr);

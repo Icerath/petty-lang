@@ -293,6 +293,7 @@ impl Interpreter<'_> {
             },
             Operand::Deref(_place) => todo!(),
             Operand::Place(place) => places[place].clone(),
+            Operand::Unreachable => unreachable!(),
         }
     }
 }

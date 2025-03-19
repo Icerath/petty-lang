@@ -77,6 +77,7 @@ impl fmt::Display for Operand {
             Self::Deref(place) => write!(f, "deref _{place:?}"),
             Self::Place(place) => write!(f, "_{place:?}"),
             Self::Constant(constant) => write!(f, "{constant}"),
+            Self::Unreachable => write!(f, "unreachable"),
         }
     }
 }
