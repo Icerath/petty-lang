@@ -1,5 +1,3 @@
-#![expect(dead_code)]
-
 mod display;
 
 use index_vec::IndexVec;
@@ -136,6 +134,7 @@ pub enum Constant {
     Func(BodyId),
 }
 
+#[expect(dead_code)]
 #[derive(Debug, PartialEq, PartialOrd, Clone, Copy)]
 pub enum BinaryOp {
     IntAdd,
@@ -179,13 +178,4 @@ pub enum UnaryOp {
 
     StrLen,
     StrPrint,
-}
-
-#[derive(Debug)]
-pub enum Instrinsic {
-    Strlen(Operand),
-    StrFind(Operand, Operand),
-    StrRFind(Operand, Operand),
-    IntToStr(Operand),
-    PrintStr(Operand),
 }
