@@ -11,6 +11,11 @@ fn test_never() {
 }
 
 #[test]
+fn test_arrays() {
+    compile(include_str!("tests/arrays.pebble")).unwrap();
+}
+
+#[test]
 #[should_panic = "expected `!`, found `int`"]
 fn fail_never() {
     compile(include_str!("tests/fail_never.pebble")).unwrap();

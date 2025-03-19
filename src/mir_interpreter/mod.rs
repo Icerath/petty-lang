@@ -87,6 +87,7 @@ enum ValueKind {
     Char(char),
     Str(ArcStr),
     Fn(BodyId),
+    ArrayRef { array: Value, index: u32 },
 }
 
 impl From<ValueKind> for Value {
@@ -133,9 +134,17 @@ impl Interpreter<'_> {
                 match *stmt {
                     Statement::DerefAssign { place, ref rvalue }
                     | Statement::Assign { place, ref rvalue } => {
-                        // let deref = matches!(stmt, Statement::DerefAssign { .. });
-                        // assert!(!deref);
-                        places[place] = self.rvalue(rvalue, &mut places);
+                        let deref = matches!(stmt, Statement::DerefAssign { .. });
+                        let rvalue = self.rvalue(rvalue, &mut places);
+                        if deref {
+                            let (array, index) = places[place].with(|kind| match kind {
+                                ValueKind::ArrayRef { array, index } => (array.clone(), *index),
+                                _ => unreachable!(),
+                            });
+                            array.unwrap_with_arrayref(|array| array[index as usize] = rvalue);
+                        } else {
+                            places[place] = rvalue;
+                        }
                     }
                 }
             }
@@ -218,9 +227,13 @@ impl Interpreter<'_> {
                     )
                     .into(),
                     BinaryOp::ArrayIndexRange => todo!(),
-                    BinaryOp::ArrayIndexRef | BinaryOp::ArrayIndex => {
+                    BinaryOp::ArrayIndex => {
                         let index = rhs.unwrap_int_usize();
                         lhs.unwrap_with_arrayref(|array| array[index].clone())
+                    }
+                    BinaryOp::ArrayIndexRef => {
+                        let index = rhs.unwrap_int_usize().try_into().unwrap();
+                        (ValueKind::ArrayRef { array: lhs, index }).into()
                     }
                 }
             }

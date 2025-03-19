@@ -1,0 +1,19 @@
+fn main() {
+    let array = [0; 256]
+    let i = 0
+    while i < 256 {
+        let j = 0
+        while (j < i) {
+            array[i] += 1
+            j += 1
+        }
+        i += 1
+    }
+    i = 0;
+    while (i < 256) {
+        if (array[i] != i) {
+            abort
+        }
+        i += 1;
+    }
+}
