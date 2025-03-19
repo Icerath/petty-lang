@@ -33,6 +33,7 @@ impl Lowering<'_> {
             "print_char" => unary!(PrintChar),
             _ => return false,
         };
+        self.mir.num_intrinsics += 1;
         let place = self.new_place();
         self.current().stmts.push(Statement::Assign { place, rvalue });
         self.finish_with(Terminator::Return(Operand::Place(place)));

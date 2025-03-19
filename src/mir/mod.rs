@@ -31,6 +31,7 @@ impl BlockId {
 pub struct Mir {
     pub bodies: IndexVec<BodyId, Body>,
     pub main_body: Option<BodyId>,
+    pub num_intrinsics: usize,
 }
 
 #[derive(Debug)]
