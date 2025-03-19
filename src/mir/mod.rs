@@ -61,6 +61,13 @@ pub enum Terminator {
 }
 
 impl Terminator {
+    pub fn mentions_place(&self, place: Place) -> bool {
+        match self {
+            Self::Goto(..) => false,
+            Self::Branch { condition, .. } => condition.mentions_place(place),
+            Self::Return(operand) => operand.mentions_place(place),
+        }
+    }
     pub fn with_jumps(&self, mut f: impl FnMut(BlockId)) {
         match *self {
             Self::Return(..) => {}
@@ -106,7 +113,7 @@ impl RValue {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Operand {
     Constant(Constant),
     Place(Place),
@@ -123,7 +130,7 @@ impl Operand {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Constant {
     Unit,
     EmptyArray,
@@ -178,4 +185,39 @@ pub enum UnaryOp {
 
     StrLen,
     StrPrint,
+}
+
+impl Statement {
+    pub fn rvalue(&self) -> &RValue {
+        match self {
+            Self::Assign { rvalue, .. } | Self::DerefAssign { rvalue, .. } => rvalue,
+        }
+    }
+}
+
+impl RValue {
+    pub fn mentions_place(&self, place: Place) -> bool {
+        match self {
+            Self::BinaryExpr { lhs, rhs, .. } => {
+                lhs.mentions_place(place) || rhs.mentions_place(place)
+            }
+            Self::Call { function, args } => {
+                function.mentions_place(place) || args.iter().any(|arg| arg.mentions_place(place))
+            }
+            Self::Use(operand) | Self::UnaryExpr { operand, .. } => operand.mentions_place(place),
+            Self::Extend { array, value, repeat } => {
+                *array == place || value.mentions_place(place) || repeat.mentions_place(place)
+            }
+            Self::Abort => false,
+        }
+    }
+}
+
+impl Operand {
+    pub fn mentions_place(&self, target: Place) -> bool {
+        match *self {
+            Self::Place(place) | Self::Deref(place) => target == place,
+            _ => false,
+        }
+    }
 }
