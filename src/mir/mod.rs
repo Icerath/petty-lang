@@ -67,6 +67,7 @@ pub enum Statement {
     DerefAssign { place: Place, rvalue: RValue },
 }
 
+#[must_use]
 #[derive(Debug)]
 pub enum RValue {
     Extend { array: Place, value: Operand, repeat: Operand },

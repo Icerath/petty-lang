@@ -71,7 +71,12 @@ impl Lowering<'_> {
     }
 
     fn lower(&mut self, id: ExprId) -> Operand {
-        match self.lower_inner(id) {
+        let rvalue = self.lower_inner(id);
+        self.process(rvalue)
+    }
+
+    fn process(&mut self, rvalue: RValue) -> Operand {
+        match rvalue {
             RValue::Use(operand) => operand,
             rvalue => {
                 let place = self.new_place();
@@ -83,8 +88,9 @@ impl Lowering<'_> {
 
     #[expect(clippy::too_many_lines)]
     fn lower_inner(&mut self, id: ExprId) -> RValue {
-        // FIXME: we should return an rvalue and let lower handle whether or not to assign
         let expr = &self.hir.exprs[id];
+        let is_unit = *expr.ty.kind() == TyKind::Unit;
+
         match &expr.kind {
             ExprKind::Literal(lit) => self.lit_rvalue(lit),
             ExprKind::Unary { op, expr } => {
@@ -162,9 +168,13 @@ impl Lowering<'_> {
                         tru: self.body_ref().blocks.next_idx() + 1,
                     });
                     let block_out = self.block_expr(&arm.body);
-                    self.current()
-                        .stmts
-                        .push(Statement::Assign { place: out_place, rvalue: block_out });
+                    if is_unit {
+                        self.process(block_out);
+                    } else {
+                        self.current()
+                            .stmts
+                            .push(Statement::Assign { place: out_place, rvalue: block_out });
+                    }
                     jump_to_ends.push(self.finish_with(Terminator::Goto(BlockId::PLACEHOLDER)));
                     let current_block = self.body_ref().blocks.next_idx();
                     match &mut self.body_mut().blocks[to_fix].terminator {
@@ -173,7 +183,14 @@ impl Lowering<'_> {
                     }
                 }
                 let els_out = self.block_expr(els);
-                self.current().stmts.push(Statement::Assign { place: out_place, rvalue: els_out });
+                if is_unit {
+                    self.process(els_out);
+                } else {
+                    self.current()
+                        .stmts
+                        .push(Statement::Assign { place: out_place, rvalue: els_out });
+                }
+
                 let current = self.finish_next();
                 for block in jump_to_ends {
                     match &mut self.body_mut().blocks[block].terminator {
@@ -181,7 +198,11 @@ impl Lowering<'_> {
                         _ => unreachable!(),
                     }
                 }
-                RValue::Use(Operand::Place(out_place))
+                if is_unit {
+                    RValue::Use(Operand::Constant(Constant::Unit))
+                } else {
+                    RValue::Use(Operand::Place(out_place))
+                }
             }
             ExprKind::Assignment { lhs, expr } => {
                 let rvalue = self.lower_inner(*expr);
