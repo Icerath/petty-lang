@@ -37,7 +37,7 @@ impl fmt::Display for Mir {
                                     write!(f, "extend _{array:?}[{value}; {repeat}]")
                                 }
                                 RValue::UnaryExpr { op, operand } => {
-                                    write!(f, "{op:?}({operand:?})")
+                                    write!(f, "{op:?}({operand})")
                                 }
                             }?;
                         }
