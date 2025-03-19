@@ -142,6 +142,9 @@ pub enum UnaryOp {
     IntToStr,
     IntNeg,
 
+    Chr,
+    PrintChar,
+
     StrLen,
     StrPrint,
 }

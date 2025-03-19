@@ -1,4 +1,10 @@
-use std::{cell::Cell, fmt, ops::Range, rc::Rc};
+use std::{
+    cell::Cell,
+    fmt,
+    io::{self, Write},
+    ops::Range,
+    rc::Rc,
+};
 
 use arcstr::ArcStr;
 use index_vec::IndexSlice;
@@ -158,6 +164,7 @@ impl Interpreter<'_> {
             };
         }
     }
+    #[expect(clippy::too_many_lines)]
     fn rvalue(&mut self, rvalue: &RValue, places: &mut IndexSlice<Place, [Value]>) -> Value {
         match rvalue {
             RValue::Abort => panic!("abort"),
@@ -241,10 +248,22 @@ impl Interpreter<'_> {
                 let operand = self.operand(operand, places);
                 match op {
                     UnaryOp::BoolNot => self.bool(!operand.unwrap_bool()),
+
                     UnaryOp::IntNeg => ValueKind::Int(-operand.unwrap_int()).into(),
                     UnaryOp::IntToStr => {
                         ValueKind::Str(operand.unwrap_int().to_string().into()).into()
                     }
+                    UnaryOp::Chr => {
+                        ValueKind::Char(u8::try_from(operand.unwrap_int()).unwrap() as char).into()
+                    }
+
+                    UnaryOp::PrintChar => {
+                        let mut stdout = io::stdout().lock();
+                        _ = write!(stdout, "{}", operand.unwrap_char());
+                        _ = stdout.flush();
+                        self.unit()
+                    }
+
                     UnaryOp::StrPrint => {
                         println!("{}", operand.unwrap_str());
                         self.unit()

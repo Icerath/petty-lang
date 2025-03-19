@@ -29,6 +29,8 @@ impl Lowering<'_> {
             "str_rfind" => binary!(StrRFind),
             "int_to_str" => unary!(IntToStr),
             "print" => unary!(StrPrint),
+            "chr" => unary!(Chr),
+            "print_char" => unary!(PrintChar),
             _ => return false,
         };
         let place = self.new_place();
