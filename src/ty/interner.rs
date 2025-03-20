@@ -11,8 +11,8 @@ pub struct TyInterner {
 #[derive(Default)]
 struct Inner {
     // drop artificial statics first.
-    set: RefCell<HashMap<TyKind<'static>, Ty<'static>>>,
-    allocator: bumpalo::Bump,
+    set: RefCell<HashMap<&'static TyKind<'static>, Ty<'static>>>,
+    allocator: typed_arena::Arena<TyKind<'static>>,
 }
 
 impl Default for TyInterner {
@@ -36,10 +36,10 @@ impl Inner {
         if let Some(ty) = self.set.borrow().get(&kind) {
             return *ty;
         }
-        let ty = Ty { kind: self.allocator.alloc(kind.clone()) };
-        let ty = unsafe { mem::transmute::<Ty<'_>, Ty<'static>>(ty) };
         let kind = unsafe { mem::transmute::<TyKind<'_>, TyKind<'static>>(kind) };
-        self.set.borrow_mut().insert(kind, ty);
+        let ty = Ty { kind: self.allocator.alloc(kind) };
+        let ty = unsafe { mem::transmute::<Ty<'_>, Ty<'static>>(ty) };
+        self.set.borrow_mut().insert(ty.kind, ty);
         ty
     }
 }
@@ -60,13 +60,7 @@ macro_rules! common {
 
         impl<'tcx> TyCtx<'tcx> {
             $(pub const fn $name(&self) -> Ty<'tcx> {
-                self.interner.$name()
-            })*
-        }
-
-        impl TyInterner {
-            $(const fn $name(&self) -> Ty<'_> {
-                self.common.$name
+                self.interner.common.$name
             })*
         }
     };
