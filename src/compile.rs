@@ -36,7 +36,7 @@ fn compile_inner(
     let ast = parse(&src)?;
     let ty_intern = TyInterner::default();
     let tcx = TyCtx::new(&ty_intern);
-    let analysis = ast_analysis::analyze(file, &src, &ast, &tcx);
+    let analysis = ast_analysis::analyze(file, &src, &ast, &tcx)?;
     dump!(ast);
     let hir = ast_lowering::lower(ast, analysis, &tcx);
     dump!(hir);
