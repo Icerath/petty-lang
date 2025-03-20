@@ -41,6 +41,7 @@ fn compile_inner(
     let hir = ast_lowering::lower(ast, analysis, &tcx);
     dump!(hir);
     let mut mir = hir_lowering::lower(&hir);
+    drop(hir);
     {
         let unoptimized_mir = &mir;
         dump!(unoptimized_mir);
