@@ -75,7 +75,7 @@ impl Stream<'_> {
     }
     #[inline(never)]
     #[cold]
-    fn any_failed(&mut self, found: Token, toks: &[TokenKind]) -> Error {
+    fn any_failed(&self, found: Token, toks: &[TokenKind]) -> Error {
         let label = LabeledSpan::at(self.lexer.span(), "here");
         miette!(
             labels = vec![label],

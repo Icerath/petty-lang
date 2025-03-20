@@ -293,13 +293,8 @@ impl<'tcx> Collector<'_, 'tcx> {
         ty
     }
 
-    fn read_ident(&mut self, ident: Symbol) -> Ty<'tcx> {
-        for body in self.bodies.iter().rev() {
-            if let Some(ty) = body.variables.get(&ident) {
-                return *ty;
-            }
-        }
-        panic!("{:?}", &*ident);
+    fn read_ident(&self, ident: Symbol) -> Ty<'tcx> {
+        *self.bodies.iter().rev().find_map(|body| body.variables.get(&ident)).unwrap()
     }
 
     fn analyze_lit(&mut self, lit: &Lit) -> Ty<'tcx> {
