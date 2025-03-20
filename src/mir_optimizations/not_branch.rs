@@ -13,7 +13,7 @@ pub fn optimize(mir: &mut Mir, body_id: BodyId) {
         };
         if cplace != place {
             continue;
-        };
+        }
         let RValue::UnaryExpr { op: UnaryOp::BoolNot, operand } = rvalue else { continue };
 
         // use condition inside of the not rvalue and swap false/true branches

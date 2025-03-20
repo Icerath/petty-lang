@@ -133,7 +133,7 @@ impl Interpreter<'_> {
                     block_id = if condition { tru } else { fals };
                 }
                 Terminator::Return(ref operand) => return self.operand(operand, &places),
-            };
+            }
         }
     }
     #[allow(clippy::too_many_lines)]

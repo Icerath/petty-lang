@@ -104,7 +104,7 @@ impl Stream<'_> {
             args.push(expr);
             match self.next()? {
                 tok if tok.kind == term => break,
-                tok if tok.kind == sep => continue,
+                tok if tok.kind == sep => {}
                 found => return Err(self.any_failed(found, &[sep, term])),
             }
         }
