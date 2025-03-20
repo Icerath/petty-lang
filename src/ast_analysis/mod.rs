@@ -135,20 +135,37 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         *self.bodies.iter().rev().find_map(|body| body.ty_names.get(&name)).unwrap()
     }
 
-    fn subtype(&self, lhs: Ty<'tcx>, rhs: Ty<'tcx>, span: Span) -> Result<()> {
-        self.tcx.try_subtype(lhs, rhs).map_err(|[lhs, rhs]| self.subtype_err(lhs, rhs, span))
+    fn subtype(&self, lhs: Ty<'tcx>, rhs: Ty<'tcx>, expr: ExprId) -> Result<()> {
+        self.tcx.try_subtype(lhs, rhs).map_err(|[lhs, rhs]| self.subtype_err(lhs, rhs, expr))
     }
 
     #[cold]
     #[inline(never)]
-    fn subtype_err(&self, lhs: Ty<'tcx>, rhs: Ty<'tcx>, span: Span) -> miette::Error {
-        let label = LabeledSpan::at(span, "here");
-        miette::miette!(
-            labels = vec![label],
-            code = "type error",
-            "expected `{rhs}`, found `{lhs}`"
-        )
-        .with_source_code(self.src())
+    fn subtype_err(&self, lhs: Ty<'tcx>, rhs: Ty<'tcx>, expr: ExprId) -> miette::Error {
+        let spans: Vec<_> = self
+            .invalid_type_span(expr)
+            .into_iter()
+            .map(|span| LabeledSpan::at(span, format!("expected `{rhs}`, found `{lhs}`")))
+            .collect();
+        miette::miette!(labels = spans, code = "ERROR", "mismatched types")
+            .with_source_code(self.src())
+    }
+    fn invalid_type_span(&self, expr: ExprId) -> Vec<Span> {
+        let expr = &self.ast.exprs[expr];
+        match expr.kind {
+            ExprKind::Block(block) => self.block_span(block, expr.span),
+            ExprKind::If { ref arms, els } => arms
+                .iter()
+                .map(|arm| arm.body)
+                .chain(els)
+                .flat_map(|block| self.block_span(block, Span::ZERO))
+                .collect(),
+            _ => vec![expr.span],
+        }
+    }
+    fn block_span(&self, block: BlockId, if_empty: Span) -> Vec<Span> {
+        let block = &self.ast.blocks[block];
+        block.stmts.last().map_or(vec![if_empty], |&last| self.invalid_type_span(last))
     }
 
     fn src(&self) -> NamedSource<String> {
@@ -169,7 +186,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                     UnaryOp::Neg => self.tcx.int(),
                     UnaryOp::Not => self.tcx.bool(),
                 };
-                self.tcx.subtype(operand, ty);
+                self.subtype(operand, ty, id)?;
                 ty
             }
             &ExprKind::Binary {
@@ -186,10 +203,9 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                         ..
                     },
             } => {
-                let span = self.ast.spans([lhs, rhs]);
-                let lhs = self.analyze_expr(lhs)?;
-                let rhs = self.analyze_expr(rhs)?;
-                self.subtype(rhs, lhs, span)?;
+                let lhs_ty = self.analyze_expr(lhs)?;
+                let rhs_ty = self.analyze_expr(rhs)?;
+                self.subtype(rhs_ty, lhs_ty, rhs)?;
                 self.tcx.unit()
             }
             &ExprKind::Binary {
@@ -221,8 +237,8 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 let rhs = self.analyze_expr(rhs)?;
                 self.tcx.eq(lhs, rhs);
 
-                self.tcx.subtype(lhs, self.tcx.int());
-                self.tcx.subtype(rhs, self.tcx.int());
+                self.subtype(lhs, self.tcx.int(), id)?;
+                self.subtype(rhs, self.tcx.int(), id)?;
 
                 match op.kind {
                     BinOpKind::Range => self.tcx.intern(TyKind::Range),
@@ -258,7 +274,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
 
                 for (&arg, &param) in std::iter::zip(args, params) {
                     let arg = self.analyze_expr(arg)?;
-                    self.tcx.subtype(arg, param);
+                    self.subtype(arg, param, id)?;
                 }
                 *ret
             }
@@ -271,14 +287,14 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 }
                 let block = &self.ast.blocks[*block];
                 let body_ret = self.analyze_body_with(block, body)?.0;
-                self.tcx.subtype(body_ret, *ret);
+                self.subtype(body_ret, *ret, id)?;
                 self.tcx.unit()
             }
             ExprKind::Let { ident, ty, expr } => {
                 let expr_ty = self.analyze_expr(*expr)?;
                 let ty = if let Some(ty) = ty {
                     let ty = self.read_ast_ty(*ty);
-                    self.tcx.subtype(expr_ty, ty);
+                    self.subtype(expr_ty, ty, *expr)?;
                     ty
                 } else {
                     expr_ty
@@ -287,9 +303,10 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 body.variables.insert(*ident, ty);
                 self.tcx.unit()
             }
-            ExprKind::While { condition, block } => {
-                self.tcx.subtype(self.analyze_expr(*condition)?, self.tcx.bool());
-                self.analyze_block(*block)?;
+            &ExprKind::While { condition, block } => {
+                let condition_ty = self.analyze_expr(condition)?;
+                self.subtype(condition_ty, self.tcx.bool(), condition)?;
+                self.analyze_block(block)?;
                 self.tcx.unit()
             }
             ExprKind::If { arms, els } => {
@@ -297,7 +314,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
 
                 for arm in arms {
                     let ty = self.analyze_expr(arm.condition)?;
-                    self.tcx.subtype(ty, self.tcx.bool());
+                    self.subtype(ty, self.tcx.bool(), id)?;
                     let block_ty = self.analyze_block(arm.body)?;
                     if let Some(expected_ty) = expected_ty {
                         self.tcx.eq(expected_ty, block_ty);

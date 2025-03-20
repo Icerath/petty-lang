@@ -7,6 +7,7 @@ use crate::{
         ArraySeg, Ast, BinOpKind, BinaryOp, Block, BlockId, Expr, ExprId, ExprKind, IfStmt, Lit,
         Param, StructInitField, Ty, TypeId,
     },
+    span::Span,
     symbol::Symbol,
 };
 use lex::Lexer;
@@ -326,9 +327,14 @@ fn parse_atom_with(stream: &mut Stream, tok: Token) -> Result<ExprId> {
             Ok(ExprKind::Lit($lit).with_span(tok.span))
         };
     }
+    macro_rules! all {
+        () => {
+            Span::from(tok.span.start()..stream.lexer.current_pos())
+        };
+    }
 
     let expr = match tok.kind {
-        TokenKind::LBrace => Ok(ExprKind::Block(stream.parse()?).todo_span()),
+        TokenKind::LBrace => Ok(ExprKind::Block(stream.parse()?).with_span(all!())),
         TokenKind::Abort => lit!(Lit::Abort),
         TokenKind::Break => Ok(ExprKind::Break.todo_span()),
         TokenKind::Return => {
