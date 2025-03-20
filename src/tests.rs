@@ -1,17 +1,17 @@
 use crate::compile::compile_test;
 
 #[test]
-fn test_inference() {
+fn inference() {
     compile_test(include_str!("tests/inference.pebble")).unwrap();
 }
 
 #[test]
-fn test_never() {
+fn never() {
     compile_test(include_str!("tests/never.pebble")).unwrap();
 }
 
 #[test]
-fn test_arrays() {
+fn arrays() {
     compile_test(include_str!("tests/arrays.pebble")).unwrap();
 }
 
