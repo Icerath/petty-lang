@@ -1,6 +1,6 @@
 use crate::{
     HashMap,
-    ast::{self, Ast, BinOpKind, BinaryOp, Block, BlockId, Expr, ExprId, Lit, TypeId, UnaryOp},
+    ast::{self, Ast, BinOpKind, BinaryOp, Block, BlockId, ExprId, ExprKind, Lit, TypeId, UnaryOp},
     span::Span,
     symbol::Symbol,
     ty::{Ty, TyCtx, TyKind},
@@ -78,7 +78,9 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         // for stmt in &*ast.top_level.borrow() {}
 
         for &id in &block.stmts {
-            let Expr::FnDecl { ident, params, ret, .. } = &self.ast.exprs[id] else { continue };
+            let ExprKind::FnDecl { ident, params, ret, .. } = &self.ast.exprs[id].kind else {
+                continue;
+            };
             let ret = match ret {
                 Some(ret) => self.read_ast_ty(*ret),
                 None => self.tcx.unit(),
@@ -140,10 +142,10 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
     #[must_use]
     #[expect(clippy::too_many_lines)]
     fn analyze_expr(&mut self, id: ExprId) -> Ty<'tcx> {
-        let ty = match &self.ast.exprs[id] {
-            Expr::Lit(lit) => self.analyze_lit(lit),
-            &Expr::Ident(ident) => self.read_ident(ident),
-            &Expr::Unary { expr, op } => {
+        let ty = match &self.ast.exprs[id].kind {
+            ExprKind::Lit(lit) => self.analyze_lit(lit),
+            &ExprKind::Ident(ident) => self.read_ident(ident),
+            &ExprKind::Unary { expr, op } => {
                 let operand = self.analyze_expr(expr);
                 let ty = match op {
                     UnaryOp::Neg => self.tcx.int(),
@@ -152,7 +154,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 self.tcx.subtype(operand, ty);
                 ty
             }
-            &Expr::Binary {
+            &ExprKind::Binary {
                 lhs,
                 rhs,
                 op:
@@ -171,7 +173,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 self.subtype(rhs, lhs, span).unwrap();
                 self.tcx.unit()
             }
-            &Expr::Binary {
+            &ExprKind::Binary {
                 lhs,
                 rhs,
                 op:
@@ -191,7 +193,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 self.tcx.eq(lhs, rhs);
                 self.tcx.bool()
             }
-            &Expr::Binary {
+            &ExprKind::Binary {
                 lhs,
                 rhs,
                 op: op @ BinaryOp { kind: BinOpKind::Range | BinOpKind::RangeInclusive, .. },
@@ -209,13 +211,13 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                     _ => unreachable!(),
                 }
             }
-            &Expr::Binary { lhs, rhs, .. } => {
+            &ExprKind::Binary { lhs, rhs, .. } => {
                 let lhs = self.analyze_expr(lhs);
                 let rhs = self.analyze_expr(rhs);
                 self.tcx.eq(lhs, rhs);
                 lhs
             }
-            &Expr::Index { expr, index } => {
+            &ExprKind::Index { expr, index } => {
                 let expr = self.analyze_expr(expr);
                 let index = self.analyze_expr(index);
                 let expr = self.tcx.infer_shallow(expr);
@@ -229,7 +231,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 };
                 out
             }
-            Expr::FnCall { function, args } => {
+            ExprKind::FnCall { function, args } => {
                 let fn_ty = self.analyze_expr(*function);
                 let TyKind::Function { params, ret } = &*fn_ty else {
                     panic!("expected `function`, found {fn_ty:?}");
@@ -241,7 +243,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 }
                 *ret
             }
-            Expr::FnDecl { block, params, ident, .. } => {
+            ExprKind::FnDecl { block, params, ident, .. } => {
                 let fn_ty = self.bodies.last().unwrap().variables[ident];
                 let TyKind::Function { params: param_tys, ret } = &*fn_ty else { unreachable!() };
                 let mut body = Body::new(*ret);
@@ -253,7 +255,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 self.tcx.subtype(body_ret, *ret);
                 self.tcx.unit()
             }
-            Expr::Let { ident, ty, expr } => {
+            ExprKind::Let { ident, ty, expr } => {
                 let expr_ty = self.analyze_expr(*expr);
                 let ty = if let Some(ty) = ty {
                     let ty = self.read_ast_ty(*ty);
@@ -266,12 +268,12 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 body.variables.insert(*ident, ty);
                 self.tcx.unit()
             }
-            Expr::While { condition, block } => {
+            ExprKind::While { condition, block } => {
                 self.tcx.subtype(self.analyze_expr(*condition), self.tcx.bool());
                 self.analyze_block(*block);
                 self.tcx.unit()
             }
-            Expr::If { arms, els } => {
+            ExprKind::If { arms, els } => {
                 let mut expected_ty = None;
 
                 for arm in arms {
@@ -294,7 +296,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 self.ty_info.expr_tys[id] = expected_ty;
                 self.tcx.unit()
             }
-            Expr::Block(block_id) => {
+            ExprKind::Block(block_id) => {
                 let block = &self.ast.blocks[*block_id];
                 if block.is_expr {
                     let mut ty = None;
@@ -307,13 +309,13 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                     self.tcx.unit()
                 }
             }
-            Expr::Return(expr) => {
+            ExprKind::Return(expr) => {
                 let ty = expr.map_or_else(|| self.tcx.unit(), |expr| self.analyze_expr(expr));
                 let expected = self.bodies.last().unwrap().ret;
                 self.tcx.subtype(ty, expected);
                 self.tcx.never()
             }
-            Expr::Break => self.tcx.never(),
+            ExprKind::Break => self.tcx.never(),
             expr => todo!("{expr:?}"),
         };
         self.ty_info.expr_tys[id] = ty;

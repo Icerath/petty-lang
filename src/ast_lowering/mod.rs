@@ -41,9 +41,9 @@ impl<'tcx> Lowering<'_, 'tcx> {
     }
 
     fn lower_lvalue(&mut self, expr_id: ast::ExprId) -> hir::LValue {
-        match &self.ast.exprs[expr_id] {
-            &ast::Expr::Ident(name) => hir::LValue::Name(name),
-            ast::Expr::Index { expr, index } => {
+        match &self.ast.exprs[expr_id].kind {
+            &ast::ExprKind::Ident(name) => hir::LValue::Name(name),
+            ast::ExprKind::Index { expr, index } => {
                 let indexee = Box::new(self.lower_lvalue(*expr));
                 hir::LValue::Index { indexee, index: self.lower(*index) }
             }
@@ -52,8 +52,8 @@ impl<'tcx> Lowering<'_, 'tcx> {
     }
 
     fn lower_inner(&mut self, expr_id: ast::ExprId) -> hir::Expr<'tcx> {
-        match &self.ast.exprs[expr_id] {
-            &ast::Expr::Binary {
+        match &self.ast.exprs[expr_id].kind {
+            &ast::ExprKind::Binary {
                 lhs,
                 op:
                     op @ BinaryOp {
@@ -83,14 +83,14 @@ impl<'tcx> Lowering<'_, 'tcx> {
                 let kind = hir::ExprKind::Assignment { lhs: self.lower_lvalue(lhs), expr };
                 hir::Expr { ty: self.ty_info.expr_tys[expr_id], kind }
             }
-            &ast::Expr::Binary { lhs, op: BinaryOp { kind: BinOpKind::Assign, .. }, rhs } => {
+            &ast::ExprKind::Binary { lhs, op: BinaryOp { kind: BinOpKind::Assign, .. }, rhs } => {
                 let kind = hir::ExprKind::Assignment {
                     lhs: self.lower_lvalue(lhs),
                     expr: self.lower(rhs),
                 };
                 hir::Expr { ty: self.ty_info.expr_tys[expr_id], kind }
             }
-            &ast::Expr::Binary { lhs, op, rhs } => {
+            &ast::ExprKind::Binary { lhs, op, rhs } => {
                 let op = match op.kind {
                     BinOpKind::Add => hir::BinaryOp::Add,
                     BinOpKind::Sub => hir::BinaryOp::Sub,
@@ -112,34 +112,36 @@ impl<'tcx> Lowering<'_, 'tcx> {
                     kind: hir::ExprKind::Binary { lhs: self.lower(lhs), op, rhs: self.lower(rhs) },
                 }
             }
-            &ast::Expr::Block(block) => self.lower_block(block),
-            ast::Expr::Lit(lit) => self.lower_literal(lit, expr_id),
-            ast::Expr::FnDecl { ident, params, ret, block } => {
+            &ast::ExprKind::Block(block) => self.lower_block(block),
+            ast::ExprKind::Lit(lit) => self.lower_literal(lit, expr_id),
+            ast::ExprKind::FnDecl { ident, params, ret, block } => {
                 self.lower_fn_decl(*ident, params, *ret, *block, expr_id)
             }
-            &ast::Expr::Let { ident, expr, .. } => self.lower_let_stmt(ident, expr),
-            ast::Expr::If { arms, els } => self.lower_if_stmt(arms, *els, expr_id),
-            &ast::Expr::While { condition, block } => self.lower_while_loop(condition, block),
-            &ast::Expr::Ident(symbol) => {
+            &ast::ExprKind::Let { ident, expr, .. } => self.lower_let_stmt(ident, expr),
+            ast::ExprKind::If { arms, els } => self.lower_if_stmt(arms, *els, expr_id),
+            &ast::ExprKind::While { condition, block } => self.lower_while_loop(condition, block),
+            &ast::ExprKind::Ident(symbol) => {
                 hir::Expr { ty: self.get_ty(expr_id), kind: ExprKind::Ident(symbol) }
             }
-            ast::Expr::FnCall { function, args } => self.lower_fn_call(*function, args, expr_id),
-            &ast::Expr::Index { expr, index } => hir::Expr {
+            ast::ExprKind::FnCall { function, args } => {
+                self.lower_fn_call(*function, args, expr_id)
+            }
+            &ast::ExprKind::Index { expr, index } => hir::Expr {
                 ty: self.get_ty(expr_id),
                 kind: ExprKind::Index { expr: self.lower(expr), index: self.lower(index) },
             },
-            &ast::Expr::Return(expr) => {
+            &ast::ExprKind::Return(expr) => {
                 let inner = match expr {
                     Some(expr) => self.lower(expr),
                     None => self.hir.exprs.push(hir::Expr::unit(self.tcx)),
                 };
                 hir::Expr { ty: self.tcx.never(), kind: ExprKind::Return(inner) }
             }
-            &ast::Expr::Unary { op, expr } => hir::Expr {
+            &ast::ExprKind::Unary { op, expr } => hir::Expr {
                 ty: self.get_ty(expr_id),
                 kind: ExprKind::Unary { op, expr: self.lower(expr) },
             },
-            ast::Expr::Break => hir::Expr { ty: self.tcx.never(), kind: ExprKind::Break },
+            ast::ExprKind::Break => hir::Expr { ty: self.tcx.never(), kind: ExprKind::Break },
             expr => todo!("{expr:?}"),
         }
     }

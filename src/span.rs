@@ -16,6 +16,13 @@ impl fmt::Debug for Span {
 }
 
 impl Span {
+    pub const ZERO: Self = Self { start: 0, end: 0 };
+    pub fn start(self) -> u32 {
+        self.start
+    }
+    pub fn end(self) -> u32 {
+        self.end
+    }
     pub fn shrink(self, n: u32) -> Self {
         (self.start + n..self.end - n).into()
     }

@@ -65,7 +65,7 @@ pub enum Ty {
 }
 
 #[derive(Debug)]
-pub enum Expr {
+pub enum ExprKind {
     Binary { lhs: ExprId, op: BinaryOp, rhs: ExprId },
     Unary { op: UnaryOp, expr: ExprId },
     FnCall { function: ExprId, args: ThinVec<ExprId> },
@@ -82,6 +82,12 @@ pub enum Expr {
     Return(Option<ExprId>),
     Break,
     FnDecl { ident: Symbol, params: ThinVec<Param>, ret: Option<TypeId>, block: BlockId },
+}
+
+#[derive(Debug)]
+pub struct Expr {
+    pub span: Span,
+    pub kind: ExprKind,
 }
 
 #[derive(Debug)]
@@ -148,5 +154,24 @@ pub enum UnaryOp {
 impl fmt::Debug for Block {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.stmts.fmt(f)
+    }
+}
+
+impl Ast {
+    pub fn spans(&self, exprs: impl IntoIterator<Item = ExprId>) -> Span {
+        let mut start = u32::MAX;
+        let mut end = 0;
+        exprs.into_iter().for_each(|expr| {
+            let range = self.exprs[expr].span;
+            start = start.min(range.start());
+            end = start.max(range.end());
+        });
+        Span::from(start..end)
+    }
+}
+
+impl ExprKind {
+    pub fn todo_span(self) -> Expr {
+        Expr { kind: self, span: Span::ZERO }
     }
 }

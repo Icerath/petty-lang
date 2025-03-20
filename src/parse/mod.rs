@@ -4,8 +4,8 @@ mod token;
 
 use crate::{
     ast::{
-        ArraySeg, Ast, BinOpKind, BinaryOp, Block, BlockId, Expr, ExprId, IfStmt, Lit, Param,
-        StructInitField, Ty, TypeId,
+        ArraySeg, Ast, BinOpKind, BinaryOp, Block, BlockId, Expr, ExprId, ExprKind, IfStmt, Lit,
+        Param, StructInitField, Ty, TypeId,
     },
     symbol::Symbol,
 };
@@ -200,7 +200,7 @@ fn parse_fn(stream: &mut Stream) -> Result<Expr> {
         stream.expect(TokenKind::LBrace)?;
     }
     let block = stream.parse()?;
-    Ok(Expr::FnDecl { ident, params, ret, block })
+    Ok((ExprKind::FnDecl { ident, params, ret, block }).todo_span())
 }
 
 fn parse_let(stream: &mut Stream) -> Result<Expr> {
@@ -212,14 +212,14 @@ fn parse_let(stream: &mut Stream) -> Result<Expr> {
         stream.expect(TokenKind::Eq)?;
     }
     let expr = stream.parse()?;
-    Ok(Expr::Let { ident, ty, expr })
+    Ok((ExprKind::Let { ident, ty, expr }).todo_span())
 }
 
 fn parse_while(stream: &mut Stream) -> Result<Expr> {
     let condition = parse_expr(stream, false)?;
     stream.expect(TokenKind::LBrace)?;
     let block = stream.parse()?;
-    Ok(Expr::While { condition, block })
+    Ok((ExprKind::While { condition, block }).todo_span())
 }
 
 fn parse_ifchain(stream: &mut Stream) -> Result<Expr> {
@@ -240,7 +240,7 @@ fn parse_ifchain(stream: &mut Stream) -> Result<Expr> {
             break Some(stream.parse()?);
         }
     };
-    Ok(Expr::If { arms, els })
+    Ok((ExprKind::If { arms, els }).todo_span())
 }
 
 impl Parse for StructInitField {
@@ -320,20 +320,20 @@ impl TryFrom<TokenKind> for BinOpKind {
 fn parse_atom_with(stream: &mut Stream, tok: Token) -> Result<ExprId> {
     macro_rules! lit {
         ($lit: expr) => {
-            Ok(Expr::Lit($lit))
+            Ok(ExprKind::Lit($lit).todo_span())
         };
     }
     let expr = match tok.kind {
-        TokenKind::LBrace => Ok(Expr::Block(stream.parse()?)),
+        TokenKind::LBrace => Ok(ExprKind::Block(stream.parse()?).todo_span()),
         TokenKind::Abort => lit!(Lit::Abort),
-        TokenKind::Break => Ok(Expr::Break),
+        TokenKind::Break => Ok(ExprKind::Break.todo_span()),
         TokenKind::Return => {
             if (stream.lexer.clone().next().transpose()?)
                 .is_none_or(|tok| tok.kind == TokenKind::Return)
             {
-                Ok(Expr::Return(None))
+                Ok(ExprKind::Return(None).todo_span())
             } else {
-                Ok(Expr::Return(Some(stream.parse()?)))
+                Ok(ExprKind::Return(Some(stream.parse()?)).todo_span())
             }
         }
         TokenKind::Fn => parse_fn(stream),
@@ -353,7 +353,7 @@ fn parse_atom_with(stream: &mut Stream, tok: Token) -> Result<ExprId> {
             let str = &stream.lexer.src()[tok.span.shrink(1)];
             lit!(Lit::Char(str.chars().next().unwrap()))
         }
-        TokenKind::Ident => Ok(Expr::Ident(stream.lexer.src()[tok.span].into())),
+        TokenKind::Ident => Ok(ExprKind::Ident(stream.lexer.src()[tok.span].into()).todo_span()),
         found => {
             let label = LabeledSpan::at(stream.lexer.span(), "here");
             return Err(miette::miette!(

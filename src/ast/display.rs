@@ -3,9 +3,9 @@ use std::{
     mem,
 };
 
-use crate::ast::{Ast, BinOpKind, BinaryOp, BlockId, Expr, ExprId, Lit, Ty, UnaryOp};
+use crate::ast::{Ast, BinOpKind, BinaryOp, BlockId, ExprId, Lit, Ty, UnaryOp};
 
-use super::TypeId;
+use super::{ExprKind, TypeId};
 struct Writer<'ast> {
     ast: &'ast Ast,
     f: String,
@@ -45,17 +45,17 @@ impl Writer<'_> {
     fn display_expr(&mut self, expr: ExprId) {
         // FIXME: take precedence into account to use minimum parens needed
         let inside_expr = mem::replace(&mut self.inside_expr, true);
-        match &self.ast.exprs[expr] {
-            Expr::Break => self.f.push_str("break"),
-            Expr::Return(expr) => {
+        match &self.ast.exprs[expr].kind {
+            ExprKind::Break => self.f.push_str("break"),
+            ExprKind::Return(expr) => {
                 self.f.push_str("return");
                 if let Some(expr) = expr {
                     self.f.push(' ');
                     self.display_expr(*expr);
                 }
             }
-            Expr::Lit(lit) => self.display_lit(lit),
-            Expr::Binary { lhs, op, rhs } => {
+            ExprKind::Lit(lit) => self.display_lit(lit),
+            ExprKind::Binary { lhs, op, rhs } => {
                 if inside_expr {
                     self.f.push('(');
                 }
@@ -68,8 +68,8 @@ impl Writer<'_> {
                     self.f.push(')');
                 }
             }
-            Expr::Ident(ident) => self.f.push_str(ident),
-            Expr::FnCall { function, args } => {
+            ExprKind::Ident(ident) => self.f.push_str(ident),
+            ExprKind::FnCall { function, args } => {
                 self.display_expr(*function);
                 self.f.push('(');
                 for (i, arg) in args.iter().enumerate() {
@@ -78,13 +78,13 @@ impl Writer<'_> {
                 }
                 self.f.push(')');
             }
-            Expr::Index { expr, index } => {
+            ExprKind::Index { expr, index } => {
                 self.display_expr(*expr);
                 self.f.push('[');
                 self.display_expr(*index);
                 self.f.push(']');
             }
-            Expr::Unary { op, expr } => {
+            ExprKind::Unary { op, expr } => {
                 if inside_expr {
                     self.f.push('(');
                 }
@@ -94,7 +94,7 @@ impl Writer<'_> {
                     self.f.push(')');
                 }
             }
-            Expr::MethodCall { expr, method, args } => {
+            ExprKind::MethodCall { expr, method, args } => {
                 self.display_expr(*expr);
                 self.f.push('.');
                 self.f.push_str(method);
@@ -105,13 +105,13 @@ impl Writer<'_> {
                 }
                 self.f.push(')');
             }
-            Expr::FieldAccess { expr, field } => {
+            ExprKind::FieldAccess { expr, field } => {
                 // NOTE: FieldAccess should always be higher priority, so we shouldn't need to wrap with parens
                 self.display_expr(*expr);
                 self.f.push('.');
                 self.f.push_str(field);
             }
-            Expr::StructInit { ident, args } => {
+            ExprKind::StructInit { ident, args } => {
                 self.f.push_str(ident);
                 self.f.push_str(" {");
                 for (i, arg) in args.iter().enumerate() {
@@ -124,8 +124,8 @@ impl Writer<'_> {
                 }
                 self.f.push('}');
             }
-            Expr::Block(block) => self.display_block(*block),
-            Expr::FnDecl { ident, params, ret, block } => {
+            ExprKind::Block(block) => self.display_block(*block),
+            ExprKind::FnDecl { ident, params, ret, block } => {
                 self.inside_expr = inside_expr;
                 _ = write!(self.f, "fn {ident}(");
 
@@ -144,7 +144,7 @@ impl Writer<'_> {
 
                 self.display_block(*block);
             }
-            Expr::Let { ident, ty, expr } => {
+            ExprKind::Let { ident, ty, expr } => {
                 self.inside_expr = inside_expr;
                 self.f.push_str("let ");
                 self.f.push_str(ident);
@@ -157,13 +157,13 @@ impl Writer<'_> {
                 self.inside_expr = false;
                 self.display_expr(*expr);
             }
-            Expr::While { condition, block } => {
+            ExprKind::While { condition, block } => {
                 self.inside_expr = inside_expr;
                 self.f.push_str("while ");
                 self.display_expr(*condition);
                 self.display_block(*block);
             }
-            Expr::If { arms, els } => {
+            ExprKind::If { arms, els } => {
                 self.inside_expr = inside_expr;
                 for (i, arm) in arms.iter().enumerate() {
                     if i != 0 {
