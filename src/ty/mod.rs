@@ -93,9 +93,9 @@ impl<'tcx> TyCtx<'tcx> {
     }
     #[track_caller]
     pub fn subtype(&self, lhs: Ty<'tcx>, rhs: Ty<'tcx>) {
-        self.try_subtype(lhs, rhs).unwrap_or_else(|[lhs, rhs]| {
+        if let Err([lhs, rhs]) = self.try_subtype(lhs, rhs) {
             panic!("expected `{rhs}`, found `{lhs}`");
-        });
+        }
     }
     #[track_caller]
     pub fn try_subtype(&self, lhs: Ty<'tcx>, rhs: Ty<'tcx>) -> Result<(), [Ty<'tcx>; 2]> {

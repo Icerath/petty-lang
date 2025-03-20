@@ -42,6 +42,7 @@ pub struct Block {
     pub stmts: ThinVec<ExprId>,
     /// Will be false if the last expression if followed by a ';' or the block is empty.
     pub is_expr: bool,
+    pub span: Span,
 }
 
 #[derive(Debug)]

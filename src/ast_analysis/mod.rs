@@ -1,3 +1,5 @@
+mod errors;
+
 use std::path::PathBuf;
 
 use crate::{
@@ -7,7 +9,7 @@ use crate::{
     symbol::Symbol,
     ty::{Ty, TyCtx, TyKind},
 };
-use miette::{LabeledSpan, NamedSource, Result};
+use miette::{NamedSource, Result};
 
 use index_vec::IndexVec;
 
@@ -57,7 +59,7 @@ pub fn analyze<'tcx>(
     let body = global_body(tcx);
     let mut collector = Collector { file, src, ty_info, ast, tcx, bodies: vec![body] };
     let top_level_exprs = ast.top_level.iter().copied().collect();
-    let top_level = ast::Block { stmts: top_level_exprs, is_expr: false };
+    let top_level = ast::Block { span: Span::ZERO, stmts: top_level_exprs, is_expr: false };
     collector.analyze_body_with(&top_level, Body::new(tcx.never()))?;
 
     let mut ty_info = collector.ty_info;
@@ -139,32 +141,8 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         self.tcx.try_subtype(lhs, rhs).map_err(|[lhs, rhs]| self.subtype_err(lhs, rhs, expr))
     }
 
-    #[cold]
-    #[inline(never)]
-    fn subtype_err(&self, lhs: Ty<'tcx>, rhs: Ty<'tcx>, expr: ExprId) -> miette::Error {
-        let spans: Vec<_> = self
-            .invalid_type_span(expr)
-            .into_iter()
-            .map(|span| LabeledSpan::at(span, format!("expected `{rhs}`, found `{lhs}`")))
-            .collect();
-        miette::miette!(labels = spans, "mismatched types").with_source_code(self.src())
-    }
-    fn invalid_type_span(&self, expr: ExprId) -> Vec<Span> {
-        let expr = &self.ast.exprs[expr];
-        match expr.kind {
-            ExprKind::Block(block) => self.block_span(block, expr.span),
-            ExprKind::If { ref arms, els } => arms
-                .iter()
-                .map(|arm| arm.body)
-                .chain(els)
-                .flat_map(|block| self.block_span(block, Span::ZERO))
-                .collect(),
-            _ => vec![expr.span],
-        }
-    }
-    fn block_span(&self, block: BlockId, if_empty: Span) -> Vec<Span> {
-        let block = &self.ast.blocks[block];
-        block.stmts.last().map_or(vec![if_empty], |&last| self.invalid_type_span(last))
+    fn subtype_block(&self, lhs: Ty<'tcx>, rhs: Ty<'tcx>, block: BlockId) -> Result<()> {
+        self.tcx.try_subtype(lhs, rhs).map_err(|[lhs, rhs]| self.subtype_err_block(lhs, rhs, block))
     }
 
     fn src(&self) -> NamedSource<String> {
@@ -324,9 +302,10 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 let expected_ty = expected_ty.unwrap();
                 if let &Some(els) = els {
                     let block_ty = self.analyze_block(els)?;
-                    self.tcx.subtype(expected_ty, block_ty);
+                    self.subtype_block(expected_ty, block_ty, els)?;
                 } else {
-                    self.tcx.subtype(expected_ty, self.tcx.unit());
+                    // TODO: specialized error message here.
+                    self.subtype(expected_ty, self.tcx.unit(), id)?;
                 }
                 self.ty_info.expr_tys[id] = expected_ty;
                 self.tcx.unit()

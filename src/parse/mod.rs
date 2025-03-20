@@ -119,6 +119,7 @@ trait Parse: Sized {
 
 impl Parse for Block {
     fn parse(stream: &mut Stream) -> Result<Self> {
+        let start = stream.lexer.current_pos();
         let mut stmts = thin_vec![];
         let mut is_expr = false;
 
@@ -138,7 +139,9 @@ impl Parse for Block {
                 }
             }
         }
-        Ok(Self { stmts, is_expr })
+
+        let span = Span::from(start..stream.lexer.current_pos());
+        Ok(Self { stmts, is_expr, span })
     }
 }
 
