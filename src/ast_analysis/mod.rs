@@ -147,8 +147,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
             .into_iter()
             .map(|span| LabeledSpan::at(span, format!("expected `{rhs}`, found `{lhs}`")))
             .collect();
-        miette::miette!(labels = spans, code = "ERROR", "mismatched types")
-            .with_source_code(self.src())
+        miette::miette!(labels = spans, "mismatched types").with_source_code(self.src())
     }
     fn invalid_type_span(&self, expr: ExprId) -> Vec<Span> {
         let expr = &self.ast.exprs[expr];
