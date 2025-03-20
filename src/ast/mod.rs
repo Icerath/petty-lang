@@ -116,6 +116,7 @@ pub enum Lit {
 #[derive(Debug, Clone, Copy)]
 pub struct BinaryOp {
     pub kind: BinOpKind,
+    #[expect(dead_code)]
     pub span: Span,
 }
 
@@ -173,5 +174,8 @@ impl Ast {
 impl ExprKind {
     pub fn todo_span(self) -> Expr {
         Expr { kind: self, span: Span::ZERO }
+    }
+    pub fn with_span(self, span: Span) -> Expr {
+        Expr { span, kind: self }
     }
 }

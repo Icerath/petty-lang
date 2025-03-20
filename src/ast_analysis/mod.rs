@@ -165,9 +165,10 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                             | BinOpKind::SubAssign
                             | BinOpKind::MulAssign
                             | BinOpKind::DivAssign,
-                        span,
+                        ..
                     },
             } => {
+                let span = self.ast.spans([lhs, rhs]);
                 let lhs = self.analyze_expr(lhs);
                 let rhs = self.analyze_expr(rhs);
                 self.subtype(rhs, lhs, span).unwrap();

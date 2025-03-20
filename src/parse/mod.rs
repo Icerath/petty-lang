@@ -319,10 +319,14 @@ impl TryFrom<TokenKind> for BinOpKind {
 
 fn parse_atom_with(stream: &mut Stream, tok: Token) -> Result<ExprId> {
     macro_rules! lit {
+        ($lit: expr, $span: expr) => {
+            Ok(ExprKind::Lit($lit).with_span($span))
+        };
         ($lit: expr) => {
-            Ok(ExprKind::Lit($lit).todo_span())
+            Ok(ExprKind::Lit($lit).with_span(tok.span))
         };
     }
+
     let expr = match tok.kind {
         TokenKind::LBrace => Ok(ExprKind::Block(stream.parse()?).todo_span()),
         TokenKind::Abort => lit!(Lit::Abort),
@@ -353,7 +357,9 @@ fn parse_atom_with(stream: &mut Stream, tok: Token) -> Result<ExprId> {
             let str = &stream.lexer.src()[tok.span.shrink(1)];
             lit!(Lit::Char(str.chars().next().unwrap()))
         }
-        TokenKind::Ident => Ok(ExprKind::Ident(stream.lexer.src()[tok.span].into()).todo_span()),
+        TokenKind::Ident => {
+            Ok(ExprKind::Ident(stream.lexer.src()[tok.span].into()).with_span(tok.span))
+        }
         found => {
             let label = LabeledSpan::at(stream.lexer.span(), "here");
             return Err(miette::miette!(
