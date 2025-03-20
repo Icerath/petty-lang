@@ -1,8 +1,9 @@
 use std::time::Instant;
 
 use crate::{
-    ast_analysis, ast_lowering, hir_lowering, mir_interpreter, mir_optimizations, parse::parse,
-    ty::TyCtx,
+    ast_analysis, ast_lowering, hir_lowering, mir_interpreter, mir_optimizations,
+    parse::parse,
+    ty::{TyCtx, TyInterner},
 };
 
 #[cfg(test)]
@@ -28,7 +29,8 @@ fn compile_inner(src: &str, dump: bool, verbose: bool) -> miette::Result<()> {
     let start = Instant::now();
     let src = include_str!("std.pebble").to_string() + src;
     let ast = parse(&src)?;
-    let tcx = TyCtx::default();
+    let ty_intern = TyInterner::default();
+    let tcx = TyCtx::new(&ty_intern);
     let analysis = ast_analysis::analyze(&ast, &tcx);
     dump!(ast);
     let hir = ast_lowering::lower(ast, analysis, &tcx);

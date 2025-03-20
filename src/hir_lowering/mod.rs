@@ -26,8 +26,8 @@ pub fn lower(hir: &Hir) -> Mir {
     lowering.mir
 }
 
-struct Lowering<'hir> {
-    hir: &'hir Hir,
+struct Lowering<'hir, 'tcx> {
+    hir: &'hir Hir<'tcx>,
     mir: Mir,
     bodies: Vec<BodyInfo>,
 }
@@ -52,7 +52,7 @@ impl BodyInfo {
     }
 }
 
-impl Lowering<'_> {
+impl Lowering<'_, '_> {
     fn body_ref(&self) -> &Body {
         &self.mir.bodies[self.bodies.last().unwrap().body]
     }
@@ -95,7 +95,7 @@ impl Lowering<'_> {
     #[expect(clippy::too_many_lines)]
     fn lower_inner(&mut self, id: ExprId) -> RValue {
         let expr = &self.hir.exprs[id];
-        let is_unit = *expr.ty.kind() == TyKind::Unit;
+        let is_unit = expr.ty.is_unit();
 
         match &expr.kind {
             ExprKind::Literal(lit) => self.lit_rvalue(lit),
@@ -226,8 +226,8 @@ impl Lowering<'_> {
                 RValue::Use(Operand::Constant(Constant::Unit))
             }
             &ExprKind::Binary { lhs, op, rhs } => {
-                let ty = &self.hir.exprs[lhs].ty;
-                let op = match (ty.kind(), op) {
+                let ty = self.hir.exprs[lhs].ty;
+                let op = match (&*ty, op) {
                     (TyKind::Int, op) => match op {
                         hir::BinaryOp::Add => mir::BinaryOp::IntAdd,
                         hir::BinaryOp::Sub => mir::BinaryOp::IntSub,
@@ -275,13 +275,13 @@ impl Lowering<'_> {
             ExprKind::Index { expr, index } => {
                 let lhs = self.lower(*expr);
                 let rhs = self.lower(*index);
-                let op = if self.hir.exprs[*expr].ty.kind() == &TyKind::Str {
-                    if self.hir.exprs[*index].ty.kind() == &TyKind::Range {
+                let op = if self.hir.exprs[*expr].ty.is_str() {
+                    if self.hir.exprs[*index].ty.is_range() {
                         mir::BinaryOp::StrIndexSlice
                     } else {
                         mir::BinaryOp::StrIndex
                     }
-                } else if self.hir.exprs[*index].ty.kind() == &TyKind::Range {
+                } else if self.hir.exprs[*index].ty.is_range() {
                     mir::BinaryOp::ArrayIndexRange
                 } else {
                     mir::BinaryOp::ArrayIndex

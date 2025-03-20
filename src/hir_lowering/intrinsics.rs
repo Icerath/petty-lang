@@ -5,7 +5,7 @@ use crate::{
 
 use super::Lowering;
 
-impl Lowering<'_> {
+impl Lowering<'_, '_> {
     pub fn try_instrinsic(&mut self, ident: Symbol) -> bool {
         macro_rules! unary {
             ($name: ident) => {

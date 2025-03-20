@@ -10,14 +10,14 @@ use crate::{
 
 use super::{ExprKind, FnDecl, LValue};
 
-struct Writer<'hir> {
-    hir: &'hir Hir,
+struct Writer<'hir, 'tcx> {
+    hir: &'hir Hir<'tcx>,
     f: String,
     indent: usize,
     inside_expr: bool,
 }
 
-impl fmt::Display for Hir {
+impl fmt::Display for Hir<'_> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         let f = String::new();
         let mut writer = Writer { hir: self, f, indent: 0, inside_expr: false };
@@ -29,9 +29,9 @@ impl fmt::Display for Hir {
     }
 }
 
-impl Writer<'_> {
-    fn display_ty(&mut self, ty: &Ty) {
-        let str = match ty.kind() {
+impl Writer<'_, '_> {
+    fn display_ty(&mut self, ty: Ty) {
+        let str = match *ty {
             TyKind::Never => "!",
             TyKind::Unit => "()",
             TyKind::Bool => "bool",
@@ -115,17 +115,17 @@ impl Writer<'_> {
                     self.f.push_str(if i == 0 { "" } else { ", " });
                     self.f.push_str(&param.ident);
                     self.f.push_str(": ");
-                    self.display_ty(&param.ty);
+                    self.display_ty(param.ty);
                 }
                 self.f.push_str(") -> ");
-                self.display_ty(ret);
+                self.display_ty(*ret);
 
                 self.display_block(body);
             }
             ExprKind::Let { ident, expr } => {
                 self.inside_expr = inside_expr;
                 _ = write!(self.f, "let {ident}: ");
-                self.display_ty(&self.hir.exprs[*expr].ty);
+                self.display_ty(self.hir.exprs[*expr].ty);
                 self.f.push_str(" = ");
 
                 self.inside_expr = false;

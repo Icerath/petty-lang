@@ -1,25 +1,48 @@
-mod common;
+mod interner;
 
-use std::{cell::RefCell, fmt, hash::Hash, rc::Rc};
+use std::{cell::RefCell, fmt, hash::Hash, ops::Deref};
 
-use common::CommonTypes;
 use index_vec::IndexVec;
+pub use interner::TyInterner;
 use thin_vec::ThinVec;
 
-#[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct Ty {
-    kind: Rc<TyKind>,
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct Ty<'tcx> {
+    kind: &'tcx TyKind<'tcx>,
 }
 
-impl Ty {
-    pub fn kind(&self) -> &TyKind {
-        &self.kind
+#[expect(dead_code)]
+impl Ty<'_> {
+    pub fn is_never(self) -> bool {
+        *self == TyKind::Never
+    }
+    pub fn is_unit(self) -> bool {
+        *self == TyKind::Unit
+    }
+    pub fn is_bool(self) -> bool {
+        *self == TyKind::Bool
+    }
+    pub fn is_int(self) -> bool {
+        *self == TyKind::Int
+    }
+    pub fn is_char(self) -> bool {
+        *self == TyKind::Char
+    }
+    pub fn is_str(self) -> bool {
+        *self == TyKind::Str
+    }
+    pub fn is_range(self) -> bool {
+        *self == TyKind::Range
+    }
+    pub fn is_array(self) -> bool {
+        matches!(*self, TyKind::Array(..))
     }
 }
 
-impl From<TyKind> for Ty {
-    fn from(kind: TyKind) -> Self {
-        Self { kind: Rc::new(kind) }
+impl<'tcx> Deref for Ty<'tcx> {
+    type Target = TyKind<'tcx>;
+    fn deref(&self) -> &Self::Target {
+        self.kind
     }
 }
 
@@ -28,8 +51,8 @@ index_vec::define_index_type! {
     DISABLE_MAX_INDEX_CHECK = cfg!(not(debug_assertions));
 }
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum TyKind {
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum TyKind<'tcx> {
     Never,
     Unit,
     Bool,
@@ -38,119 +61,129 @@ pub enum TyKind {
     Str,
     Range,
     RangeInclusive,
-    Array(Ty),
-    Function { params: ThinVec<Ty>, ret: Ty },
+    Array(Ty<'tcx>),
+    Function { params: ThinVec<Ty<'tcx>>, ret: Ty<'tcx> },
     Infer(TyVid),
 }
 
-#[derive(Default, Debug)]
-pub struct TyCtx {
-    inner: RefCell<TyCtxInner>,
-    common: CommonTypes,
+pub struct TyCtx<'tcx> {
+    inner: RefCell<TyCtxInner<'tcx>>,
+    interner: &'tcx TyInterner,
 }
 
-impl TyCtx {
-    pub fn new_infer(&self) -> Ty {
-        self.inner.borrow_mut().new_infer()
+impl<'tcx> TyCtx<'tcx> {
+    pub fn new(interner: &'tcx TyInterner) -> Self {
+        Self { inner: RefCell::default(), interner }
     }
-    pub fn infer_shallow(&self, ty: &Ty) -> Ty {
+    pub fn intern(&self, kind: TyKind<'tcx>) -> Ty<'tcx> {
+        self.interner.intern(kind)
+    }
+    pub fn new_infer(&self) -> Ty<'tcx> {
+        self.inner.borrow_mut().new_infer(self.interner)
+    }
+    pub fn infer_shallow(&self, ty: Ty<'tcx>) -> Ty<'tcx> {
         self.inner.borrow().infer_shallow(ty)
     }
-    pub fn infer_deep(&self, ty: &Ty) -> Ty {
-        self.inner.borrow().infer_deep(ty)
+    pub fn infer_deep(&self, ty: Ty<'tcx>) -> Ty<'tcx> {
+        self.inner.borrow().infer_deep(ty, self.interner)
     }
     #[track_caller]
-    pub fn eq(&self, lhs: &Ty, rhs: &Ty) {
+    pub fn eq(&self, lhs: Ty<'tcx>, rhs: Ty<'tcx>) {
         self.inner.borrow_mut().eq(lhs, rhs);
     }
     #[track_caller]
-    pub fn subtype(&self, lhs: &Ty, rhs: &Ty) {
+    pub fn subtype(&self, lhs: Ty<'tcx>, rhs: Ty<'tcx>) {
         self.inner.borrow_mut().subtype(lhs, rhs);
     }
 }
 
 #[derive(Default, Debug)]
-struct TyCtxInner {
-    subs: IndexVec<TyVid, Ty>,
+struct TyCtxInner<'tcx> {
+    subs: IndexVec<TyVid, Ty<'tcx>>,
 }
 
-impl TyCtxInner {
-    fn new_infer(&mut self) -> Ty {
-        Ty::from(TyKind::Infer(self.vid()))
+impl<'tcx> TyCtxInner<'tcx> {
+    fn new_infer(&mut self, intern: &'tcx TyInterner) -> Ty<'tcx> {
+        intern.intern(TyKind::Infer(self.vid(intern)))
     }
 
-    fn vid(&mut self) -> TyVid {
+    fn vid(&mut self, intern: &'tcx TyInterner) -> TyVid {
         let id = self.subs.next_idx();
-        self.subs.push(Ty::from(TyKind::Infer(id)))
+        self.subs.push(intern.intern(TyKind::Infer(id)))
     }
 
-    fn infer_shallow(&self, ty: &Ty) -> Ty {
-        match *ty.kind() {
-            TyKind::Infer(var) if self.subs[var] == *ty => panic!("Failed to infer"),
-            TyKind::Infer(var) => self.infer_shallow(&self.subs[var]),
-            _ => ty.clone(),
+    fn infer_shallow(&self, ty: Ty<'tcx>) -> Ty<'tcx> {
+        match *ty {
+            TyKind::Infer(var) if self.subs[var] == ty => panic!("Failed to infer"),
+            TyKind::Infer(var) => self.infer_shallow(self.subs[var]),
+            _ => ty,
         }
     }
 
-    fn infer_deep(&self, ty: &Ty) -> Ty {
+    fn infer_deep(&self, ty: Ty<'tcx>, intern: &'tcx TyInterner) -> Ty<'tcx> {
         let ty = self.infer_shallow(ty);
-        match ty.kind() {
-            TyKind::Array(of) => TyKind::Array(self.infer_deep(of)).into(),
-            _ => ty.clone(),
+        match *ty {
+            TyKind::Array(of) => intern.intern(TyKind::Array(self.infer_deep(of, intern))),
+            _ => ty,
         }
     }
 
     #[track_caller]
-    fn eq(&mut self, lhs: &Ty, rhs: &Ty) {
+    fn eq(&mut self, lhs: Ty<'tcx>, rhs: Ty<'tcx>) {
         self.try_eq(lhs, rhs).unwrap();
     }
 
-    fn try_eq(&mut self, lhs: &Ty, rhs: &Ty) -> Result<(), [Ty; 2]> {
-        match (lhs.kind(), rhs.kind()) {
+    fn try_eq(&mut self, lhs: Ty<'tcx>, rhs: Ty<'tcx>) -> Result<(), [Ty<'tcx>; 2]> {
+        match (&*lhs, &*rhs) {
             (TyKind::Infer(l), TyKind::Infer(r)) if l == r => Ok(()),
             (TyKind::Infer(var), _) => self.insertl(*var, rhs),
             (_, TyKind::Infer(var)) => self.insertr(lhs, *var),
-            (TyKind::Array(lhs), TyKind::Array(rhs)) => self.try_eq(lhs, rhs),
+            (TyKind::Array(lhs), TyKind::Array(rhs)) => self.try_eq(*lhs, *rhs),
             (lhs, rhs) if lhs == rhs => Ok(()),
-            (..) => Err([lhs.clone(), rhs.clone()]),
+            (..) => Err([lhs, rhs]),
         }
     }
 
     /// Says that `lhs` must be a subtype of `rhs`.
     /// never is a subtype of everything.
     #[track_caller]
-    fn subtype(&mut self, lhs: &Ty, rhs: &Ty) {
+    fn subtype(&mut self, lhs: Ty<'tcx>, rhs: Ty<'tcx>) {
         let Err([lhs, rhs]) = self.try_eq(lhs, rhs) else { return };
-        assert!(lhs.kind() == &TyKind::Never, "expected `{rhs}`, found `{lhs}`",);
+        assert!(lhs.is_never(), "expected `{rhs}`, found `{lhs}`",);
     }
 
-    fn insertl(&mut self, var: TyVid, ty: &Ty) -> Result<(), [Ty; 2]> {
+    fn insertl(&mut self, var: TyVid, ty: Ty<'tcx>) -> Result<(), [Ty<'tcx>; 2]> {
         self.insert_inner(var, ty, true)
     }
 
-    fn insertr(&mut self, ty: &Ty, var: TyVid) -> Result<(), [Ty; 2]> {
+    fn insertr(&mut self, ty: Ty<'tcx>, var: TyVid) -> Result<(), [Ty<'tcx>; 2]> {
         self.insert_inner(var, ty, false)
     }
 
-    fn insert_inner(&mut self, var: TyVid, ty: &Ty, is_left: bool) -> Result<(), [Ty; 2]> {
-        if let Some(sub) = self.subs.get(var).cloned() {
-            if let &TyKind::Infer(sub) = sub.kind() {
+    fn insert_inner(
+        &mut self,
+        var: TyVid,
+        ty: Ty<'tcx>,
+        is_left: bool,
+    ) -> Result<(), [Ty<'tcx>; 2]> {
+        if let Some(&sub) = self.subs.get(var) {
+            if let TyKind::Infer(sub) = *sub {
                 if sub == var {
-                    self.subs[var] = ty.clone();
+                    self.subs[var] = ty;
                 }
             }
-            return if is_left { self.try_eq(&sub, ty) } else { self.try_eq(ty, &sub) };
+            return if is_left { self.try_eq(sub, ty) } else { self.try_eq(ty, sub) };
         }
         assert!(!self.occurs_in(var, ty), "Infinite type: {var:?} - {ty:?}");
-        self.subs[var] = ty.clone();
+        self.subs[var] = ty;
         Ok(())
     }
 
-    fn occurs_in(&self, this: TyVid, ty: &Ty) -> bool {
-        match ty.kind() {
-            &TyKind::Infer(var) => {
-                if let Some(sub) = self.subs.get(var) {
-                    if *sub.kind() != TyKind::Infer(var) {
+    fn occurs_in(&self, this: TyVid, ty: Ty<'tcx>) -> bool {
+        match *ty {
+            TyKind::Infer(var) => {
+                if let Some(&sub) = self.subs.get(var) {
+                    if *sub.kind != TyKind::Infer(var) {
                         return self.occurs_in(var, sub);
                     }
                 }
@@ -161,13 +194,7 @@ impl TyCtxInner {
     }
 }
 
-impl fmt::Debug for Ty {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Debug::fmt(&self.kind, f)
-    }
-}
-
-impl fmt::Display for TyKind {
+impl fmt::Display for TyKind<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Bool => write!(f, "bool"),
@@ -193,8 +220,8 @@ impl fmt::Display for TyKind {
     }
 }
 
-impl fmt::Display for Ty {
+impl fmt::Display for Ty<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.kind().fmt(f)
+        self.kind.fmt(f)
     }
 }

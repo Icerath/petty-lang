@@ -8,7 +8,7 @@ use crate::{
     ty::{Ty, TyCtx},
 };
 
-pub fn lower(mut ast: Ast, ty_info: TyInfo, tcx: &TyCtx) -> Hir {
+pub fn lower<'tcx>(mut ast: Ast, ty_info: TyInfo<'tcx>, tcx: &'tcx TyCtx<'tcx>) -> Hir<'tcx> {
     assert_eq!(ast.exprs.len(), ty_info.expr_tys.len());
     let top_level = std::mem::take(&mut ast.top_level);
     let mut lowering = Lowering { ast: &ast, hir: Hir::default(), tcx, ty_info };
@@ -22,17 +22,17 @@ pub fn lower(mut ast: Ast, ty_info: TyInfo, tcx: &TyCtx) -> Hir {
 
 struct Lowering<'ast, 'tcx> {
     ast: &'ast Ast,
-    hir: Hir,
-    tcx: &'tcx TyCtx,
-    ty_info: TyInfo,
+    hir: Hir<'tcx>,
+    tcx: &'tcx TyCtx<'tcx>,
+    ty_info: TyInfo<'tcx>,
 }
 
-impl Lowering<'_, '_> {
+impl<'tcx> Lowering<'_, 'tcx> {
     #[track_caller]
-    fn get_ty(&self, expr_id: ast::ExprId) -> &Ty {
+    fn get_ty(&self, expr_id: ast::ExprId) -> Ty<'tcx> {
         // Note: Does it provide any real benefit to remove the bounds check here? It seems relatively safe so I'm not opposed to it.
         // Safety: We check once at lower_ast that ty_info can hold all of ast's expressions.
-        &self.ty_info.expr_tys[expr_id]
+        self.ty_info.expr_tys[expr_id]
     }
 
     fn lower(&mut self, ast_expr: ast::ExprId) -> hir::ExprId {
@@ -51,7 +51,7 @@ impl Lowering<'_, '_> {
         }
     }
 
-    fn lower_inner(&mut self, expr_id: ast::ExprId) -> hir::Expr {
+    fn lower_inner(&mut self, expr_id: ast::ExprId) -> hir::Expr<'tcx> {
         match &self.ast.exprs[expr_id] {
             &ast::Expr::Binary {
                 lhs,
@@ -73,18 +73,18 @@ impl Lowering<'_, '_> {
                         _ => unreachable!(),
                     };
                     let kind = ExprKind::Binary { lhs: self.lower(lhs), op, rhs: self.lower(rhs) };
-                    self.hir.exprs.push(Expr { kind, ty: self.ty_info.expr_tys[rhs].clone() })
+                    self.hir.exprs.push(Expr { kind, ty: self.ty_info.expr_tys[rhs] })
                 };
 
                 let kind = hir::ExprKind::Assignment { lhs: self.lower_lvalue(lhs), expr };
-                hir::Expr { ty: self.ty_info.expr_tys[expr_id].clone(), kind }
+                hir::Expr { ty: self.ty_info.expr_tys[expr_id], kind }
             }
             &ast::Expr::Binary { lhs, op: BinaryOp::Assign, rhs } => {
                 let kind = hir::ExprKind::Assignment {
                     lhs: self.lower_lvalue(lhs),
                     expr: self.lower(rhs),
                 };
-                hir::Expr { ty: self.ty_info.expr_tys[expr_id].clone(), kind }
+                hir::Expr { ty: self.ty_info.expr_tys[expr_id], kind }
             }
             &ast::Expr::Binary { lhs, op, rhs } => {
                 let op = match op {
@@ -104,7 +104,7 @@ impl Lowering<'_, '_> {
                     _ => unreachable!("{op:?}"),
                 };
                 hir::Expr {
-                    ty: self.ty_info.expr_tys[expr_id].clone(),
+                    ty: self.ty_info.expr_tys[expr_id],
                     kind: hir::ExprKind::Binary { lhs: self.lower(lhs), op, rhs: self.lower(rhs) },
                 }
             }
@@ -117,11 +117,11 @@ impl Lowering<'_, '_> {
             ast::Expr::If { arms, els } => self.lower_if_stmt(arms, *els, expr_id),
             &ast::Expr::While { condition, block } => self.lower_while_loop(condition, block),
             &ast::Expr::Ident(symbol) => {
-                hir::Expr { ty: self.get_ty(expr_id).clone(), kind: ExprKind::Ident(symbol) }
+                hir::Expr { ty: self.get_ty(expr_id), kind: ExprKind::Ident(symbol) }
             }
             ast::Expr::FnCall { function, args } => self.lower_fn_call(*function, args, expr_id),
             &ast::Expr::Index { expr, index } => hir::Expr {
-                ty: self.get_ty(expr_id).clone(),
+                ty: self.get_ty(expr_id),
                 kind: ExprKind::Index { expr: self.lower(expr), index: self.lower(index) },
             },
             &ast::Expr::Return(expr) => {
@@ -129,13 +129,13 @@ impl Lowering<'_, '_> {
                     Some(expr) => self.lower(expr),
                     None => self.hir.exprs.push(hir::Expr::unit(self.tcx)),
                 };
-                hir::Expr { ty: self.tcx.never().clone(), kind: ExprKind::Return(inner) }
+                hir::Expr { ty: self.tcx.never(), kind: ExprKind::Return(inner) }
             }
             &ast::Expr::Unary { op, expr } => hir::Expr {
-                ty: self.get_ty(expr_id).clone(),
+                ty: self.get_ty(expr_id),
                 kind: ExprKind::Unary { op, expr: self.lower(expr) },
             },
-            ast::Expr::Break => hir::Expr { ty: self.tcx.never().clone(), kind: ExprKind::Break },
+            ast::Expr::Break => hir::Expr { ty: self.tcx.never(), kind: ExprKind::Break },
             expr => todo!("{expr:?}"),
         }
     }
@@ -145,25 +145,22 @@ impl Lowering<'_, '_> {
         function: ast::ExprId,
         args: &[ast::ExprId],
         expr_id: ast::ExprId,
-    ) -> hir::Expr {
+    ) -> hir::Expr<'tcx> {
         let function = self.lower(function);
         let args = args.iter().map(|arg| self.lower(*arg)).collect();
-        hir::Expr {
-            ty: self.get_ty(expr_id).clone(),
-            kind: hir::ExprKind::FnCall { function, args },
-        }
+        hir::Expr { ty: self.get_ty(expr_id), kind: hir::ExprKind::FnCall { function, args } }
     }
 
-    fn lower_while_loop(&mut self, condition: ast::ExprId, body: ast::BlockId) -> hir::Expr {
+    fn lower_while_loop(&mut self, condition: ast::ExprId, body: ast::BlockId) -> hir::Expr<'tcx> {
         let condition = hir::Expr {
-            ty: self.tcx.bool().clone(),
+            ty: self.tcx.bool(),
             kind: hir::ExprKind::Unary { op: hir::UnaryOp::Not, expr: self.lower(condition) },
         };
         let condition = self.hir.exprs.push(condition);
-        let break_ = hir::Expr { ty: self.tcx.unit().clone(), kind: ExprKind::Break };
+        let break_ = hir::Expr { ty: self.tcx.unit(), kind: ExprKind::Break };
         let break_ = self.hir.exprs.push(break_);
         let if_stmt = hir::Expr {
-            ty: self.tcx.unit().clone(),
+            ty: self.tcx.unit(),
             kind: ExprKind::If {
                 arms: ThinVec::from([hir::IfStmt { condition, body: ThinVec::from([break_]) }]),
                 els: ThinVec::new(),
@@ -171,7 +168,7 @@ impl Lowering<'_, '_> {
         };
         let mut block = self.lower_block_inner(body).1;
         block.insert(0, self.hir.exprs.push(if_stmt));
-        hir::Expr { ty: self.tcx.unit().clone(), kind: ExprKind::Loop(block) }
+        hir::Expr { ty: self.tcx.unit(), kind: ExprKind::Loop(block) }
     }
 
     fn lower_if_stmt(
@@ -179,7 +176,7 @@ impl Lowering<'_, '_> {
         arms: &[ast::IfStmt],
         els: Option<ast::BlockId>,
         id: ast::ExprId,
-    ) -> hir::Expr {
+    ) -> hir::Expr<'tcx> {
         let arms = arms
             .iter()
             .map(|arm| hir::IfStmt {
@@ -189,12 +186,12 @@ impl Lowering<'_, '_> {
             .collect();
 
         let els = els.map_or_else(ThinVec::new, |els| self.lower_block_inner(els).1);
-        hir::Expr { ty: self.get_ty(id).clone(), kind: ExprKind::If { arms, els } }
+        hir::Expr { ty: self.get_ty(id), kind: ExprKind::If { arms, els } }
     }
 
-    fn lower_let_stmt(&mut self, ident: Symbol, expr: ast::ExprId) -> hir::Expr {
+    fn lower_let_stmt(&mut self, ident: Symbol, expr: ast::ExprId) -> hir::Expr<'tcx> {
         hir::Expr {
-            ty: self.tcx.unit().clone(),
+            ty: self.tcx.unit(),
             kind: hir::ExprKind::Let { ident, expr: self.lower(expr) },
         }
     }
@@ -206,27 +203,24 @@ impl Lowering<'_, '_> {
         ret: Option<ast::TypeId>,
         block: ast::BlockId,
         expr_id: ast::ExprId,
-    ) -> hir::Expr {
+    ) -> hir::Expr<'tcx> {
         let ret = match ret {
-            Some(ret) => self.ty_info.type_ids[ret].clone(),
-            None => self.tcx.unit().clone(),
+            Some(ret) => self.ty_info.type_ids[ret],
+            None => self.tcx.unit(),
         };
         let params = params
             .iter()
-            .map(|param| hir::Param {
-                ident: param.ident,
-                ty: self.ty_info.type_ids[param.ty].clone(),
-            })
+            .map(|param| hir::Param { ident: param.ident, ty: self.ty_info.type_ids[param.ty] })
             .collect();
         let (_, body) = self.lower_block_inner(block);
 
         hir::Expr {
-            ty: self.get_ty(expr_id).clone(),
+            ty: self.get_ty(expr_id),
             kind: hir::ExprKind::FnDecl(Box::new(hir::FnDecl { ident, params, ret, body })),
         }
     }
 
-    fn lower_literal(&mut self, lit: &ast::Lit, expr_id: ast::ExprId) -> hir::Expr {
+    fn lower_literal(&mut self, lit: &ast::Lit, expr_id: ast::ExprId) -> hir::Expr<'tcx> {
         let lit = match lit {
             &ast::Lit::Abort => hir::Lit::Abort,
             &ast::Lit::Unit => hir::Lit::Unit,
@@ -243,21 +237,18 @@ impl Lowering<'_, '_> {
                 hir::Lit::Array { segments: hir_segments.collect() }
             }
         };
-        hir::Expr { ty: self.get_ty(expr_id).clone(), kind: ExprKind::Literal(lit) }
+        hir::Expr { ty: self.get_ty(expr_id), kind: ExprKind::Literal(lit) }
     }
 
-    fn lower_block(&mut self, block_id: ast::BlockId) -> hir::Expr {
+    fn lower_block(&mut self, block_id: ast::BlockId) -> hir::Expr<'tcx> {
         let (block_ty, exprs) = self.lower_block_inner(block_id);
         hir::Expr { ty: block_ty, kind: ExprKind::Block(exprs) }
     }
 
-    fn lower_block_inner(&mut self, block_id: ast::BlockId) -> (Ty, ThinVec<hir::ExprId>) {
+    fn lower_block_inner(&mut self, block_id: ast::BlockId) -> (Ty<'tcx>, ThinVec<hir::ExprId>) {
         let block = &self.ast.blocks[block_id];
-        let block_ty = if block.is_expr {
-            self.get_ty(*block.stmts.last().unwrap()).clone()
-        } else {
-            self.tcx.unit().clone()
-        };
+        let block_ty =
+            if block.is_expr { self.get_ty(*block.stmts.last().unwrap()) } else { self.tcx.unit() };
         let needs_unit = self.block_needs_terminating_unit(block);
 
         let mut new = ThinVec::with_capacity(block.stmts.len() + usize::from(needs_unit));

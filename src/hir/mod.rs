@@ -9,8 +9,8 @@ use crate::{
 };
 
 #[derive(Default, Debug)]
-pub struct Hir {
-    pub exprs: IndexVec<ExprId, Expr>,
+pub struct Hir<'tcx> {
+    pub exprs: IndexVec<ExprId, Expr<'tcx>>,
     pub root: Vec<ExprId>,
 }
 
@@ -25,19 +25,19 @@ index_vec::define_index_type! {
 }
 
 #[derive(Debug)]
-pub struct Expr {
-    pub ty: Ty,
-    pub kind: ExprKind,
+pub struct Expr<'tcx> {
+    pub ty: Ty<'tcx>,
+    pub kind: ExprKind<'tcx>,
 }
 
-impl Expr {
-    pub fn unit(tcx: &TyCtx) -> Self {
-        Self { ty: tcx.unit().clone(), kind: ExprKind::Literal(Lit::Unit) }
+impl<'tcx> Expr<'tcx> {
+    pub fn unit(tcx: &'tcx TyCtx<'tcx>) -> Self {
+        Self { ty: tcx.unit(), kind: ExprKind::Literal(Lit::Unit) }
     }
 }
 
 #[derive(Debug)]
-pub enum ExprKind {
+pub enum ExprKind<'tcx> {
     Ident(Symbol),
     Binary { lhs: ExprId, op: BinaryOp, rhs: ExprId },
     Assignment { lhs: LValue, expr: ExprId },
@@ -46,7 +46,7 @@ pub enum ExprKind {
     Block(ThinVec<ExprId>),
     FnCall { function: ExprId, args: ThinVec<ExprId> },
     Index { expr: ExprId, index: ExprId },
-    FnDecl(Box<FnDecl>),
+    FnDecl(Box<FnDecl<'tcx>>),
     Let { ident: Symbol, expr: ExprId },
     If { arms: ThinVec<IfStmt>, els: ThinVec<ExprId> },
     Loop(ThinVec<ExprId>),
@@ -55,10 +55,10 @@ pub enum ExprKind {
 }
 
 #[derive(Debug)]
-pub struct FnDecl {
+pub struct FnDecl<'tcx> {
     pub ident: Symbol,
-    pub params: Vec<Param>,
-    pub ret: Ty,
+    pub params: Vec<Param<'tcx>>,
+    pub ret: Ty<'tcx>,
     pub body: ThinVec<ExprId>,
 }
 
@@ -101,9 +101,9 @@ pub struct ArraySeg {
 }
 
 #[derive(Debug)]
-pub struct Param {
+pub struct Param<'tcx> {
     pub ident: Symbol,
-    pub ty: Ty,
+    pub ty: Ty<'tcx>,
 }
 
 #[derive(Debug)]
