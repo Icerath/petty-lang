@@ -216,7 +216,7 @@ fn parse_let(stream: &mut Stream) -> Result<Expr> {
 }
 
 fn parse_while(stream: &mut Stream) -> Result<Expr> {
-    let condition = stream.parse()?;
+    let condition = parse_expr(stream, false)?;
     stream.expect(TokenKind::LBrace)?;
     let block = stream.parse()?;
     Ok(Expr::While { condition, block })
@@ -225,7 +225,7 @@ fn parse_while(stream: &mut Stream) -> Result<Expr> {
 fn parse_ifchain(stream: &mut Stream) -> Result<Expr> {
     let mut arms = thin_vec![];
     let els = loop {
-        let condition = stream.parse()?;
+        let condition = parse_expr(stream, false)?;
         stream.expect(TokenKind::LBrace)?;
         let body = stream.parse()?;
         arms.push(IfStmt { condition, body });
