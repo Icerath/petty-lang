@@ -121,9 +121,9 @@ impl Collector<'_, '_> {
     #[must_use]
     #[expect(clippy::too_many_lines)]
     fn analyze_expr(&mut self, id: ExprId) -> Ty {
-        match &self.ast.exprs[id] {
-            Expr::Lit(lit) => self.analyze_lit(lit, id),
-            &Expr::Ident(ident) => _ = self.read_ident(ident, id),
+        let ty = match &self.ast.exprs[id] {
+            Expr::Lit(lit) => self.analyze_lit(lit),
+            &Expr::Ident(ident) => self.read_ident(ident),
             &Expr::Unary { expr, op } => {
                 let operand = self.analyze_expr(expr);
                 let ty = match op {
@@ -131,7 +131,7 @@ impl Collector<'_, '_> {
                     UnaryOp::Not => self.tcx.bool(),
                 };
                 self.tcx.subtype(&operand, ty);
-                self.ty_info.expr_tys[id] = ty.clone();
+                ty.clone()
             }
             &Expr::Binary {
                 lhs,
@@ -146,6 +146,7 @@ impl Collector<'_, '_> {
                 let lhs = self.analyze_expr(lhs);
                 let rhs = self.analyze_expr(rhs);
                 self.tcx.subtype(&rhs, &lhs);
+                self.tcx.unit().clone()
             }
             &Expr::Binary {
                 lhs,
@@ -161,7 +162,7 @@ impl Collector<'_, '_> {
                 let lhs = self.analyze_expr(lhs);
                 let rhs = self.analyze_expr(rhs);
                 self.tcx.eq(&lhs, &rhs);
-                self.ty_info.expr_tys[id] = self.tcx.bool().clone();
+                self.tcx.bool().clone()
             }
             &Expr::Binary { lhs, rhs, op: op @ (BinaryOp::Range | BinaryOp::RangeInclusive) } => {
                 let lhs = self.analyze_expr(lhs);
@@ -171,18 +172,17 @@ impl Collector<'_, '_> {
                 self.tcx.subtype(&lhs, self.tcx.int());
                 self.tcx.subtype(&rhs, self.tcx.int());
 
-                let ty = match op {
+                match op {
                     BinaryOp::Range => TyKind::Range.into(),
                     BinaryOp::RangeInclusive => TyKind::RangeInclusive.into(),
                     _ => unreachable!(),
-                };
-                self.ty_info.expr_tys[id] = ty;
+                }
             }
             &Expr::Binary { lhs, rhs, .. } => {
                 let lhs = self.analyze_expr(lhs);
                 let rhs = self.analyze_expr(rhs);
                 self.tcx.eq(&lhs, &rhs);
-                self.ty_info.expr_tys[id] = lhs;
+                lhs
             }
             &Expr::Index { expr, index } => {
                 let expr = self.analyze_expr(expr);
@@ -196,7 +196,7 @@ impl Collector<'_, '_> {
                     (TyKind::Str, TyKind::Int) => self.tcx.char().clone(),
                     _ => panic!("Cannot index `{expr:?}`"),
                 };
-                self.ty_info.expr_tys[id] = out;
+                out
             }
             Expr::FnCall { function, args } => {
                 let fn_ty = self.analyze_expr(*function);
@@ -208,7 +208,7 @@ impl Collector<'_, '_> {
                     let arg = self.analyze_expr(*arg);
                     self.tcx.subtype(&arg, param);
                 }
-                self.ty_info.expr_tys[id] = ret.clone();
+                ret.clone()
             }
             Expr::FnDecl { block, params, ident, .. } => {
                 let fn_ty = self.bodies.last().unwrap().variables[ident].clone();
@@ -222,6 +222,7 @@ impl Collector<'_, '_> {
                 let block = &self.ast.blocks[*block];
                 let body_ret = self.analyze_body_with(block, body).0;
                 self.tcx.subtype(&body_ret, ret);
+                self.tcx.unit().clone()
             }
             Expr::Let { ident, ty, expr } => {
                 let expr_ty = self.analyze_expr(*expr);
@@ -234,10 +235,12 @@ impl Collector<'_, '_> {
                 };
                 let body = self.bodies.last_mut().unwrap();
                 body.variables.insert(*ident, ty);
+                self.tcx.unit().clone()
             }
             Expr::While { condition, block } => {
                 self.tcx.subtype(&self.analyze_expr(*condition), self.tcx.bool());
                 self.analyze_block(*block);
+                self.tcx.unit().clone()
             }
             Expr::If { arms, els } => {
                 let mut expected_ty = None;
@@ -260,10 +263,11 @@ impl Collector<'_, '_> {
                     self.tcx.subtype(&expected_ty, self.tcx.unit());
                 }
                 self.ty_info.expr_tys[id] = expected_ty;
+                self.tcx.unit().clone()
             }
             Expr::Block(block_id) => {
                 let block = &self.ast.blocks[*block_id];
-                let ty = if block.is_expr {
+                if block.is_expr {
                     let mut ty = None;
                     for &id in &block.stmts {
                         ty = Some(self.analyze_expr(id));
@@ -272,8 +276,7 @@ impl Collector<'_, '_> {
                 } else {
                     self.analyze_block(*block_id);
                     self.tcx.unit().clone()
-                };
-                self.ty_info.expr_tys[id] = ty;
+                }
             }
             Expr::Return(expr) => {
                 let ty = expr
@@ -281,26 +284,26 @@ impl Collector<'_, '_> {
                     .map_or_else(|| self.tcx.unit().clone(), |expr| self.analyze_expr(*expr));
                 let expected = &self.bodies.last().unwrap().ret;
                 self.tcx.subtype(&ty, expected);
-                self.ty_info.expr_tys[id] = self.tcx.never().clone();
+                self.tcx.never().clone()
             }
-            Expr::Break => self.ty_info.expr_tys[id] = self.tcx.never().clone(),
+            Expr::Break => self.tcx.never().clone(),
             expr => todo!("{expr:?}"),
-        }
-        self.ty_info.expr_tys[id].clone()
+        };
+        self.ty_info.expr_tys[id] = ty.clone();
+        ty
     }
 
-    fn read_ident(&mut self, ident: Symbol, id: ExprId) -> Ty {
+    fn read_ident(&mut self, ident: Symbol) -> Ty {
         for body in self.bodies.iter().rev() {
             if let Some(ty) = body.variables.get(&ident) {
-                self.ty_info.expr_tys[id] = ty.clone();
                 return ty.clone();
             }
         }
         panic!("{:?}", &*ident);
     }
 
-    fn analyze_lit(&mut self, lit: &Lit, id: ExprId) {
-        let ty = match lit {
+    fn analyze_lit(&mut self, lit: &Lit) -> Ty {
+        match lit {
             Lit::Abort => self.tcx.never().clone(),
             Lit::Unit => self.tcx.unit().clone(),
             Lit::Bool(..) => self.tcx.bool().clone(),
@@ -325,7 +328,6 @@ impl Collector<'_, '_> {
                 }
                 TyKind::Array(first_ty).into()
             }
-        };
-        self.ty_info.expr_tys[id] = ty;
+        }
     }
 }
