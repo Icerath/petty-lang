@@ -1,4 +1,4 @@
-use std::{cell::RefCell, collections::HashMap, mem};
+use std::{cell::RefCell, collections::HashSet, mem};
 
 use super::{Ty, TyCtx, TyKind};
 
@@ -11,7 +11,7 @@ pub struct TyInterner {
 #[derive(Default)]
 struct Inner {
     // drop artificial statics first.
-    set: RefCell<HashMap<&'static TyKind<'static>, Ty<'static>>>,
+    set: RefCell<HashSet<&'static TyKind<'static>>>,
     allocator: typed_arena::Arena<TyKind<'static>>,
 }
 
@@ -34,12 +34,12 @@ impl TyInterner {
 impl Inner {
     fn intern<'tcx>(&'tcx self, kind: TyKind<'tcx>) -> Ty<'tcx> {
         if let Some(ty) = self.set.borrow().get(&kind) {
-            return *ty;
+            return Ty { kind: ty };
         }
         let kind = unsafe { mem::transmute::<TyKind<'_>, TyKind<'static>>(kind) };
         let ty = Ty { kind: self.allocator.alloc(kind) };
         let ty = unsafe { mem::transmute::<Ty<'_>, Ty<'static>>(ty) };
-        self.set.borrow_mut().insert(ty.kind, ty);
+        self.set.borrow_mut().insert(ty.kind);
         ty
     }
 }
