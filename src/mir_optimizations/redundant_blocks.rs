@@ -1,12 +1,11 @@
-use std::collections::HashMap;
-
+use crate::HashMap;
 use crate::mir::{self, Mir, Terminator};
 
 pub fn optimize(mir: &mut Mir, body_id: mir::BodyId) {
     // FIXME: horrendously naive algorithm.
     let body = &mut mir.bodies[body_id];
 
-    let mut replacements = HashMap::new();
+    let mut replacements = HashMap::default();
 
     for (block_id, block) in body.blocks.iter_enumerated() {
         if !block.statements.is_empty() {

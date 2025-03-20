@@ -1,9 +1,9 @@
 use crate::{
+    HashMap,
     ast::{self, Ast, BinaryOp, Block, BlockId, Expr, ExprId, Lit, TypeId, UnaryOp},
     symbol::Symbol,
     ty::{Ty, TyCtx, TyKind},
 };
-use std::collections::HashMap;
 
 use index_vec::IndexVec;
 

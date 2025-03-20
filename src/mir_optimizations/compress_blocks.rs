@@ -1,10 +1,13 @@
-use std::{collections::HashSet, mem};
+use std::mem;
 
-use crate::mir::{BlockId, BodyId, Mir};
+use crate::{
+    HashSet,
+    mir::{BlockId, BodyId, Mir},
+};
 
 pub fn optimize(mir: &mut Mir, body_id: BodyId) {
     let body = &mut mir.bodies[body_id];
-    let mut referenced_blocks = HashSet::new();
+    let mut referenced_blocks = HashSet::default();
     referenced_blocks.insert(BlockId::from(0));
     for block in &body.blocks {
         block.terminator.with_jumps(|jump| _ = referenced_blocks.insert(jump));

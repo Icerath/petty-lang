@@ -1,6 +1,6 @@
-use std::{cell::RefCell, collections::HashSet, mem};
-
 use super::{Ty, TyCtx, TyKind};
+use crate::HashSet;
+use std::{cell::RefCell, mem};
 
 pub struct TyInterner {
     // drop artificial statics first.

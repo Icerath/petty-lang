@@ -19,6 +19,8 @@ mod span;
 mod symbol;
 mod ty;
 
+pub use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
+
 #[derive(Parser)]
 struct Args {
     path: PathBuf,

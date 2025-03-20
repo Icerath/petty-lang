@@ -1,8 +1,9 @@
 mod intrinsics;
 
-use std::{collections::HashMap, mem};
+use std::mem;
 
 use crate::{
+    HashMap,
     hir::{self, ArraySeg, ExprId, ExprKind, Hir, LValue, Lit},
     mir::{
         self, Block, BlockId, Body, BodyId, Constant, Mir, Operand, Place, RValue, Statement,
