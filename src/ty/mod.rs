@@ -93,7 +93,13 @@ impl<'tcx> TyCtx<'tcx> {
     }
     #[track_caller]
     pub fn subtype(&self, lhs: Ty<'tcx>, rhs: Ty<'tcx>) {
-        self.inner.borrow_mut().subtype(lhs, rhs);
+        self.try_subtype(lhs, rhs).unwrap_or_else(|[lhs, rhs]| {
+            panic!("expected `{rhs}`, found `{lhs}`");
+        });
+    }
+    #[track_caller]
+    pub fn try_subtype(&self, lhs: Ty<'tcx>, rhs: Ty<'tcx>) -> Result<(), [Ty<'tcx>; 2]> {
+        self.inner.borrow_mut().subtype(lhs, rhs)
     }
 }
 
@@ -147,9 +153,9 @@ impl<'tcx> TyCtxInner<'tcx> {
     /// Says that `lhs` must be a subtype of `rhs`.
     /// never is a subtype of everything.
     #[track_caller]
-    fn subtype(&mut self, lhs: Ty<'tcx>, rhs: Ty<'tcx>) {
-        let Err([lhs, rhs]) = self.try_eq(lhs, rhs) else { return };
-        assert!(lhs.is_never(), "expected `{rhs}`, found `{lhs}`",);
+    fn subtype(&mut self, lhs: Ty<'tcx>, rhs: Ty<'tcx>) -> Result<(), [Ty<'tcx>; 2]> {
+        let Err([lhs, rhs]) = self.try_eq(lhs, rhs) else { return Ok(()) };
+        if lhs.is_never() { Ok(()) } else { Err([lhs, rhs]) }
     }
 
     fn insertl(&mut self, var: TyVid, ty: Ty<'tcx>) -> Result<(), [Ty<'tcx>; 2]> {

@@ -31,7 +31,7 @@ fn compile_inner(src: &str, dump: bool, verbose: bool) -> miette::Result<()> {
     let ast = parse(&src)?;
     let ty_intern = TyInterner::default();
     let tcx = TyCtx::new(&ty_intern);
-    let analysis = ast_analysis::analyze(&ast, &tcx);
+    let analysis = ast_analysis::analyze(&src, &ast, &tcx);
     dump!(ast);
     let hir = ast_lowering::lower(ast, analysis, &tcx);
     dump!(hir);

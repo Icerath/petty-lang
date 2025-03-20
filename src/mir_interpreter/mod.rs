@@ -13,7 +13,7 @@ macro_rules! value {
     ($ty:ident, $value: expr) => {{
         match $value {
             Value::$ty(out) => out.clone(),
-            other => unreachable!("Expected {}, found {other:?}", stringify!($ty)),
+            other => unreachable!("expected {}, found {other:?}", stringify!($ty)),
         }
     }};
 }
@@ -38,7 +38,7 @@ impl Value {
     fn unwrap_range(&mut self) -> Range<i64> {
         match self {
             Value::Range(out) => Range::clone(out),
-            other => unreachable!("Expected {}, found {other:?}", stringify!($ty)),
+            other => unreachable!("expected {}, found {other:?}", stringify!($ty)),
         }
     }
     fn unwrap_range_usize(&mut self) -> Range<usize> {

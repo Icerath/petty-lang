@@ -1,9 +1,11 @@
 use crate::{
     HashMap,
     ast::{self, Ast, BinOpKind, BinaryOp, Block, BlockId, Expr, ExprId, Lit, TypeId, UnaryOp},
+    span::Span,
     symbol::Symbol,
     ty::{Ty, TyCtx, TyKind},
 };
+use miette::{LabeledSpan, Result};
 
 use index_vec::IndexVec;
 
@@ -26,11 +28,12 @@ impl<'tcx> Body<'tcx> {
     }
 }
 
-struct Collector<'ast, 'tcx> {
+struct Collector<'src, 'ast, 'tcx> {
     ty_info: TyInfo<'tcx>,
     bodies: Vec<Body<'tcx>>,
     ast: &'ast Ast,
     tcx: &'tcx TyCtx<'tcx>,
+    src: &'src str,
 }
 
 fn setup_ty_info<'tcx>(ast: &Ast, tcx: &'tcx TyCtx<'tcx>) -> TyInfo<'tcx> {
@@ -41,10 +44,10 @@ fn setup_ty_info<'tcx>(ast: &Ast, tcx: &'tcx TyCtx<'tcx>) -> TyInfo<'tcx> {
     }
 }
 
-pub fn analyze<'tcx>(ast: &Ast, tcx: &'tcx TyCtx<'tcx>) -> TyInfo<'tcx> {
+pub fn analyze<'tcx>(src: &str, ast: &Ast, tcx: &'tcx TyCtx<'tcx>) -> TyInfo<'tcx> {
     let ty_info = setup_ty_info(ast, tcx);
     let body = global_body(tcx);
-    let mut collector = Collector { ty_info, ast, tcx, bodies: vec![body] };
+    let mut collector = Collector { src, ty_info, ast, tcx, bodies: vec![body] };
     let top_level_exprs = ast.top_level.iter().copied().collect();
     let top_level = ast::Block { stmts: top_level_exprs, is_expr: false };
     collector.analyze_body_with(&top_level, Body::new(tcx.never()));
@@ -65,7 +68,7 @@ fn global_body<'tcx>(tcx: &'tcx TyCtx<'tcx>) -> Body<'tcx> {
     body
 }
 
-impl<'tcx> Collector<'_, 'tcx> {
+impl<'tcx> Collector<'_, '_, 'tcx> {
     fn analyze_body_with(
         &mut self,
         block: &ast::Block,
@@ -122,6 +125,18 @@ impl<'tcx> Collector<'_, 'tcx> {
         *self.bodies.iter().rev().find_map(|body| body.ty_names.get(&name)).unwrap()
     }
 
+    fn subtype(&self, lhs: Ty<'tcx>, rhs: Ty<'tcx>, span: Span) -> Result<()> {
+        self.tcx.try_subtype(lhs, rhs).map_err(|[lhs, rhs]| self.subtype_err(lhs, rhs, span))
+    }
+
+    #[cold]
+    #[inline(never)]
+    fn subtype_err(&self, lhs: Ty<'tcx>, rhs: Ty<'tcx>, span: Span) -> miette::Error {
+        let label = LabeledSpan::at(span, "here");
+        miette::miette!(labels = vec![label], "expected `{rhs}`, found `{lhs}`")
+            .with_source_code(self.src.to_string())
+    }
+
     #[must_use]
     #[expect(clippy::too_many_lines)]
     fn analyze_expr(&mut self, id: ExprId) -> Ty<'tcx> {
@@ -148,12 +163,12 @@ impl<'tcx> Collector<'_, 'tcx> {
                             | BinOpKind::SubAssign
                             | BinOpKind::MulAssign
                             | BinOpKind::DivAssign,
-                        ..
+                        span,
                     },
             } => {
                 let lhs = self.analyze_expr(lhs);
                 let rhs = self.analyze_expr(rhs);
-                self.tcx.subtype(rhs, lhs);
+                self.subtype(rhs, lhs, span).unwrap();
                 self.tcx.unit()
             }
             &Expr::Binary {
@@ -217,7 +232,7 @@ impl<'tcx> Collector<'_, 'tcx> {
             Expr::FnCall { function, args } => {
                 let fn_ty = self.analyze_expr(*function);
                 let TyKind::Function { params, ret } = &*fn_ty else {
-                    panic!("Expected `function`, found {fn_ty:?}");
+                    panic!("expected `function`, found {fn_ty:?}");
                 };
 
                 for (&arg, &param) in std::iter::zip(args, params) {

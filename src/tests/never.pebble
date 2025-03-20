@@ -4,7 +4,4 @@ fn never() {
 
     let z: int = abort;
     z = 1;
-
-    let w = abort;
-    w = 1;
 }
