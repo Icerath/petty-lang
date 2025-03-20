@@ -1,7 +1,7 @@
 use thin_vec::ThinVec;
 
 use crate::{
-    ast::{self, Ast, BinaryOp},
+    ast::{self, Ast, BinOpKind, BinaryOp},
     ast_analysis::TyInfo,
     hir::{self, Expr, ExprKind, Hir},
     symbol::Symbol,
@@ -56,20 +56,24 @@ impl<'tcx> Lowering<'_, 'tcx> {
             &ast::Expr::Binary {
                 lhs,
                 op:
-                    op @ (BinaryOp::AddAssign
-                    | BinaryOp::SubAssign
-                    | BinaryOp::MulAssign
-                    | BinaryOp::DivAssign
-                    | BinaryOp::ModAssign),
+                    op @ BinaryOp {
+                        kind:
+                            BinOpKind::AddAssign
+                            | BinOpKind::SubAssign
+                            | BinOpKind::MulAssign
+                            | BinOpKind::DivAssign
+                            | BinOpKind::ModAssign,
+                        ..
+                    },
                 rhs,
             } => {
                 let expr = {
-                    let op = match op {
-                        BinaryOp::AddAssign => hir::BinaryOp::Add,
-                        BinaryOp::SubAssign => hir::BinaryOp::Sub,
-                        BinaryOp::MulAssign => hir::BinaryOp::Mul,
-                        BinaryOp::DivAssign => hir::BinaryOp::Div,
-                        BinaryOp::ModAssign => hir::BinaryOp::Mod,
+                    let op = match op.kind {
+                        BinOpKind::AddAssign => hir::BinaryOp::Add,
+                        BinOpKind::SubAssign => hir::BinaryOp::Sub,
+                        BinOpKind::MulAssign => hir::BinaryOp::Mul,
+                        BinOpKind::DivAssign => hir::BinaryOp::Div,
+                        BinOpKind::ModAssign => hir::BinaryOp::Mod,
                         _ => unreachable!(),
                     };
                     let kind = ExprKind::Binary { lhs: self.lower(lhs), op, rhs: self.lower(rhs) };
@@ -79,7 +83,7 @@ impl<'tcx> Lowering<'_, 'tcx> {
                 let kind = hir::ExprKind::Assignment { lhs: self.lower_lvalue(lhs), expr };
                 hir::Expr { ty: self.ty_info.expr_tys[expr_id], kind }
             }
-            &ast::Expr::Binary { lhs, op: BinaryOp::Assign, rhs } => {
+            &ast::Expr::Binary { lhs, op: BinaryOp { kind: BinOpKind::Assign, .. }, rhs } => {
                 let kind = hir::ExprKind::Assignment {
                     lhs: self.lower_lvalue(lhs),
                     expr: self.lower(rhs),
@@ -87,20 +91,20 @@ impl<'tcx> Lowering<'_, 'tcx> {
                 hir::Expr { ty: self.ty_info.expr_tys[expr_id], kind }
             }
             &ast::Expr::Binary { lhs, op, rhs } => {
-                let op = match op {
-                    BinaryOp::Add => hir::BinaryOp::Add,
-                    BinaryOp::Sub => hir::BinaryOp::Sub,
-                    BinaryOp::Mul => hir::BinaryOp::Mul,
-                    BinaryOp::Div => hir::BinaryOp::Div,
-                    BinaryOp::Mod => hir::BinaryOp::Mod,
-                    BinaryOp::Less => hir::BinaryOp::Less,
-                    BinaryOp::Greater => hir::BinaryOp::Greater,
-                    BinaryOp::LessEq => hir::BinaryOp::LessEq,
-                    BinaryOp::GreaterEq => hir::BinaryOp::GreaterEq,
-                    BinaryOp::Eq => hir::BinaryOp::Eq,
-                    BinaryOp::Neq => hir::BinaryOp::Neq,
-                    BinaryOp::Range => hir::BinaryOp::Range,
-                    BinaryOp::RangeInclusive => hir::BinaryOp::RangeInclusive,
+                let op = match op.kind {
+                    BinOpKind::Add => hir::BinaryOp::Add,
+                    BinOpKind::Sub => hir::BinaryOp::Sub,
+                    BinOpKind::Mul => hir::BinaryOp::Mul,
+                    BinOpKind::Div => hir::BinaryOp::Div,
+                    BinOpKind::Mod => hir::BinaryOp::Mod,
+                    BinOpKind::Less => hir::BinaryOp::Less,
+                    BinOpKind::Greater => hir::BinaryOp::Greater,
+                    BinOpKind::LessEq => hir::BinaryOp::LessEq,
+                    BinOpKind::GreaterEq => hir::BinaryOp::GreaterEq,
+                    BinOpKind::Eq => hir::BinaryOp::Eq,
+                    BinOpKind::Neq => hir::BinaryOp::Neq,
+                    BinOpKind::Range => hir::BinaryOp::Range,
+                    BinOpKind::RangeInclusive => hir::BinaryOp::RangeInclusive,
                     _ => unreachable!("{op:?}"),
                 };
                 hir::Expr {

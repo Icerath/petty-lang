@@ -2,7 +2,7 @@ mod display;
 
 use std::fmt;
 
-use crate::symbol::Symbol;
+use crate::{span::Span, symbol::Symbol};
 use index_vec::IndexVec;
 use thin_vec::ThinVec;
 
@@ -107,8 +107,14 @@ pub enum Lit {
     Array { segments: ThinVec<ArraySeg> },
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct BinaryOp {
+    pub kind: BinOpKind,
+    pub span: Span,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum BinaryOp {
+pub enum BinOpKind {
     Assign,
     AddAssign,
     SubAssign,

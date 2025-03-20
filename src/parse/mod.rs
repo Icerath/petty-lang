@@ -4,8 +4,8 @@ mod token;
 
 use crate::{
     ast::{
-        ArraySeg, Ast, BinaryOp, Block, BlockId, Expr, ExprId, IfStmt, Lit, Param, StructInitField,
-        Ty, TypeId,
+        ArraySeg, Ast, BinOpKind, BinaryOp, Block, BlockId, Expr, ExprId, IfStmt, Lit, Param,
+        StructInitField, Ty, TypeId,
     },
     symbol::Symbol,
 };
@@ -278,7 +278,15 @@ impl Parse for Param {
     }
 }
 
-impl TryFrom<TokenKind> for BinaryOp {
+impl TryFrom<Token> for BinaryOp {
+    type Error = ();
+    fn try_from(token: Token) -> Result<Self, Self::Error> {
+        let kind = BinOpKind::try_from(token.kind)?;
+        Ok(Self { kind, span: token.span })
+    }
+}
+
+impl TryFrom<TokenKind> for BinOpKind {
     type Error = ();
     fn try_from(kind: TokenKind) -> Result<Self, Self::Error> {
         Ok(match kind {

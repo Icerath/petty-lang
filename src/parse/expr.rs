@@ -1,4 +1,4 @@
-use crate::ast::{BinaryOp, Expr, ExprId, Lit, UnaryOp};
+use crate::ast::{BinOpKind, BinaryOp, Expr, ExprId, Lit, UnaryOp};
 
 use super::{
     Stream, parse_atom_with,
@@ -11,28 +11,28 @@ pub fn parse_expr_inner(
     precedence: u8,
     allow_struct_init: bool,
 ) -> Result<ExprId> {
-    const OPS: &[&[BinaryOp]] = &[
+    const OPS: &[&[BinOpKind]] = &[
         &[
-            BinaryOp::Assign,
-            BinaryOp::AddAssign,
-            BinaryOp::SubAssign,
-            BinaryOp::MulAssign,
-            BinaryOp::DivAssign,
-            BinaryOp::ModAssign,
+            BinOpKind::Assign,
+            BinOpKind::AddAssign,
+            BinOpKind::SubAssign,
+            BinOpKind::MulAssign,
+            BinOpKind::DivAssign,
+            BinOpKind::ModAssign,
         ],
-        // &[BinaryOp::Or],
-        // &[BinaryOp::And],
+        // &[BinOpKind::Or],
+        // &[BinOpKind::And],
         &[
-            BinaryOp::Eq,
-            BinaryOp::Neq,
-            BinaryOp::Greater,
-            BinaryOp::Less,
-            BinaryOp::GreaterEq,
-            BinaryOp::LessEq,
+            BinOpKind::Eq,
+            BinOpKind::Neq,
+            BinOpKind::Greater,
+            BinOpKind::Less,
+            BinOpKind::GreaterEq,
+            BinOpKind::LessEq,
         ],
-        &[BinaryOp::Range, BinaryOp::RangeInclusive],
-        &[BinaryOp::Add, BinaryOp::Sub],
-        &[BinaryOp::Mul, BinaryOp::Div, BinaryOp::Mod],
+        &[BinOpKind::Range, BinOpKind::RangeInclusive],
+        &[BinOpKind::Add, BinOpKind::Sub],
+        &[BinOpKind::Mul, BinOpKind::Div, BinOpKind::Mod],
     ];
 
     let Some(&ops) = OPS.get(precedence as usize) else {
@@ -41,8 +41,8 @@ pub fn parse_expr_inner(
     let mut root = parse_expr_inner(stream, precedence + 1, allow_struct_init)?;
     loop {
         let Some(token) = stream.lexer.clone().next().transpose()? else { break };
-        let Ok(op) = BinaryOp::try_from(token.kind) else { break };
-        if !ops.contains(&op) {
+        let Ok(op) = BinaryOp::try_from(token) else { break };
+        if !ops.contains(&op.kind) {
             break;
         }
         _ = stream.next();

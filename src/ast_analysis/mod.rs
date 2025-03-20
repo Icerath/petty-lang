@@ -1,6 +1,6 @@
 use crate::{
     HashMap,
-    ast::{self, Ast, BinaryOp, Block, BlockId, Expr, ExprId, Lit, TypeId, UnaryOp},
+    ast::{self, Ast, BinOpKind, BinaryOp, Block, BlockId, Expr, ExprId, Lit, TypeId, UnaryOp},
     symbol::Symbol,
     ty::{Ty, TyCtx, TyKind},
 };
@@ -141,11 +141,15 @@ impl<'tcx> Collector<'_, 'tcx> {
                 lhs,
                 rhs,
                 op:
-                    BinaryOp::Assign
-                    | BinaryOp::AddAssign
-                    | BinaryOp::SubAssign
-                    | BinaryOp::MulAssign
-                    | BinaryOp::DivAssign,
+                    BinaryOp {
+                        kind:
+                            BinOpKind::Assign
+                            | BinOpKind::AddAssign
+                            | BinOpKind::SubAssign
+                            | BinOpKind::MulAssign
+                            | BinOpKind::DivAssign,
+                        ..
+                    },
             } => {
                 let lhs = self.analyze_expr(lhs);
                 let rhs = self.analyze_expr(rhs);
@@ -156,19 +160,27 @@ impl<'tcx> Collector<'_, 'tcx> {
                 lhs,
                 rhs,
                 op:
-                    BinaryOp::Less
-                    | BinaryOp::Greater
-                    | BinaryOp::LessEq
-                    | BinaryOp::GreaterEq
-                    | BinaryOp::Eq
-                    | BinaryOp::Neq,
+                    BinaryOp {
+                        kind:
+                            BinOpKind::Less
+                            | BinOpKind::Greater
+                            | BinOpKind::LessEq
+                            | BinOpKind::GreaterEq
+                            | BinOpKind::Eq
+                            | BinOpKind::Neq,
+                        ..
+                    },
             } => {
                 let lhs = self.analyze_expr(lhs);
                 let rhs = self.analyze_expr(rhs);
                 self.tcx.eq(lhs, rhs);
                 self.tcx.bool()
             }
-            &Expr::Binary { lhs, rhs, op: op @ (BinaryOp::Range | BinaryOp::RangeInclusive) } => {
+            &Expr::Binary {
+                lhs,
+                rhs,
+                op: op @ BinaryOp { kind: BinOpKind::Range | BinOpKind::RangeInclusive, .. },
+            } => {
                 let lhs = self.analyze_expr(lhs);
                 let rhs = self.analyze_expr(rhs);
                 self.tcx.eq(lhs, rhs);
@@ -176,9 +188,9 @@ impl<'tcx> Collector<'_, 'tcx> {
                 self.tcx.subtype(lhs, self.tcx.int());
                 self.tcx.subtype(rhs, self.tcx.int());
 
-                match op {
-                    BinaryOp::Range => self.tcx.intern(TyKind::Range),
-                    BinaryOp::RangeInclusive => self.tcx.intern(TyKind::RangeInclusive),
+                match op.kind {
+                    BinOpKind::Range => self.tcx.intern(TyKind::Range),
+                    BinOpKind::RangeInclusive => self.tcx.intern(TyKind::RangeInclusive),
                     _ => unreachable!(),
                 }
             }

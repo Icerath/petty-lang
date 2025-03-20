@@ -3,7 +3,7 @@ use std::{
     mem,
 };
 
-use crate::ast::{Ast, BinaryOp, BlockId, Expr, ExprId, Lit, Ty, UnaryOp};
+use crate::ast::{Ast, BinOpKind, BinaryOp, BlockId, Expr, ExprId, Lit, Ty, UnaryOp};
 
 use super::TypeId;
 struct Writer<'ast> {
@@ -194,8 +194,8 @@ impl Writer<'_> {
     }
 
     fn display_binary_op(&mut self, op: BinaryOp) {
-        use BinaryOp as B;
-        let str = match op {
+        use BinOpKind as B;
+        let str = match op.kind {
             B::Add => "+",
             B::AddAssign => "+=",
             B::Div => "/",
