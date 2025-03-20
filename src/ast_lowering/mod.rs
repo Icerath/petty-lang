@@ -131,6 +131,11 @@ impl Lowering<'_, '_> {
                 };
                 hir::Expr { ty: self.tcx.never().clone(), kind: ExprKind::Return(inner) }
             }
+            &ast::Expr::Unary { op, expr } => hir::Expr {
+                ty: self.get_ty(expr_id).clone(),
+                kind: ExprKind::Unary { op, expr: self.lower(expr) },
+            },
+            ast::Expr::Break => hir::Expr { ty: self.tcx.never().clone(), kind: ExprKind::Break },
             expr => todo!("{expr:?}"),
         }
     }

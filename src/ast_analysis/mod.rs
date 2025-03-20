@@ -126,10 +126,12 @@ impl Collector<'_, '_> {
             &Expr::Ident(ident) => _ = self.read_ident(ident, id),
             &Expr::Unary { expr, op } => {
                 let operand = self.analyze_expr(expr);
-                match op {
-                    UnaryOp::Neg => self.tcx.subtype(&operand, self.tcx.bool()),
-                    UnaryOp::Not => self.tcx.subtype(&operand, self.tcx.int()),
-                }
+                let ty = match op {
+                    UnaryOp::Neg => self.tcx.int(),
+                    UnaryOp::Not => self.tcx.bool(),
+                };
+                self.tcx.subtype(&operand, ty);
+                self.ty_info.expr_tys[id] = ty.clone();
             }
             &Expr::Binary {
                 lhs,
@@ -281,6 +283,7 @@ impl Collector<'_, '_> {
                 self.tcx.subtype(&ty, expected);
                 self.ty_info.expr_tys[id] = self.tcx.never().clone();
             }
+            Expr::Break => self.ty_info.expr_tys[id] = self.tcx.never().clone(),
             expr => todo!("{expr:?}"),
         }
         self.ty_info.expr_tys[id].clone()
