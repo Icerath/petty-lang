@@ -80,6 +80,7 @@ pub enum Expr {
     While { condition: ExprId, block: BlockId },
     If { arms: ThinVec<IfStmt>, els: Option<BlockId> },
     Return(Option<ExprId>),
+    Break,
     FnDecl { ident: Symbol, params: ThinVec<Param>, ret: Option<TypeId>, block: BlockId },
 }
 

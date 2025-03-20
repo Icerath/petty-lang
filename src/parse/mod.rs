@@ -318,6 +318,7 @@ fn parse_atom_with(stream: &mut Stream, tok: Token) -> Result<ExprId> {
     let expr = match tok.kind {
         TokenKind::LBrace => Ok(Expr::Block(stream.parse()?)),
         TokenKind::Abort => lit!(Lit::Abort),
+        TokenKind::Break => Ok(Expr::Break),
         TokenKind::Return => {
             if (stream.lexer.clone().next().transpose()?)
                 .is_none_or(|tok| tok.kind == TokenKind::Return)

@@ -46,6 +46,7 @@ impl Writer<'_> {
         // FIXME: take precedence into account to use minimum parens needed
         let inside_expr = mem::replace(&mut self.inside_expr, true);
         match &self.ast.exprs[expr] {
+            Expr::Break => self.f.push_str("break"),
             Expr::Return(expr) => {
                 self.f.push_str("return");
                 if let Some(expr) = expr {
