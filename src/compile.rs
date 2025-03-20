@@ -1,4 +1,4 @@
-use std::time::Instant;
+use std::{path::PathBuf, time::Instant};
 
 use crate::{
     ast_analysis, ast_lowering, hir_lowering, mir_interpreter, mir_optimizations,
@@ -8,14 +8,19 @@ use crate::{
 
 #[cfg(test)]
 pub fn compile_test(src: &str) -> miette::Result<()> {
-    compile_inner(src, false, false)
+    compile_inner(src, None, false, false)
 }
 
-pub fn compile(src: &str, verbose: bool) -> miette::Result<()> {
-    compile_inner(src, true, verbose)
+pub fn compile(src: &str, file: Option<PathBuf>, verbose: bool) -> miette::Result<()> {
+    compile_inner(src, file, true, verbose)
 }
 
-fn compile_inner(src: &str, dump: bool, verbose: bool) -> miette::Result<()> {
+fn compile_inner(
+    src: &str,
+    file: Option<PathBuf>,
+    dump: bool,
+    verbose: bool,
+) -> miette::Result<()> {
     macro_rules! dump {
         ($what: ident) => {
             if dump {
@@ -31,7 +36,7 @@ fn compile_inner(src: &str, dump: bool, verbose: bool) -> miette::Result<()> {
     let ast = parse(&src)?;
     let ty_intern = TyInterner::default();
     let tcx = TyCtx::new(&ty_intern);
-    let analysis = ast_analysis::analyze(&src, &ast, &tcx);
+    let analysis = ast_analysis::analyze(file, &src, &ast, &tcx);
     dump!(ast);
     let hir = ast_lowering::lower(ast, analysis, &tcx);
     dump!(hir);

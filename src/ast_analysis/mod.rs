@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use crate::{
     HashMap,
     ast::{self, Ast, BinOpKind, BinaryOp, Block, BlockId, ExprId, ExprKind, Lit, TypeId, UnaryOp},
@@ -5,7 +7,7 @@ use crate::{
     symbol::Symbol,
     ty::{Ty, TyCtx, TyKind},
 };
-use miette::{LabeledSpan, Result};
+use miette::{LabeledSpan, NamedSource, Result};
 
 use index_vec::IndexVec;
 
@@ -34,6 +36,7 @@ struct Collector<'src, 'ast, 'tcx> {
     ast: &'ast Ast,
     tcx: &'tcx TyCtx<'tcx>,
     src: &'src str,
+    file: Option<PathBuf>,
 }
 
 fn setup_ty_info<'tcx>(ast: &Ast, tcx: &'tcx TyCtx<'tcx>) -> TyInfo<'tcx> {
@@ -44,10 +47,15 @@ fn setup_ty_info<'tcx>(ast: &Ast, tcx: &'tcx TyCtx<'tcx>) -> TyInfo<'tcx> {
     }
 }
 
-pub fn analyze<'tcx>(src: &str, ast: &Ast, tcx: &'tcx TyCtx<'tcx>) -> TyInfo<'tcx> {
+pub fn analyze<'tcx>(
+    file: Option<PathBuf>,
+    src: &str,
+    ast: &Ast,
+    tcx: &'tcx TyCtx<'tcx>,
+) -> TyInfo<'tcx> {
     let ty_info = setup_ty_info(ast, tcx);
     let body = global_body(tcx);
-    let mut collector = Collector { src, ty_info, ast, tcx, bodies: vec![body] };
+    let mut collector = Collector { file, src, ty_info, ast, tcx, bodies: vec![body] };
     let top_level_exprs = ast.top_level.iter().copied().collect();
     let top_level = ast::Block { stmts: top_level_exprs, is_expr: false };
     collector.analyze_body_with(&top_level, Body::new(tcx.never()));
@@ -135,8 +143,19 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
     #[inline(never)]
     fn subtype_err(&self, lhs: Ty<'tcx>, rhs: Ty<'tcx>, span: Span) -> miette::Error {
         let label = LabeledSpan::at(span, "here");
-        miette::miette!(labels = vec![label], "expected `{rhs}`, found `{lhs}`")
-            .with_source_code(self.src.to_string())
+        miette::miette!(
+            labels = vec![label],
+            code = "type error",
+            "expected `{rhs}`, found `{lhs}`"
+        )
+        .with_source_code(self.src())
+    }
+
+    fn src(&self) -> NamedSource<String> {
+        match self.file.as_ref().and_then(|file| file.to_str()) {
+            Some(file) => NamedSource::new(file, self.src.to_string()),
+            None => NamedSource::new("", self.src.to_string()),
+        }
     }
 
     #[must_use]
@@ -171,7 +190,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 let span = self.ast.spans([lhs, rhs]);
                 let lhs = self.analyze_expr(lhs);
                 let rhs = self.analyze_expr(rhs);
-                self.subtype(rhs, lhs, span).unwrap();
+                self.subtype(rhs, lhs, span).expect("");
                 self.tcx.unit()
             }
             &ExprKind::Binary {
