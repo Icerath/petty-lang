@@ -341,12 +341,13 @@ fn parse_atom_with(stream: &mut Stream, tok: Token) -> Result<ExprId> {
         TokenKind::Abort => lit!(Lit::Abort),
         TokenKind::Break => Ok(ExprKind::Break.todo_span()),
         TokenKind::Return => {
-            if (stream.lexer.clone().next().transpose()?)
-                .is_none_or(|tok| tok.kind == TokenKind::Return)
+            if (stream.lexer.clone().next().transpose()?).is_none_or(|tok| tok.kind.is_terminator())
             {
-                Ok(ExprKind::Return(None).todo_span())
+                Ok(ExprKind::Return(None).with_span(tok.span))
             } else {
-                Ok(ExprKind::Return(Some(stream.parse()?)).todo_span())
+                let expr = stream.parse()?;
+                let span = tok.span.start()..((&stream.ast.exprs[expr] as &Expr).span.end());
+                Ok(ExprKind::Return(Some(expr)).with_span(span))
             }
         }
         TokenKind::Fn => parse_fn(stream),

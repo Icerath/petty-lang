@@ -176,7 +176,7 @@ impl ExprKind {
     pub fn todo_span(self) -> Expr {
         Expr { kind: self, span: Span::ZERO }
     }
-    pub fn with_span(self, span: Span) -> Expr {
-        Expr { span, kind: self }
+    pub fn with_span(self, span: impl Into<Span>) -> Expr {
+        Expr { span: span.into(), kind: self }
     }
 }

@@ -115,3 +115,18 @@ impl TokenKind {
         }
     }
 }
+
+impl TokenKind {
+    // returns true if this token can never start an expression
+    pub fn is_terminator(self) -> bool {
+        matches!(
+            self,
+            Self::Semicolon
+                | Self::Comma
+                | Self::Colon
+                | Self::RParen
+                | Self::RBrace
+                | Self::RBracket
+        )
+    }
+}
