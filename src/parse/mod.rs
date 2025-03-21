@@ -119,7 +119,7 @@ trait Parse: Sized {
 
 impl Parse for Block {
     fn parse(stream: &mut Stream) -> Result<Self> {
-        let start = stream.lexer.current_pos();
+        let start = stream.lexer.current_pos() - 1; // ugly hack to include lbrace in span.
         let mut stmts = thin_vec![];
         let mut is_expr = false;
 
