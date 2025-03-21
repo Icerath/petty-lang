@@ -92,12 +92,6 @@ impl<'tcx> TyCtx<'tcx> {
         self.inner.borrow_mut().eq(lhs, rhs);
     }
     #[track_caller]
-    pub fn subtype(&self, lhs: Ty<'tcx>, rhs: Ty<'tcx>) {
-        if let Err([lhs, rhs]) = self.try_subtype(lhs, rhs) {
-            panic!("expected `{rhs}`, found `{lhs}`");
-        }
-    }
-    #[track_caller]
     pub fn try_subtype(&self, lhs: Ty<'tcx>, rhs: Ty<'tcx>) -> Result<(), [Ty<'tcx>; 2]> {
         self.inner.borrow_mut().subtype(lhs, rhs)
     }
