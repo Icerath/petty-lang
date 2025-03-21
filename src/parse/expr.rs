@@ -122,19 +122,23 @@ fn parse_leaf_expr(stream: &mut Stream, allow_struct_init: bool) -> Result<ExprI
 fn parse_unary_expr(stream: &mut Stream, allow_struct_init: bool) -> Result<ExprId> {
     _ = allow_struct_init;
     let token = stream.next()?;
-    let kind = match token.kind {
+    let start = token.span.start();
+    let expr = match token.kind {
         kind @ (TokenKind::Minus | TokenKind::Not) => {
             let op = if kind == TokenKind::Minus { UnaryOp::Neg } else { UnaryOp::Not };
             let next = stream.next()?;
-            ExprKind::Unary { op, expr: parse_paren_expr(stream, next)? }
+            (ExprKind::Unary { op, expr: parse_paren_expr(stream, next)? }).todo_span()
         }
-        TokenKind::LBracket => ExprKind::Lit(Lit::Array {
-            segments: stream.parse_separated(TokenKind::Comma, TokenKind::RBracket)?,
-        }),
+        TokenKind::LBracket => {
+            let kind = ExprKind::Lit(Lit::Array {
+                segments: stream.parse_separated(TokenKind::Comma, TokenKind::RBracket)?,
+            });
+            let span = Span::from(start..stream.lexer.current_pos());
+            Expr { span, kind }
+        }
         _ => return parse_paren_expr(stream, token),
     };
-    let span = Span::ZERO;
-    Ok(stream.ast.exprs.push(Expr { span, kind }))
+    Ok(stream.ast.exprs.push(expr))
 }
 
 fn parse_paren_expr(stream: &mut Stream, token: Token) -> Result<ExprId> {
