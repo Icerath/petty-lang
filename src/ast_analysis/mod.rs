@@ -326,7 +326,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
             ExprKind::Return(expr) => {
                 let ty = expr.map_or(Ok(self.tcx.unit()), |expr| self.analyze_expr(expr))?;
                 let expected = self.bodies.last().unwrap().ret;
-                self.tcx.subtype(ty, expected);
+                self.subtype(ty, expected, expr.unwrap_or(id))?;
                 self.tcx.never()
             }
             ExprKind::Break => self.tcx.never(),
