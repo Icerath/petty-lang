@@ -51,7 +51,7 @@ impl Value {
     fn unwrap_array(&mut self) -> Array {
         value!(Array, self)
     }
-    fn unwrap_arrayref(&mut self) -> (Array, u32) {
+    fn unwrap_arrayref(&self) -> (Array, u32) {
         match self {
             Value::ArrayRef { array, index } => (array.clone(), *index),
             _ => unreachable!(),
@@ -251,7 +251,6 @@ impl Interpreter<'_> {
                 Constant::Str(str) => Value::Str(str.as_str().into()),
                 Constant::Func(body) => Value::Fn(body),
             },
-            Operand::Deref(_place) => todo!(),
             Operand::Place(place) => places[place].clone(),
             Operand::Unreachable => unreachable!(),
         }

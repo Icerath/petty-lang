@@ -217,7 +217,7 @@ impl Lowering<'_, '_> {
             }
             ExprKind::Assignment { lhs, expr } => {
                 let rvalue = self.lower_inner(*expr);
-                let (place, deref) = self.get_lvalue_place(lhs);
+                let (place, deref) = self.get_lvalue_place(lhs, true);
                 let stmt = if deref {
                     Statement::DerefAssign { place, rvalue }
                 } else {
@@ -293,20 +293,27 @@ impl Lowering<'_, '_> {
         }
     }
 
-    fn get_lvalue_place(&mut self, lvalue: &LValue) -> (Place, bool) {
+    fn get_lvalue_place(&mut self, lvalue: &LValue, want_ref: bool) -> (Place, bool) {
         match lvalue {
             hir::LValue::Name(name) => (self.bodies.last().unwrap().variables[name], false),
             hir::LValue::Index { indexee, index } => {
                 let rhs = self.lower(*index);
-                let (place, deref) = self.get_lvalue_place(indexee);
-                let new_place = self.new_place();
+                let lhs = Operand::Place(self.get_lvalue_place(indexee, false).0);
+                let place = self.new_place();
 
-                let lhs = if deref { Operand::Deref(place) } else { Operand::Place(place) };
-                self.current().stmts.push(Statement::Assign {
-                    place: new_place,
-                    rvalue: RValue::BinaryExpr { lhs, op: mir::BinaryOp::ArrayIndexRef, rhs },
-                });
-                (new_place, true)
+                if want_ref {
+                    self.current().stmts.push(Statement::Assign {
+                        place,
+                        rvalue: RValue::BinaryExpr { lhs, op: mir::BinaryOp::ArrayIndexRef, rhs },
+                    });
+                    (place, true)
+                } else {
+                    self.current().stmts.push(Statement::Assign {
+                        place,
+                        rvalue: RValue::BinaryExpr { lhs, op: mir::BinaryOp::ArrayIndex, rhs },
+                    });
+                    (place, false)
+                }
             }
         }
     }

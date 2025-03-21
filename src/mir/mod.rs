@@ -117,7 +117,6 @@ impl RValue {
 pub enum Operand {
     Constant(Constant),
     Place(Place),
-    Deref(Place),
     Unreachable,
 }
 
@@ -216,7 +215,7 @@ impl RValue {
 impl Operand {
     pub fn mentions_place(&self, target: Place) -> bool {
         match *self {
-            Self::Place(place) | Self::Deref(place) => target == place,
+            Self::Place(place) => target == place,
             _ => false,
         }
     }
