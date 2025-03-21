@@ -17,8 +17,8 @@ fn main() {
         i += 1;
     }
 
-    let arr: [[int]] = [[1]];
-    if arr[0][0] != 1 { abort }
-    arr[0][0] = 2;
-    if arr[0][0] != 2 { abort }
+    let arr2d: [[int]] = [[1]];
+    if arr2d[0][0] != 1 { abort }
+    arr2d[0][0] = 2;
+    if arr2d[0][0] != 2 { abort }
 }

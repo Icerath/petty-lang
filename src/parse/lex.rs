@@ -186,7 +186,8 @@ impl Lexer<'_> {
         TokenKind::Int
     }
     fn ident(&mut self, span_start: u32) -> TokenKind {
-        while (self.chars.clone().next()).is_some_and(|c| c.is_ascii_alphabetic() || c == '_') {
+        let is_ident_char = |c| matches!(c, 'a'..='z' | 'A'..='Z' | '_' | '0'..='9');
+        while (self.chars.clone().next()).is_some_and(is_ident_char) {
             self.chars.next();
         }
         let span = Span::from(span_start..self.current_pos());
