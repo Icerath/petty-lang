@@ -1,7 +1,4 @@
-use crate::{
-    ast::{BinOpKind, BinaryOp, Expr, ExprId, ExprKind, Lit, UnaryOp},
-    span::Span,
-};
+use crate::ast::{BinOpKind, BinaryOp, ExprId, ExprKind, Lit, UnaryOp};
 
 use super::{
     Stream, parse_atom_with,
@@ -51,10 +48,8 @@ pub fn parse_expr_inner(
         _ = stream.next();
         let expr = parse_expr_inner(stream, precedence + 1, allow_struct_init)?;
         let span = stream.ast.spans([root, expr]);
-        root = stream
-            .ast
-            .exprs
-            .push(Expr { span, kind: ExprKind::Binary { lhs: root, op, rhs: expr } });
+        root = (stream.ast.exprs)
+            .push((ExprKind::Binary { lhs: root, op, rhs: expr }).with_span(span));
     }
     Ok(root)
 }
@@ -69,11 +64,9 @@ fn parse_leaf_expr(stream: &mut Stream, allow_struct_init: bool) -> Result<ExprI
                 _ = stream.next();
                 let args = stream.parse_separated(TokenKind::Comma, TokenKind::RParen)?;
                 let end = stream.lexer.current_pos();
-                let span = (stream.ast.exprs[expr].span.start()..end).into();
-                expr = stream
-                    .ast
-                    .exprs
-                    .push(Expr { span, kind: ExprKind::FnCall { function: expr, args } });
+                let span = stream.ast.exprs[expr].span.start()..end;
+                expr = (stream.ast.exprs)
+                    .push((ExprKind::FnCall { function: expr, args }).with_span(span));
             }
             TokenKind::Dot => 'block: {
                 _ = stream.next();
@@ -81,28 +74,24 @@ fn parse_leaf_expr(stream: &mut Stream, allow_struct_init: bool) -> Result<ExprI
                 if stream.peek()?.kind == TokenKind::LParen {
                     _ = stream.next();
                     let end = stream.lexer.current_pos();
-                    let span = (stream.ast.exprs[expr].span.start()..end).into();
-                    expr = stream
-                        .ast
-                        .exprs
-                        .push(Expr { span, kind: ExprKind::FieldAccess { expr, field } });
+                    let span = stream.ast.exprs[expr].span.start()..end;
+                    expr = (stream.ast.exprs)
+                        .push((ExprKind::FieldAccess { expr, field }).with_span(span));
                     break 'block;
                 }
                 let args = stream.parse_separated(TokenKind::Comma, TokenKind::RParen)?;
                 let end = stream.lexer.current_pos();
-                let span = (stream.ast.exprs[expr].span.start()..end).into();
-                expr = stream
-                    .ast
-                    .exprs
-                    .push(Expr { span, kind: ExprKind::MethodCall { expr, method: field, args } });
+                let span = stream.ast.exprs[expr].span.start()..end;
+                expr = (stream.ast.exprs)
+                    .push((ExprKind::MethodCall { expr, method: field, args }).with_span(span));
             }
             TokenKind::LBracket => {
                 _ = stream.next();
                 let index = stream.parse()?;
                 stream.expect(TokenKind::RBracket)?;
                 let end = stream.lexer.current_pos();
-                let span = (stream.ast.exprs[expr].span.start()..end).into();
-                expr = stream.ast.exprs.push(Expr { span, kind: ExprKind::Index { expr, index } });
+                let span = stream.ast.exprs[expr].span.start()..end;
+                expr = stream.ast.exprs.push((ExprKind::Index { expr, index }).with_span(span));
             }
             _ => break,
         }
@@ -129,13 +118,10 @@ fn parse_unary_expr(stream: &mut Stream, allow_struct_init: bool) -> Result<Expr
             let next = stream.next()?;
             (ExprKind::Unary { op, expr: parse_paren_expr(stream, next)? }).todo_span()
         }
-        TokenKind::LBracket => {
-            let kind = ExprKind::Lit(Lit::Array {
-                segments: stream.parse_separated(TokenKind::Comma, TokenKind::RBracket)?,
-            });
-            let span = Span::from(start..stream.lexer.current_pos());
-            Expr { span, kind }
-        }
+        TokenKind::LBracket => ExprKind::Lit(Lit::Array {
+            segments: stream.parse_separated(TokenKind::Comma, TokenKind::RBracket)?,
+        })
+        .with_span(start..stream.lexer.current_pos()),
         _ => return parse_paren_expr(stream, token),
     };
     Ok(stream.ast.exprs.push(expr))
@@ -145,8 +131,7 @@ fn parse_paren_expr(stream: &mut Stream, token: Token) -> Result<ExprId> {
     if token.kind == TokenKind::LParen {
         if stream.peek()?.kind == TokenKind::RParen {
             _ = stream.next();
-            let span = Span::ZERO;
-            return Ok(stream.ast.exprs.push(Expr { span, kind: ExprKind::Lit(Lit::Unit) }));
+            return Ok(stream.ast.exprs.push(ExprKind::Lit(Lit::Unit).todo_span()));
         }
         let expr = stream.parse()?;
         stream.expect(TokenKind::RParen)?;

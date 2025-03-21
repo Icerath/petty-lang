@@ -174,7 +174,7 @@ impl Ast {
 
 impl ExprKind {
     pub fn todo_span(self) -> Expr {
-        Expr { kind: self, span: Span::ZERO }
+        self.with_span(Span::ZERO)
     }
     pub fn with_span(self, span: impl Into<Span>) -> Expr {
         Expr { span: span.into(), kind: self }
