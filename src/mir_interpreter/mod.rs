@@ -74,19 +74,6 @@ struct Interpreter<'mir> {
     mir: &'mir Mir,
 }
 
-#[expect(clippy::unused_self)]
-impl Interpreter<'_> {
-    fn int(&self, int: i64) -> Value {
-        Value::Int(int)
-    }
-    fn bool(&self, bool: bool) -> Value {
-        Value::Bool(bool)
-    }
-    fn unit(&self) -> Value {
-        Value::Unit
-    }
-}
-
 #[derive(Debug, Clone)]
 enum Value {
     Unit,
@@ -104,7 +91,7 @@ impl Interpreter<'_> {
     fn run(&mut self, body_id: BodyId, args: Vec<Value>) -> Value {
         let body = &self.mir.bodies[body_id];
         let mut block_id = BlockId::from(0);
-        let mut places = index_vec::index_vec![self.unit(); body.places.index()];
+        let mut places = index_vec::index_vec![Value::Unit; body.places.index()];
         for (i, arg) in args.into_iter().enumerate() {
             places[i] = arg;
         }
@@ -129,10 +116,10 @@ impl Interpreter<'_> {
             match block.terminator {
                 Terminator::Goto(block) => block_id = block,
                 Terminator::Branch { ref condition, fals, tru } => {
-                    let condition = self.operand(condition, &places).unwrap_bool();
+                    let condition = Self::operand(condition, &places).unwrap_bool();
                     block_id = if condition { tru } else { fals };
                 }
-                Terminator::Return(ref operand) => return self.operand(operand, &places),
+                Terminator::Return(ref operand) => return Self::operand(operand, &places),
             }
         }
     }
@@ -140,33 +127,33 @@ impl Interpreter<'_> {
     fn rvalue(&mut self, rvalue: &RValue, places: &mut IndexSlice<Place, [Value]>) -> Value {
         match rvalue {
             RValue::Abort => panic!("abort"),
-            RValue::Use(operand) => self.operand(operand, places),
+            RValue::Use(operand) => Self::operand(operand, places),
             RValue::Extend { array, value, repeat } => {
-                let value = self.operand(value, places);
-                let repeat: usize = self.operand(repeat, places).unwrap_int().try_into().unwrap();
+                let value = Self::operand(value, places);
+                let repeat: usize = Self::operand(repeat, places).unwrap_int().try_into().unwrap();
                 places[*array].unwrap_array().extend(value, repeat);
-                self.unit()
+                Value::Unit
             }
             RValue::Call { function, args } => {
-                let call_body = self.operand(function, places).unwrap_fn();
-                let args = args.iter().map(|arg| self.operand(arg, places)).collect();
+                let call_body = Self::operand(function, places).unwrap_fn();
+                let args = args.iter().map(|arg| Self::operand(arg, places)).collect();
                 self.run(call_body, args)
             }
             RValue::BinaryExpr { lhs, op, rhs } => {
-                let mut lhs = self.operand(lhs, places);
-                let mut rhs = self.operand(rhs, places);
+                let mut lhs = Self::operand(lhs, places);
+                let mut rhs = Self::operand(rhs, places);
                 match op {
-                    BinaryOp::IntAdd => self.int(lhs.unwrap_int() + rhs.unwrap_int()),
-                    BinaryOp::IntSub => self.int(lhs.unwrap_int() - rhs.unwrap_int()),
-                    BinaryOp::IntMul => self.int(lhs.unwrap_int() * rhs.unwrap_int()),
-                    BinaryOp::IntDiv => self.int(lhs.unwrap_int() / rhs.unwrap_int()),
-                    BinaryOp::IntMod => self.int(lhs.unwrap_int() % rhs.unwrap_int()),
-                    BinaryOp::IntLess => self.bool(lhs.unwrap_int() < rhs.unwrap_int()),
-                    BinaryOp::IntGreater => self.bool(lhs.unwrap_int() > rhs.unwrap_int()),
-                    BinaryOp::IntLessEq => self.bool(lhs.unwrap_int() <= rhs.unwrap_int()),
-                    BinaryOp::IntGreaterEq => self.bool(lhs.unwrap_int() >= rhs.unwrap_int()),
-                    BinaryOp::IntEq => self.bool(lhs.unwrap_int() == rhs.unwrap_int()),
-                    BinaryOp::IntNeq => self.bool(lhs.unwrap_int() != rhs.unwrap_int()),
+                    BinaryOp::IntAdd => Value::Int(lhs.unwrap_int() + rhs.unwrap_int()),
+                    BinaryOp::IntSub => Value::Int(lhs.unwrap_int() - rhs.unwrap_int()),
+                    BinaryOp::IntMul => Value::Int(lhs.unwrap_int() * rhs.unwrap_int()),
+                    BinaryOp::IntDiv => Value::Int(lhs.unwrap_int() / rhs.unwrap_int()),
+                    BinaryOp::IntMod => Value::Int(lhs.unwrap_int() % rhs.unwrap_int()),
+                    BinaryOp::IntLess => Value::Bool(lhs.unwrap_int() < rhs.unwrap_int()),
+                    BinaryOp::IntGreater => Value::Bool(lhs.unwrap_int() > rhs.unwrap_int()),
+                    BinaryOp::IntLessEq => Value::Bool(lhs.unwrap_int() <= rhs.unwrap_int()),
+                    BinaryOp::IntGreaterEq => Value::Bool(lhs.unwrap_int() >= rhs.unwrap_int()),
+                    BinaryOp::IntEq => Value::Bool(lhs.unwrap_int() == rhs.unwrap_int()),
+                    BinaryOp::IntNeq => Value::Bool(lhs.unwrap_int() != rhs.unwrap_int()),
                     BinaryOp::IntRange => {
                         Value::Range(Box::new(lhs.unwrap_int()..rhs.unwrap_int()))
                     }
@@ -176,25 +163,25 @@ impl Interpreter<'_> {
                         Value::Range(Box::new(lhs.unwrap_int()..rhs.unwrap_int() + 1))
                     }
 
-                    BinaryOp::CharEq => self.bool(lhs.unwrap_char() == rhs.unwrap_char()),
-                    BinaryOp::CharNeq => self.bool(lhs.unwrap_char() != rhs.unwrap_char()),
+                    BinaryOp::CharEq => Value::Bool(lhs.unwrap_char() == rhs.unwrap_char()),
+                    BinaryOp::CharNeq => Value::Bool(lhs.unwrap_char() != rhs.unwrap_char()),
 
-                    BinaryOp::StrEq => self.bool(lhs.unwrap_str() == rhs.unwrap_str()),
-                    BinaryOp::StrNeq => self.bool(lhs.unwrap_str() != rhs.unwrap_str()),
+                    BinaryOp::StrEq => Value::Bool(lhs.unwrap_str() == rhs.unwrap_str()),
+                    BinaryOp::StrNeq => Value::Bool(lhs.unwrap_str() != rhs.unwrap_str()),
                     BinaryOp::StrIndex => {
                         Value::Char(lhs.unwrap_str().as_bytes()[rhs.unwrap_int_usize()] as char)
                     }
                     BinaryOp::StrIndexSlice => {
                         Value::Str(lhs.unwrap_str()[rhs.unwrap_range_usize()].into())
                     }
-                    BinaryOp::StrFind => self.int(
+                    BinaryOp::StrFind => Value::Int(
                         lhs.unwrap_str()
                             .find(rhs.unwrap_str().as_str())
                             .unwrap()
                             .try_into()
                             .unwrap(),
                     ),
-                    BinaryOp::StrRFind => self.int(
+                    BinaryOp::StrRFind => Value::Int(
                         lhs.unwrap_str()
                             .rfind(rhs.unwrap_str().as_str())
                             .unwrap()
@@ -213,11 +200,11 @@ impl Interpreter<'_> {
                 }
             }
             RValue::UnaryExpr { op, operand } => {
-                let mut operand = self.operand(operand, places);
+                let mut operand = Self::operand(operand, places);
                 match op {
-                    UnaryOp::BoolNot => self.bool(!operand.unwrap_bool()),
+                    UnaryOp::BoolNot => Value::Bool(!operand.unwrap_bool()),
 
-                    UnaryOp::IntNeg => self.int(-operand.unwrap_int()),
+                    UnaryOp::IntNeg => Value::Int(-operand.unwrap_int()),
                     UnaryOp::IntToStr => Value::Str(operand.unwrap_int().to_string().into()),
                     UnaryOp::Chr => {
                         Value::Char(u8::try_from(operand.unwrap_int()).unwrap() as char)
@@ -227,26 +214,26 @@ impl Interpreter<'_> {
                         let mut stdout = io::stdout().lock();
                         _ = write!(stdout, "{}", operand.unwrap_char());
                         _ = stdout.flush();
-                        self.unit()
+                        Value::Unit
                     }
 
                     UnaryOp::StrPrint => {
                         println!("{}", operand.unwrap_str());
-                        self.unit()
+                        Value::Unit
                     }
-                    UnaryOp::StrLen => self.int(operand.unwrap_str().len().try_into().unwrap()),
+                    UnaryOp::StrLen => Value::Int(operand.unwrap_str().len().try_into().unwrap()),
                 }
             }
         }
     }
 
-    fn operand(&self, operand: &Operand, places: &IndexSlice<Place, [Value]>) -> Value {
+    fn operand(operand: &Operand, places: &IndexSlice<Place, [Value]>) -> Value {
         match *operand {
             Operand::Constant(ref constant) => match *constant {
-                Constant::Unit => self.unit(),
+                Constant::Unit => Value::Unit,
                 Constant::EmptyArray => Value::Array(Array::default()),
-                Constant::Bool(bool) => self.bool(bool),
-                Constant::Int(int) => self.int(int),
+                Constant::Bool(bool) => Value::Bool(bool),
+                Constant::Int(int) => Value::Int(int),
                 Constant::Char(char) => Value::Char(char),
                 Constant::Str(str) => Value::Str(str.as_str().into()),
                 Constant::Func(body) => Value::Fn(body),
