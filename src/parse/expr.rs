@@ -1,16 +1,18 @@
 use crate::ast::{BinOpKind, BinaryOp, ExprId, ExprKind, Lit, UnaryOp};
 
 use super::{
-    Stream, parse_atom_with,
+    Parse, Stream, parse_atom_with,
     token::{Token, TokenKind},
 };
 use miette::Result;
 
-pub fn parse_expr_inner(
-    stream: &mut Stream,
-    precedence: u8,
-    allow_struct_init: bool,
-) -> Result<ExprId> {
+impl Parse for ExprId {
+    fn parse(stream: &mut Stream) -> Result<Self> {
+        parse_expr(stream, 0)
+    }
+}
+
+fn parse_expr(stream: &mut Stream, precedence: u8) -> Result<ExprId> {
     const OPS: &[&[BinOpKind]] = &[
         &[
             BinOpKind::Assign,
@@ -36,9 +38,9 @@ pub fn parse_expr_inner(
     ];
 
     let Some(&ops) = OPS.get(precedence as usize) else {
-        return parse_leaf_expr(stream, allow_struct_init);
+        return parse_leaf_expr(stream);
     };
-    let mut root = parse_expr_inner(stream, precedence + 1, allow_struct_init)?;
+    let mut root = parse_expr(stream, precedence + 1)?;
     loop {
         let Some(token) = stream.lexer.clone().next().transpose()? else { break };
         let Ok(op) = BinaryOp::try_from(token) else { break };
@@ -46,7 +48,7 @@ pub fn parse_expr_inner(
             break;
         }
         _ = stream.next();
-        let expr = parse_expr_inner(stream, precedence + 1, allow_struct_init)?;
+        let expr = parse_expr(stream, precedence + 1)?;
         let span = stream.ast.spans([root, expr]);
         root = (stream.ast.exprs)
             .push((ExprKind::Binary { lhs: root, op, rhs: expr }).with_span(span));
@@ -54,8 +56,8 @@ pub fn parse_expr_inner(
     Ok(root)
 }
 
-fn parse_leaf_expr(stream: &mut Stream, allow_struct_init: bool) -> Result<ExprId> {
-    let mut expr = parse_unary_expr(stream, allow_struct_init)?;
+fn parse_leaf_expr(stream: &mut Stream) -> Result<ExprId> {
+    let mut expr = parse_unary_expr(stream)?;
 
     loop {
         let Some(token) = stream.lexer.clone().next().transpose()? else { break };
@@ -96,20 +98,10 @@ fn parse_leaf_expr(stream: &mut Stream, allow_struct_init: bool) -> Result<ExprI
             _ => break,
         }
     }
-    if !allow_struct_init {
-        return Ok(expr);
-    }
-    let ExprKind::Ident(ident) = stream.ast.exprs[expr].kind else {
-        return Ok(expr);
-    };
-    let TokenKind::LBrace = stream.peek()?.kind else { return Ok(expr) };
-    _ = stream.next();
-    let args = stream.parse_separated(TokenKind::Comma, TokenKind::RBrace)?;
-    Ok(stream.ast.exprs.push((ExprKind::StructInit { ident, args }).todo_span()))
+    Ok(expr)
 }
 
-fn parse_unary_expr(stream: &mut Stream, allow_struct_init: bool) -> Result<ExprId> {
-    _ = allow_struct_init;
+fn parse_unary_expr(stream: &mut Stream) -> Result<ExprId> {
     let token = stream.next()?;
     let start = token.span.start();
     let expr = match token.kind {

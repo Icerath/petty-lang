@@ -74,7 +74,6 @@ pub enum ExprKind {
     Ident(Symbol),
     Index { expr: ExprId, index: ExprId },
     FieldAccess { expr: ExprId, field: Symbol },
-    StructInit { ident: Symbol, args: ThinVec<StructInitField> },
     Lit(Lit),
     Block(BlockId),
     Let { ident: Symbol, ty: Option<TypeId>, expr: ExprId },
@@ -89,12 +88,6 @@ pub enum ExprKind {
 pub struct Expr {
     pub span: Span,
     pub kind: ExprKind,
-}
-
-#[derive(Debug)]
-pub struct StructInitField {
-    pub field: Symbol,
-    pub expr: Option<ExprId>,
 }
 
 #[derive(Debug)]

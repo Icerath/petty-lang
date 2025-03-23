@@ -111,19 +111,6 @@ impl Writer<'_> {
                 self.f.push('.');
                 self.f.push_str(field);
             }
-            ExprKind::StructInit { ident, args } => {
-                self.f.push_str(ident);
-                self.f.push_str(" {");
-                for (i, arg) in args.iter().enumerate() {
-                    self.f.push_str(if i == 0 { "" } else { ", " });
-                    self.f.push_str(&arg.field);
-                    if let Some(expr) = arg.expr {
-                        self.f.push_str(": ");
-                        self.display_expr(expr);
-                    }
-                }
-                self.f.push('}');
-            }
             ExprKind::Block(block) => self.display_block(*block),
             ExprKind::FnDecl { ident, params, ret, block } => {
                 self.inside_expr = inside_expr;

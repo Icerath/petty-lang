@@ -5,7 +5,7 @@ mod token;
 use crate::{
     ast::{
         ArraySeg, Ast, BinOpKind, BinaryOp, Block, BlockId, Expr, ExprId, ExprKind, IfStmt, Lit,
-        Param, StructInitField, Ty, TypeId,
+        Param, Ty, TypeId,
     },
     span::Span,
     symbol::Symbol,
@@ -145,12 +145,6 @@ impl Parse for Block {
     }
 }
 
-impl Parse for ExprId {
-    fn parse(stream: &mut Stream) -> Result<Self> {
-        parse_expr(stream, true)
-    }
-}
-
 impl Parse for BlockId {
     fn parse(stream: &mut Stream) -> Result<Self> {
         Block::parse(stream).map(|block| stream.ast.blocks.push(block))
@@ -161,10 +155,6 @@ impl Parse for TypeId {
     fn parse(stream: &mut Stream) -> Result<Self> {
         Ty::parse(stream).map(|block| stream.ast.types.push(block))
     }
-}
-
-fn parse_expr(stream: &mut Stream, allow_struct_init: bool) -> Result<ExprId> {
-    expr::parse_expr_inner(stream, 0, allow_struct_init)
 }
 
 impl Parse for Ty {
@@ -220,7 +210,7 @@ fn parse_let(stream: &mut Stream) -> Result<Expr> {
 }
 
 fn parse_while(stream: &mut Stream) -> Result<Expr> {
-    let condition = parse_expr(stream, false)?;
+    let condition = stream.parse()?;
     stream.expect(TokenKind::LBrace)?;
     let block = stream.parse()?;
     Ok((ExprKind::While { condition, block }).todo_span())
@@ -229,7 +219,7 @@ fn parse_while(stream: &mut Stream) -> Result<Expr> {
 fn parse_ifchain(stream: &mut Stream) -> Result<Expr> {
     let mut arms = thin_vec![];
     let els = loop {
-        let condition = parse_expr(stream, false)?;
+        let condition = stream.parse()?;
         stream.expect(TokenKind::LBrace)?;
         let body = stream.parse()?;
         arms.push(IfStmt { condition, body });
@@ -245,19 +235,6 @@ fn parse_ifchain(stream: &mut Stream) -> Result<Expr> {
         }
     };
     Ok((ExprKind::If { arms, els }).todo_span())
-}
-
-impl Parse for StructInitField {
-    fn parse(stream: &mut Stream) -> Result<Self> {
-        let field = stream.expect_ident()?;
-        let expr = if stream.peek()?.kind == TokenKind::Colon {
-            _ = stream.next();
-            Some(stream.parse()?)
-        } else {
-            None
-        };
-        Ok(Self { field, expr })
-    }
 }
 
 impl Parse for ArraySeg {
