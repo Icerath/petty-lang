@@ -10,28 +10,28 @@ pub type Ty<'tcx> = &'tcx TyKind<'tcx>;
 
 #[expect(dead_code)]
 impl TyKind<'_> {
-    pub fn is_never(&self) -> bool {
-        *self == TyKind::Never
+    pub const fn is_never(&self) -> bool {
+        matches!(self, Self::Never)
     }
-    pub fn is_unit(&self) -> bool {
-        *self == TyKind::Unit
+    pub const fn is_unit(&self) -> bool {
+        matches!(self, Self::Unit)
     }
-    pub fn is_bool(&self) -> bool {
-        *self == TyKind::Bool
+    pub const fn is_bool(&self) -> bool {
+        matches!(self, Self::Bool)
     }
-    pub fn is_int(&self) -> bool {
-        *self == TyKind::Int
+    pub const fn is_int(&self) -> bool {
+        matches!(self, Self::Int)
     }
-    pub fn is_char(&self) -> bool {
-        *self == TyKind::Char
+    pub const fn is_char(&self) -> bool {
+        matches!(self, Self::Char)
     }
-    pub fn is_str(&self) -> bool {
-        *self == TyKind::Str
+    pub const fn is_str(&self) -> bool {
+        matches!(self, Self::Str)
     }
-    pub fn is_range(&self) -> bool {
-        *self == TyKind::Range
+    pub const fn is_range(&self) -> bool {
+        matches!(self, Self::Range)
     }
-    pub fn is_array(&self) -> bool {
+    pub const fn is_array(&self) -> bool {
         matches!(*self, TyKind::Array(..))
     }
 }
