@@ -95,14 +95,11 @@ impl Interpreter<'_> {
         for (i, arg) in args.into_iter().enumerate() {
             places[i] = arg;
         }
-
         loop {
             let block = &body.blocks[block_id];
             for stmt in &block.statements {
                 match *stmt {
-                    Statement::DerefAssign { place, ref rvalue }
-                    | Statement::Assign { place, ref rvalue } => {
-                        let deref = matches!(stmt, Statement::DerefAssign { .. });
+                    Statement::Assign { place, deref, ref rvalue } => {
                         let rvalue = self.rvalue(rvalue, &mut places);
                         if deref {
                             let (array, index) = places[place].unwrap_arrayref();

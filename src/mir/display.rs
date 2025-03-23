@@ -11,11 +11,8 @@ impl fmt::Display for Mir {
                 for statement in &block.statements {
                     write!(f, "{}", Indent(2))?;
                     match statement {
-                        Statement::DerefAssign { place, rvalue }
-                        | Statement::Assign { place, rvalue } => {
-                            let is_deref = matches!(statement, Statement::DerefAssign { .. });
-
-                            if is_deref {
+                        Statement::Assign { place, deref, rvalue } => {
+                            if *deref {
                                 write!(f, "deref ")?;
                             }
                             write!(f, "_{place:?} = ")?;

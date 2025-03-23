@@ -35,7 +35,7 @@ impl Lowering<'_, '_> {
         };
         self.mir.num_intrinsics += 1;
         let place = self.new_place();
-        self.current().stmts.push(Statement::Assign { place, rvalue });
+        self.current().stmts.push(Statement::assign(place, rvalue));
         self.finish_with(Terminator::Return(Operand::Place(place)));
         true
     }

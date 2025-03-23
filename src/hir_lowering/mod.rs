@@ -87,7 +87,7 @@ impl Lowering<'_, '_> {
             RValue::Use(operand) => operand,
             rvalue => {
                 let place = self.new_place();
-                self.current().stmts.push(Statement::Assign { place, rvalue });
+                self.current().stmts.push(Statement::assign(place, rvalue));
                 Operand::Place(place)
             }
         }
@@ -137,7 +137,7 @@ impl Lowering<'_, '_> {
                 let rvalue = self.lower_inner(*expr);
                 let place = self.mir.bodies[self.bodies.last().unwrap().body].new_place();
                 self.current().variables.insert(*ident, place);
-                self.current().stmts.push(Statement::Assign { place, rvalue });
+                self.current().stmts.push(Statement::assign(place, rvalue));
                 RValue::Use(Operand::UNIT)
             }
             ExprKind::Return(expr) => {
@@ -179,9 +179,7 @@ impl Lowering<'_, '_> {
                         if is_unit {
                             self.process(block_out);
                         } else {
-                            self.current()
-                                .stmts
-                                .push(Statement::Assign { place: out_place, rvalue: block_out });
+                            self.current().stmts.push(Statement::assign(out_place, block_out));
                         }
                         jump_to_ends.push(self.finish_with(Terminator::Goto(BlockId::PLACEHOLDER)));
                     }
@@ -196,9 +194,7 @@ impl Lowering<'_, '_> {
                     if is_unit {
                         self.process(els_out);
                     } else {
-                        self.current()
-                            .stmts
-                            .push(Statement::Assign { place: out_place, rvalue: els_out });
+                        self.current().stmts.push(Statement::assign(out_place, els_out));
                     }
                 }
 
@@ -219,9 +215,9 @@ impl Lowering<'_, '_> {
                 let rvalue = self.lower_inner(*expr);
                 let (place, deref) = self.get_lvalue_place(lhs, true);
                 let stmt = if deref {
-                    Statement::DerefAssign { place, rvalue }
+                    Statement::deref_assign(place, rvalue)
                 } else {
-                    Statement::Assign { place, rvalue }
+                    Statement::assign(place, rvalue)
                 };
                 self.current().stmts.push(stmt);
                 RValue::Use(Operand::Constant(Constant::Unit))
@@ -302,16 +298,16 @@ impl Lowering<'_, '_> {
                 let place = self.new_place();
 
                 if want_ref {
-                    self.current().stmts.push(Statement::Assign {
+                    self.current().stmts.push(Statement::assign(
                         place,
-                        rvalue: RValue::BinaryExpr { lhs, op: mir::BinaryOp::ArrayIndexRef, rhs },
-                    });
+                        RValue::BinaryExpr { lhs, op: mir::BinaryOp::ArrayIndexRef, rhs },
+                    ));
                     (place, true)
                 } else {
-                    self.current().stmts.push(Statement::Assign {
+                    self.current().stmts.push(Statement::assign(
                         place,
-                        rvalue: RValue::BinaryExpr { lhs, op: mir::BinaryOp::ArrayIndex, rhs },
-                    });
+                        RValue::BinaryExpr { lhs, op: mir::BinaryOp::ArrayIndex, rhs },
+                    ));
                     (place, false)
                 }
             }
@@ -360,20 +356,18 @@ impl Lowering<'_, '_> {
         }
         let array = self.new_place();
         let throwaway = self.new_place();
-        self.current().stmts.push(Statement::Assign {
-            place: array,
-            rvalue: RValue::Use(Operand::Constant(Constant::EmptyArray)),
-        });
+        self.current()
+            .stmts
+            .push(Statement::assign(array, RValue::Use(Operand::Constant(Constant::EmptyArray))));
         for seg in segments {
             let value = self.lower(seg.expr);
             let repeat = match seg.repeated {
                 Some(repeated) => self.lower(repeated),
                 None => Operand::Constant(Constant::Int(1)),
             };
-            self.current().stmts.push(Statement::Assign {
-                place: throwaway,
-                rvalue: RValue::Extend { array, value, repeat },
-            });
+            self.current()
+                .stmts
+                .push(Statement::assign(throwaway, RValue::Extend { array, value, repeat }));
         }
         RValue::Use(Operand::Place(array))
     }

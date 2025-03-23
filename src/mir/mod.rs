@@ -92,8 +92,16 @@ impl Terminator {
 
 #[derive(Debug)]
 pub enum Statement {
-    Assign { place: Place, rvalue: RValue },
-    DerefAssign { place: Place, rvalue: RValue },
+    Assign { place: Place, deref: bool, rvalue: RValue },
+}
+
+impl Statement {
+    pub fn assign(place: Place, rvalue: RValue) -> Self {
+        Self::Assign { place, deref: false, rvalue }
+    }
+    pub fn deref_assign(place: Place, rvalue: RValue) -> Self {
+        Self::Assign { place, deref: true, rvalue }
+    }
 }
 
 #[must_use]
@@ -189,7 +197,7 @@ pub enum UnaryOp {
 impl Statement {
     pub fn rvalue(&self) -> &RValue {
         match self {
-            Self::Assign { rvalue, .. } | Self::DerefAssign { rvalue, .. } => rvalue,
+            Self::Assign { rvalue, .. } => rvalue,
         }
     }
 }
