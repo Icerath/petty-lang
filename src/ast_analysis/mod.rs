@@ -63,8 +63,8 @@ pub fn analyze<'tcx>(
     collector.analyze_body_with(&top_level, Body::new(tcx.never()))?;
 
     let mut ty_info = collector.ty_info;
-    ty_info.expr_tys.iter_mut().for_each(|ty| *ty = tcx.infer_deep(*ty));
-    ty_info.type_ids.iter_mut().for_each(|ty| *ty = tcx.infer_deep(*ty));
+    ty_info.expr_tys.iter_mut().for_each(|ty| *ty = tcx.infer_deep(ty));
+    ty_info.type_ids.iter_mut().for_each(|ty| *ty = tcx.infer_deep(ty));
 
     Ok(ty_info)
 }
@@ -115,7 +115,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         }
         Ok(if block.is_expr {
             ty.unwrap_or(self.tcx.unit())
-        } else if ty.is_some_and(Ty::is_never) {
+        } else if ty.is_some_and(TyKind::is_never) {
             self.tcx.never()
         } else {
             self.tcx.unit()
@@ -134,7 +134,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
     }
 
     fn read_named_ty(&self, name: Symbol) -> Ty<'tcx> {
-        *self.bodies.iter().rev().find_map(|body| body.ty_names.get(&name)).unwrap()
+        self.bodies.iter().rev().find_map(|body| body.ty_names.get(&name)).unwrap()
     }
 
     fn subtype(&self, lhs: Ty<'tcx>, rhs: Ty<'tcx>, expr: ExprId) -> Result<()> {
@@ -233,7 +233,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 let expr = self.analyze_expr(expr)?;
                 let index = self.analyze_expr(index)?;
                 let expr = self.tcx.infer_shallow(expr);
-                let out = match (&*expr, &*index) {
+                let out = match (expr, index) {
                     (TyKind::Str, TyKind::Range | TyKind::RangeInclusive) => self.tcx.str(),
                     (TyKind::Array(_), TyKind::Range | TyKind::RangeInclusive) => expr,
 
@@ -245,7 +245,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
             }
             ExprKind::FnCall { function, args } => {
                 let fn_ty = self.analyze_expr(*function)?;
-                let TyKind::Function { params, ret } = &*fn_ty else {
+                let TyKind::Function { params, ret } = fn_ty else {
                     panic!("expected `function`, found {fn_ty:?}");
                 };
 
@@ -257,14 +257,14 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
             }
             ExprKind::FnDecl { block, params, ident, .. } => {
                 let fn_ty = self.bodies.last().unwrap().variables[ident];
-                let TyKind::Function { params: param_tys, ret } = &*fn_ty else { unreachable!() };
-                let mut body = Body::new(*ret);
+                let TyKind::Function { params: param_tys, ret } = fn_ty else { unreachable!() };
+                let mut body = Body::new(ret);
                 for (param, ty) in std::iter::zip(params, param_tys) {
                     body.variables.insert(param.ident, *ty);
                 }
                 let block = &self.ast.blocks[*block];
                 let body_ret = self.analyze_body_with(block, body)?.0;
-                self.subtype(body_ret, *ret, id)?;
+                self.subtype(body_ret, ret, id)?;
                 self.tcx.unit()
             }
             ExprKind::Let { ident, ty, expr } => {

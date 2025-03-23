@@ -118,7 +118,7 @@ impl Writer<'_, '_> {
                     self.display_ty(param.ty);
                 }
                 self.f.push_str(") -> ");
-                self.display_ty(*ret);
+                self.display_ty(ret);
 
                 self.display_block(body);
             }

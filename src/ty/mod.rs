@@ -1,48 +1,38 @@
 mod interner;
 
-use std::{cell::RefCell, fmt, hash::Hash, ops::Deref};
+use std::{cell::RefCell, fmt, hash::Hash};
 
 use index_vec::IndexVec;
 pub use interner::TyInterner;
 use thin_vec::ThinVec;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct Ty<'tcx> {
-    kind: &'tcx TyKind<'tcx>,
-}
+pub type Ty<'tcx> = &'tcx TyKind<'tcx>;
 
 #[expect(dead_code)]
-impl Ty<'_> {
-    pub fn is_never(self) -> bool {
+impl TyKind<'_> {
+    pub fn is_never(&self) -> bool {
         *self == TyKind::Never
     }
-    pub fn is_unit(self) -> bool {
+    pub fn is_unit(&self) -> bool {
         *self == TyKind::Unit
     }
-    pub fn is_bool(self) -> bool {
+    pub fn is_bool(&self) -> bool {
         *self == TyKind::Bool
     }
-    pub fn is_int(self) -> bool {
+    pub fn is_int(&self) -> bool {
         *self == TyKind::Int
     }
-    pub fn is_char(self) -> bool {
+    pub fn is_char(&self) -> bool {
         *self == TyKind::Char
     }
-    pub fn is_str(self) -> bool {
+    pub fn is_str(&self) -> bool {
         *self == TyKind::Str
     }
-    pub fn is_range(self) -> bool {
+    pub fn is_range(&self) -> bool {
         *self == TyKind::Range
     }
-    pub fn is_array(self) -> bool {
+    pub fn is_array(&self) -> bool {
         matches!(*self, TyKind::Array(..))
-    }
-}
-
-impl<'tcx> Deref for Ty<'tcx> {
-    type Target = TyKind<'tcx>;
-    fn deref(&self) -> &Self::Target {
-        self.kind
     }
 }
 
@@ -134,11 +124,11 @@ impl<'tcx> TyCtxInner<'tcx> {
     }
 
     fn try_eq(&mut self, lhs: Ty<'tcx>, rhs: Ty<'tcx>) -> Result<(), [Ty<'tcx>; 2]> {
-        match (&*lhs, &*rhs) {
+        match (lhs, rhs) {
             (TyKind::Infer(l), TyKind::Infer(r)) if l == r => Ok(()),
             (TyKind::Infer(var), _) => self.insertl(*var, rhs),
             (_, TyKind::Infer(var)) => self.insertr(lhs, *var),
-            (TyKind::Array(lhs), TyKind::Array(rhs)) => self.try_eq(*lhs, *rhs),
+            (TyKind::Array(lhs), TyKind::Array(rhs)) => self.try_eq(lhs, rhs),
             (lhs, rhs) if lhs == rhs => Ok(()),
             (..) => Err([lhs, rhs]),
         }
@@ -183,7 +173,7 @@ impl<'tcx> TyCtxInner<'tcx> {
         match *ty {
             TyKind::Infer(var) => {
                 if let Some(&sub) = self.subs.get(var) {
-                    if *sub.kind != TyKind::Infer(var) {
+                    if *sub != TyKind::Infer(var) {
                         return self.occurs_in(var, sub);
                     }
                 }
@@ -217,11 +207,5 @@ impl fmt::Display for TyKind<'_> {
             }
             Self::Infer(var) => write!(f, "infer<{}>", var.index()),
         }
-    }
-}
-
-impl fmt::Display for Ty<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.kind.fmt(f)
     }
 }

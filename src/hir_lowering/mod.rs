@@ -224,7 +224,7 @@ impl Lowering<'_, '_> {
             }
             &ExprKind::Binary { lhs, op, rhs } => {
                 let ty = self.hir.exprs[lhs].ty;
-                let op = match (&*ty, op) {
+                let op = match (ty, op) {
                     (TyKind::Int, op) => match op {
                         hir::BinaryOp::Add => mir::BinaryOp::IntAdd,
                         hir::BinaryOp::Sub => mir::BinaryOp::IntSub,
