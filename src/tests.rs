@@ -1,40 +1,25 @@
 use crate::compile::compile_test;
 
-macro_rules! include_test {
-    ($name:literal) => {
-        include_str!(concat!("../tests/", $name, ".pebble"))
+macro_rules! test {
+    {$name: ident} => {
+        #[test]
+        fn $name() {
+            compile_test(include_str!(concat!("../tests/", stringify!($name), ".pebble"))).unwrap();
+        }
+    };
+    {$fails:literal $name: ident} => {
+        #[test]
+        #[should_panic = $fails]
+        fn $name() {
+            compile_test(include_str!(concat!("../tests/", stringify!($name), ".pebble"))).unwrap();
+        }
     };
 }
 
-#[test]
-fn inference() {
-    compile_test(include_test!("inference")).unwrap();
-}
+test! { inference }
+test! { never }
+test! { arrays }
 
-#[test]
-fn never() {
-    compile_test(include_test!("never")).unwrap();
-}
-
-#[test]
-fn arrays() {
-    compile_test(include_test!("arrays")).unwrap();
-}
-
-#[test]
-#[should_panic = "expected `!`, found `int`"]
-fn fail_never() {
-    compile_test(include_test!("fail_never")).unwrap();
-}
-
-#[test]
-#[should_panic = "expected `int`, found `str`"]
-fn fail_variables() {
-    compile_test(include_test!("fail_variables")).unwrap();
-}
-
-#[test]
-#[should_panic = "expected `int`, found `str`"]
-fn fail_return() {
-    compile_test(include_test!("fail_return")).unwrap();
-}
+test! { "expected `!`, found `int`" fail_never }
+test! { "expected `int`, found `str`" fail_variables }
+test! { "expected `int`, found `str`" fail_return }
