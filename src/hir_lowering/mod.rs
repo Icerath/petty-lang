@@ -330,12 +330,9 @@ impl Lowering<'_, '_> {
         if let Some(place) = self.bodies.last().unwrap().variables.get(&ident) {
             return RValue::Use(Operand::Place(*place));
         }
-        for body in self.bodies.iter().rev() {
-            if let Some(location) = body.functions.get(&ident) {
-                return RValue::Use(Operand::Constant(Constant::Func(*location)));
-            }
-        }
-        panic!("{ident}");
+        let location =
+            self.bodies.iter().rev().find_map(|body| body.functions.get(&ident)).unwrap();
+        RValue::Use(Operand::Constant(Constant::Func(*location)))
     }
 
     fn lit_rvalue(&mut self, lit: &Lit) -> RValue {
