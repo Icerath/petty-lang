@@ -22,13 +22,16 @@ fn compile_inner(
     verbose: bool,
 ) -> miette::Result<()> {
     macro_rules! dump {
-        ($what: ident) => {
+        ($name:ident, $what:ident) => {
             if dump {
                 _ = std::fs::write(
                     format!("target/dump-{}.txt", stringify!($what)),
                     format!("{}", $what),
                 );
             }
+        };
+        ($what:ident) => {
+            dump!($what, $what)
         };
     }
     let start = Instant::now();
@@ -42,10 +45,7 @@ fn compile_inner(
     dump!(hir);
     let mut mir = hir_lowering::lower(&hir);
     drop(hir);
-    {
-        let unoptimized_mir = &mir;
-        dump!(unoptimized_mir);
-    }
+    dump!(unoptimized_mir, mir);
     mir_optimizations::optimize(&mut mir);
     dump!(mir);
     if verbose {
