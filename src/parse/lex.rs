@@ -197,16 +197,17 @@ impl Lexer<'_> {
 
 fn ident_kind(str: &str) -> TokenKind {
     match str {
-        "true" => TokenKind::True,
-        "false" => TokenKind::False,
         "abort" => TokenKind::Abort,
-        "let" => TokenKind::Let,
-        "while" => TokenKind::While,
-        "if" => TokenKind::If,
-        "else" => TokenKind::Else,
-        "fn" => TokenKind::Fn,
-        "return" => TokenKind::Return,
         "break" => TokenKind::Break,
+        "else" => TokenKind::Else,
+        "false" => TokenKind::False,
+        "fn" => TokenKind::Fn,
+        "if" => TokenKind::If,
+        "let" => TokenKind::Let,
+        "return" => TokenKind::Return,
+        "struct" => TokenKind::Struct,
+        "true" => TokenKind::True,
+        "while" => TokenKind::While,
         _ => TokenKind::Ident,
     }
 }

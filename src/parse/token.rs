@@ -42,15 +42,16 @@ pub enum TokenKind {
     Less,
     // Keywords
     Abort,
-    Let,
-    While,
-    If,
-    Else,
-    Fn,
-    Return,
     Break,
-    True,
+    Else,
     False,
+    Fn,
+    If,
+    Let,
+    Return,
+    Struct,
+    True,
+    While,
     // Literals
     Char,
     Int,
@@ -112,6 +113,7 @@ impl TokenKind {
             Self::Star => "*",
             Self::Str => "string",
             Self::ThinArrow => "->",
+            Self::Struct => "struct",
         }
     }
 }
