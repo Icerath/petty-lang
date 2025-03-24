@@ -1,7 +1,6 @@
-use miette::LabeledSpan;
-
 use crate::{
     ast::{BlockId, ExprId, ExprKind},
+    errors,
     span::Span,
     ty::Ty,
 };
@@ -23,11 +22,11 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
     #[cold]
     #[inline(never)]
     fn subtype_err_inner(&self, lhs: Ty<'tcx>, rhs: Ty<'tcx>, spans: Vec<Span>) -> miette::Error {
-        let spans: Vec<_> = spans
+        let labels: Vec<_> = spans
             .into_iter()
-            .map(|span| LabeledSpan::at(span, format!("expected `{rhs}`, found `{lhs}`")))
+            .map(|span| (span, format!("expected `{rhs}`, found `{lhs}`").into()))
             .collect();
-        miette::miette!(labels = spans, "mismatched types").with_source_code(self.src())
+        errors::error("mismatched_types", self.file.as_deref(), self.src, &labels)
     }
     fn invalid_type_span(&self, expr: ExprId) -> Vec<Span> {
         let expr = &self.ast.exprs[expr];

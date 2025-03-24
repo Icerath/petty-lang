@@ -9,11 +9,12 @@ use crate::{
         ArraySeg, Ast, BinOpKind, BinaryOp, Block, BlockId, Expr, ExprId, ExprKind, IfStmt, Lit,
         Param, Ty, TypeId,
     },
+    errors,
     span::Span,
     symbol::Symbol,
 };
 use lex::Lexer;
-use miette::{Error, LabeledSpan, NamedSource, Result, miette};
+use miette::{Error, Result};
 use thin_vec::{ThinVec, thin_vec};
 use token::{Token, TokenKind};
 
@@ -40,12 +41,6 @@ struct Stream<'src, 'path> {
 }
 
 impl Stream<'_, '_> {
-    fn src(&self) -> NamedSource<String> {
-        match self.path.as_ref().and_then(|file| file.to_str()) {
-            Some(file) => NamedSource::new(file, self.lexer.src().to_string()),
-            None => NamedSource::new("", self.lexer.src().to_string()),
-        }
-    }
     fn next(&mut self) -> Result<Token> {
         if let Some(result) = self.lexer.next() {
             return result;
@@ -58,20 +53,22 @@ impl Stream<'_, '_> {
     #[inline(never)]
     #[cold]
     fn handle_eof(&self) -> miette::Error {
-        let label = LabeledSpan::at(self.lexer.span_eof(), "EOF");
-        miette::miette!(labels = vec![label], "Unexpected EOF").with_source_code(self.src())
+        errors::error(
+            "unexpected EOF",
+            self.path,
+            self.lexer.src(),
+            &[(self.lexer.span_eof(), "EOF".into())],
+        )
     }
     fn expect(&mut self, kind: TokenKind) -> Result<Token> {
         let token = self.next()?;
         if token.kind != kind {
-            let label = LabeledSpan::at(self.lexer.span(), "here");
-            return Err(miette!(
-                labels = vec![label],
-                "expected `{}`, found `{}`",
-                kind.repr(),
-                token.kind.repr()
-            )
-            .with_source_code(self.src()));
+            return Err(errors::error(
+                &format!("expected `{}`, found: `{}`", kind.repr(), token.kind.repr()),
+                self.path,
+                self.lexer.src(),
+                &[(self.lexer.span(), "here".into())],
+            ));
         }
         Ok(token)
     }
@@ -85,14 +82,19 @@ impl Stream<'_, '_> {
     #[inline(never)]
     #[cold]
     fn any_failed(&self, found: Token, toks: &[TokenKind]) -> Error {
-        let label = LabeledSpan::at(self.lexer.span(), "here");
-        miette!(
-            labels = vec![label],
-            "expected one of {}, found `{}`",
-            toks.iter().map(|kind| format!("`{}`", kind.repr())).collect::<Vec<_>>().join(" or "),
-            found.kind.repr()
+        errors::error(
+            &format!(
+                "expected one of {}, found `{}`",
+                toks.iter()
+                    .map(|kind| format!("`{}`", kind.repr()))
+                    .collect::<Vec<_>>()
+                    .join(" or "),
+                found.kind.repr()
+            ),
+            self.path,
+            self.lexer.src(),
+            &[(self.lexer.span(), "here".into())],
         )
-        .with_source_code(self.src())
     }
 
     fn expect_ident(&mut self) -> Result<Symbol> {
@@ -356,12 +358,12 @@ fn parse_atom_with(stream: &mut Stream, tok: Token) -> Result<ExprId> {
             Ok(ExprKind::Ident(stream.lexer.src()[tok.span].into()).with_span(tok.span))
         }
         found => {
-            let label = LabeledSpan::at(stream.lexer.span(), "here");
-            return Err(miette::miette!(
-                labels = vec![label],
-                "expected `expression`, found {found:?}",
-            )
-            .with_source_code(stream.src()));
+            return Err(errors::error(
+                &format!("expected `expression`, found {found:?}"),
+                stream.path,
+                stream.lexer.src(),
+                &[(stream.lexer.span(), "here".into())],
+            ));
         }
     };
     Ok(stream.ast.exprs.push(expr?))

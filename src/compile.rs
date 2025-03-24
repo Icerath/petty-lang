@@ -35,7 +35,7 @@ fn compile_inner(
         };
     }
     let start = Instant::now();
-    let src = include_str!("std.pebble").to_string() + "\n\n" + src;
+    let src = crate::STD.to_string() + src;
     let ast = parse(&src, file.as_deref())?;
     let ty_intern = TyInterner::default();
     let tcx = TyCtx::new(&ty_intern);

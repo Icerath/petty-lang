@@ -9,6 +9,7 @@ mod ast;
 mod ast_analysis;
 mod ast_lowering;
 mod compile;
+mod errors;
 mod hir;
 mod hir_lowering;
 mod mir;
@@ -20,6 +21,8 @@ mod symbol;
 mod ty;
 
 pub use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
+
+pub const STD: &str = concat!(include_str!("std.pebble"), "\n\n");
 
 #[derive(Parser)]
 struct Args {

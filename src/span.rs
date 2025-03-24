@@ -3,7 +3,7 @@ use std::{
     ops::{Index, Range},
 };
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 pub struct Span {
     start: u32,
     end: u32,
@@ -44,11 +44,5 @@ impl Index<Span> for str {
     type Output = Self;
     fn index(&self, index: Span) -> &Self::Output {
         &self[index.into_range_usize()]
-    }
-}
-
-impl From<Span> for miette::SourceSpan {
-    fn from(span: Span) -> Self {
-        Self::from(span.into_range_usize())
     }
 }

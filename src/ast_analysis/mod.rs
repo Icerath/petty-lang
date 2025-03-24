@@ -9,7 +9,7 @@ use crate::{
     symbol::Symbol,
     ty::{Ty, TyCtx, TyKind},
 };
-use miette::{NamedSource, Result};
+use miette::Result;
 
 use index_vec::IndexVec;
 
@@ -143,13 +143,6 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
 
     fn subtype_block(&self, lhs: Ty<'tcx>, rhs: Ty<'tcx>, block: BlockId) -> Result<()> {
         self.tcx.try_subtype(lhs, rhs).map_err(|[lhs, rhs]| self.subtype_err_block(lhs, rhs, block))
-    }
-
-    fn src(&self) -> NamedSource<String> {
-        match self.file.as_ref().and_then(|file| file.to_str()) {
-            Some(file) => NamedSource::new(file, self.src.to_string()),
-            None => NamedSource::new("", self.src.to_string()),
-        }
     }
 
     #[expect(clippy::too_many_lines)]

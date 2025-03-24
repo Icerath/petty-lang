@@ -1,7 +1,7 @@
 use miette::Result;
 use std::str::Chars;
 
-use crate::span::Span;
+use crate::{errors, span::Span};
 
 use super::token::{Token, TokenKind};
 
@@ -134,12 +134,12 @@ impl Iterator for Lexer<'_> {
             '0'..='9' => self.int(),
             'a'..='z' | 'A'..='Z' | '_' => self.ident(self.token_start),
             _ => {
-                let span = miette::LabeledSpan::at(self.span().into_range_usize(), "here");
-                return Some(Err(miette::miette!(
-                    labels = vec![span],
-                    "Unexpected character '{char}'"
-                )
-                .with_source_code(self.src.to_string())));
+                return Some(Err(errors::error(
+                    "unknown token",
+                    None,
+                    self.src,
+                    &[(self.span(), "here".into())],
+                )));
             }
         };
         Some(Ok(Token { span: Span::from(self.token_start..self.current_pos()), kind }))
