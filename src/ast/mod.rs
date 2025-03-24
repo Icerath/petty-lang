@@ -82,6 +82,7 @@ pub enum ExprKind {
     Return(Option<ExprId>),
     Break,
     FnDecl { ident: Symbol, params: ThinVec<Param>, ret: Option<TypeId>, block: BlockId },
+    Struct { ident: Symbol, fields: ThinVec<Param> },
 }
 
 #[derive(Debug)]

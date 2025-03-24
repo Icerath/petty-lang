@@ -38,9 +38,9 @@ fn compile_inner(
     let src = crate::STD.to_string() + src;
     let ast = parse(&src, file.as_deref())?;
     let ty_intern = TyInterner::default();
+    dump!(ast);
     let tcx = TyCtx::new(&ty_intern);
     let analysis = ast_analysis::analyze(file, &src, &ast, &tcx)?;
-    dump!(ast);
     let hir = ast_lowering::lower(ast, analysis, &tcx);
     dump!(hir);
     let mut mir = hir_lowering::lower(&hir);

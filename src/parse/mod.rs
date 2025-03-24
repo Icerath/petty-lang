@@ -207,6 +207,14 @@ fn parse_fn(stream: &mut Stream) -> Result<Expr> {
     Ok((ExprKind::FnDecl { ident, params, ret, block }).todo_span())
 }
 
+fn parse_struct(stream: &mut Stream) -> Result<Expr> {
+    let ident = stream.expect_ident()?;
+    stream.expect(TokenKind::LParen)?;
+    let fields = stream.parse_separated(TokenKind::Comma, TokenKind::RParen)?;
+
+    Ok((ExprKind::Struct { ident, fields }).todo_span())
+}
+
 fn parse_let(stream: &mut Stream) -> Result<Expr> {
     let ident = stream.expect_ident()?;
     let tok = stream.any(&[TokenKind::Colon, TokenKind::Eq])?;
@@ -338,6 +346,7 @@ fn parse_atom_with(stream: &mut Stream, tok: Token) -> Result<ExprId> {
             }
         }
         TokenKind::Fn => parse_fn(stream),
+        TokenKind::Struct => parse_struct(stream),
         TokenKind::Let => parse_let(stream),
         TokenKind::While => parse_while(stream),
         TokenKind::If => parse_ifchain(stream),

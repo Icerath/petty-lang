@@ -5,7 +5,7 @@ use std::{
 
 use crate::ast::{Ast, BinOpKind, BinaryOp, BlockId, ExprId, Lit, Ty, UnaryOp};
 
-use super::{ExprKind, TypeId};
+use super::{ExprKind, Param, TypeId};
 struct Writer<'ast> {
     ast: &'ast Ast,
     f: String,
@@ -46,6 +46,11 @@ impl Writer<'_> {
         // FIXME: take precedence into account to use minimum parens needed
         let inside_expr = mem::replace(&mut self.inside_expr, true);
         match &self.ast.exprs[expr].kind {
+            ExprKind::Struct { ident, fields } => {
+                self.f.push_str("struct ");
+                self.f.push_str(ident);
+                self.display_params(fields);
+            }
             ExprKind::Break => self.f.push_str("break"),
             ExprKind::Return(expr) => {
                 self.f.push_str("return");
@@ -114,16 +119,8 @@ impl Writer<'_> {
             ExprKind::Block(block) => self.display_block(*block),
             ExprKind::FnDecl { ident, params, ret, block } => {
                 self.inside_expr = inside_expr;
-                _ = write!(self.f, "fn {ident}(");
-
-                for (i, param) in params.iter().enumerate() {
-                    self.f.push_str(if i == 0 { "" } else { ", " });
-                    self.f.push_str(&param.ident);
-                    self.f.push_str(": ");
-                    self.display_ty(param.ty);
-                }
-                self.f.push(')');
-
+                _ = write!(self.f, "fn {ident}");
+                self.display_params(params);
                 if let Some(ret) = ret {
                     self.f.push_str(" -> ");
                     self.display_ty(*ret);
@@ -172,6 +169,16 @@ impl Writer<'_> {
         self.inside_expr = inside_expr;
     }
 
+    fn display_params(&mut self, params: &[Param]) {
+        self.f.push('(');
+        for (i, param) in params.iter().enumerate() {
+            self.f.push_str(if i == 0 { "" } else { ", " });
+            self.f.push_str(&param.ident);
+            self.f.push_str(": ");
+            self.display_ty(param.ty);
+        }
+        self.f.push(')');
+    }
     fn display_unary_op(&mut self, op: UnaryOp) {
         let str = match op {
             UnaryOp::Not => "!",
