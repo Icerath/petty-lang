@@ -6,6 +6,8 @@ use index_vec::IndexVec;
 pub use interner::TyInterner;
 use thin_vec::ThinVec;
 
+use crate::symbol::Symbol;
+
 pub type Ty<'tcx> = &'tcx TyKind<'tcx>;
 
 #[expect(dead_code)]
@@ -41,6 +43,10 @@ index_vec::define_index_type! {
     DISABLE_MAX_INDEX_CHECK = cfg!(not(debug_assertions));
 }
 
+index_vec::define_index_type! {
+    pub struct StructId = u32;
+}
+
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum TyKind<'tcx> {
     Never,
@@ -53,6 +59,7 @@ pub enum TyKind<'tcx> {
     RangeInclusive,
     Array(Ty<'tcx>),
     Function { params: ThinVec<Ty<'tcx>>, ret: Ty<'tcx> },
+    Struct { id: StructId, fields: ThinVec<Ty<'tcx>> },
     Infer(TyVid),
 }
 
@@ -64,6 +71,9 @@ pub struct TyCtx<'tcx> {
 impl<'tcx> TyCtx<'tcx> {
     pub fn new(interner: &'tcx TyInterner) -> Self {
         Self { inner: RefCell::default(), interner }
+    }
+    pub fn new_struct(&self, name: Symbol, fields: ThinVec<Ty<'tcx>>) -> Ty<'tcx> {
+        self.intern(self.inner.borrow_mut().new_struct(name, fields))
     }
     pub fn intern(&self, kind: TyKind<'tcx>) -> Ty<'tcx> {
         self.interner.intern(kind)
@@ -90,9 +100,15 @@ impl<'tcx> TyCtx<'tcx> {
 #[derive(Default, Debug)]
 struct TyCtxInner<'tcx> {
     subs: IndexVec<TyVid, Ty<'tcx>>,
+    struct_names: IndexVec<StructId, Symbol>,
 }
 
 impl<'tcx> TyCtxInner<'tcx> {
+    fn new_struct(&mut self, name: Symbol, fields: ThinVec<Ty<'tcx>>) -> TyKind<'tcx> {
+        let id = self.struct_names.push(name);
+        TyKind::Struct { id, fields }
+    }
+
     fn new_infer(&mut self, intern: &'tcx TyInterner) -> Ty<'tcx> {
         intern.intern(TyKind::Infer(self.vid(intern)))
     }
@@ -206,6 +222,7 @@ impl fmt::Display for TyKind<'_> {
                 write!(f, " -> {ret}")
             }
             Self::Infer(var) => write!(f, "infer<{}>", var.index()),
+            Self::Struct { .. } => write!(f, "struct"),
         }
     }
 }

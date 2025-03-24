@@ -12,6 +12,7 @@ use crate::{
 use miette::Result;
 
 use index_vec::IndexVec;
+use thin_vec::ThinVec;
 
 #[derive(Default, Debug)]
 pub struct TyInfo<'tcx> {
@@ -85,7 +86,18 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         mut body: Body<'tcx>,
     ) -> Result<(Ty<'tcx>, Body<'tcx>)> {
         // look for structs/enums first.
-        // for stmt in &*ast.top_level.borrow() {}
+        for id in &block.stmts {
+            let ExprKind::Struct { ident, fields } = &self.ast.exprs[*id].kind else { continue };
+
+            let fields: ThinVec<_> =
+                fields.iter().map(|field| self.read_ast_ty(field.ty)).collect();
+            let params = fields.clone();
+            let struct_ty = self.tcx.new_struct(*ident, fields);
+            self.bodies.last_mut().unwrap().ty_names.insert(*ident, struct_ty);
+
+            body.variables
+                .insert(*ident, self.tcx.intern(TyKind::Function { params, ret: struct_ty }));
+        }
 
         for &id in &block.stmts {
             let ExprKind::FnDecl { ident, params, ret, .. } = &self.ast.exprs[id].kind else {
@@ -260,6 +272,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 self.subtype(body_ret, ret, id)?;
                 self.tcx.unit()
             }
+            ExprKind::Struct { .. } => self.tcx.unit(),
             ExprKind::Let { ident, ty, expr } => {
                 let expr_ty = self.analyze_expr(*expr)?;
                 let ty = if let Some(ty) = ty {
@@ -335,7 +348,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
             .rev()
             .find_map(|body| body.variables.get(&ident))
             .copied()
-            .ok_or_else(|| miette::miette!("todo"))
+            .ok_or_else(|| miette::miette!("todo: {ident}"))
     }
 
     fn analyze_lit(&mut self, lit: &Lit) -> Result<Ty<'tcx>> {

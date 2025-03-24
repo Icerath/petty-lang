@@ -335,7 +335,7 @@ impl Lowering<'_, '_> {
                 return RValue::Use(Operand::Constant(Constant::Func(*location)));
             }
         }
-        panic!();
+        panic!("{ident}");
     }
 
     fn lit_rvalue(&mut self, lit: &Lit) -> RValue {

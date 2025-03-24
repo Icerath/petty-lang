@@ -47,7 +47,7 @@ impl Writer<'_, '_> {
             }
             TyKind::Range => "<range>",
             TyKind::RangeInclusive => "<range_inclusive>",
-            TyKind::Function { .. } => "<unnamable>",
+            TyKind::Struct { .. } | TyKind::Function { .. } => "<unnamable>",
         };
         self.f.push_str(str);
     }

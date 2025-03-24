@@ -142,6 +142,7 @@ impl<'tcx> Lowering<'_, 'tcx> {
                 kind: ExprKind::Unary { op, expr: self.lower(expr) },
             },
             ast::ExprKind::Break => hir::Expr { ty: self.tcx.never(), kind: ExprKind::Break },
+            ast::ExprKind::Struct { .. } => hir::Expr::unit(self.tcx),
             expr => todo!("{expr:?}"),
         }
     }
