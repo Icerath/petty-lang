@@ -22,7 +22,7 @@ impl fmt::Display for Ast {
             writer.ln();
         }
         #[cfg(debug_assertions)]
-        crate::parse::parse(&writer.f).unwrap();
+        crate::parse::parse(&writer.f, None).unwrap();
         fmt.write_str(&writer.f)
     }
 }

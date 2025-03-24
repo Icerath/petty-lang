@@ -36,7 +36,7 @@ fn compile_inner(
     }
     let start = Instant::now();
     let src = include_str!("std.pebble").to_string() + src;
-    let ast = parse(&src)?;
+    let ast = parse(&src, file.as_deref())?;
     let ty_intern = TyInterner::default();
     let tcx = TyCtx::new(&ty_intern);
     let analysis = ast_analysis::analyze(file, &src, &ast, &tcx)?;

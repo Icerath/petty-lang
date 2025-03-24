@@ -2,6 +2,8 @@ mod expr;
 mod lex;
 mod token;
 
+use std::path::Path;
+
 use crate::{
     ast::{
         ArraySeg, Ast, BinOpKind, BinaryOp, Block, BlockId, Expr, ExprId, ExprKind, IfStmt, Lit,
@@ -11,14 +13,14 @@ use crate::{
     symbol::Symbol,
 };
 use lex::Lexer;
-use miette::{Error, LabeledSpan, Result, miette};
+use miette::{Error, LabeledSpan, NamedSource, Result, miette};
 use thin_vec::{ThinVec, thin_vec};
 use token::{Token, TokenKind};
 
-pub fn parse(src: &str) -> Result<Ast> {
+pub fn parse(src: &str, path: Option<&Path>) -> Result<Ast> {
     let lexer = Lexer::new(src);
     let mut ast = Ast::default();
-    let mut stream = Stream { lexer, ast: &mut ast };
+    let mut stream = Stream { lexer, ast: &mut ast, path };
     let mut top_level = vec![];
     while let Some(next) = stream.lexer.clone().next() {
         if next?.kind == TokenKind::Semicolon {
@@ -31,12 +33,19 @@ pub fn parse(src: &str) -> Result<Ast> {
     Ok(ast)
 }
 
-struct Stream<'src> {
+struct Stream<'src, 'path> {
     lexer: Lexer<'src>,
     ast: &'src mut Ast,
+    path: Option<&'path Path>,
 }
 
-impl Stream<'_> {
+impl Stream<'_, '_> {
+    fn src(&self) -> NamedSource<String> {
+        match self.path.as_ref().and_then(|file| file.to_str()) {
+            Some(file) => NamedSource::new(file, self.lexer.src().to_string()),
+            None => NamedSource::new("", self.lexer.src().to_string()),
+        }
+    }
     fn next(&mut self) -> Result<Token> {
         if let Some(result) = self.lexer.next() {
             return result;
@@ -44,14 +53,13 @@ impl Stream<'_> {
         Err(self.handle_eof())
     }
     fn peek(&mut self) -> Result<Token> {
-        Stream { lexer: self.lexer.clone(), ast: self.ast }.next()
+        Stream { lexer: self.lexer.clone(), ast: self.ast, path: self.path }.next()
     }
     #[inline(never)]
     #[cold]
     fn handle_eof(&self) -> miette::Error {
         let label = LabeledSpan::at(self.lexer.span_eof(), "EOF");
-        miette::miette!(labels = vec![label], "Unexpected EOF")
-            .with_source_code(self.lexer.src().to_string())
+        miette::miette!(labels = vec![label], "Unexpected EOF").with_source_code(self.src())
     }
     fn expect(&mut self, kind: TokenKind) -> Result<Token> {
         let token = self.next()?;
@@ -63,7 +71,7 @@ impl Stream<'_> {
                 kind.repr(),
                 token.kind.repr()
             )
-            .with_source_code(self.lexer.src().to_string()));
+            .with_source_code(self.src()));
         }
         Ok(token)
     }
@@ -84,7 +92,7 @@ impl Stream<'_> {
             toks.iter().map(|kind| format!("`{}`", kind.repr())).collect::<Vec<_>>().join(" or "),
             found.kind.repr()
         )
-        .with_source_code(self.lexer.src().to_string())
+        .with_source_code(self.src())
     }
 
     fn expect_ident(&mut self) -> Result<Symbol> {
@@ -353,7 +361,7 @@ fn parse_atom_with(stream: &mut Stream, tok: Token) -> Result<ExprId> {
                 labels = vec![label],
                 "expected `expression`, found {found:?}",
             )
-            .with_source_code(stream.lexer.src().to_string()));
+            .with_source_code(stream.src()));
         }
     };
     Ok(stream.ast.exprs.push(expr?))
