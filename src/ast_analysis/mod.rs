@@ -336,7 +336,8 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 self.tcx.never()
             }
             ExprKind::Break => self.tcx.never(),
-            ref expr => todo!("{expr:?}"),
+            ExprKind::FieldAccess { .. } => todo!(),
+            ExprKind::MethodCall { .. } => todo!(),
         };
         self.ty_info.expr_tys[id] = ty;
         Ok(ty)
