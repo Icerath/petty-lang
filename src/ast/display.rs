@@ -29,16 +29,15 @@ impl fmt::Display for Ast {
 
 impl Writer<'_> {
     fn display_ty(&mut self, ty: TypeId) {
-        let ty = &self.ast.types[ty];
-        match ty {
+        match self.ast.types[ty] {
             Ty::Never => self.f.push('!'),
             Ty::Unit => self.f.push_str("()"),
-            Ty::Array(ty) => {
+            Ty::Array(of) => {
                 self.f.push('[');
-                self.display_ty(*ty);
+                self.display_ty(of);
                 self.f.push(']');
             }
-            Ty::Name(name) => self.f.push_str(name),
+            Ty::Name(name) => self.f.push_str(&name),
         }
     }
     #[expect(clippy::too_many_lines)]
