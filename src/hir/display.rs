@@ -8,7 +8,7 @@ use crate::{
     ty::TyKind,
 };
 
-use super::{ExprKind, FnDecl, LValue};
+use super::{ExprKind, FnDecl, LValue, Param};
 
 struct Writer<'hir, 'tcx> {
     hir: &'hir Hir<'tcx>,
@@ -110,17 +110,15 @@ impl Writer<'_, '_> {
                 let FnDecl { ident, params, ret, body } = &**decl;
                 self.inside_expr = inside_expr;
                 _ = write!(self.f, "fn {ident}(");
-
-                for (i, param) in params.iter().enumerate() {
-                    self.f.push_str(if i == 0 { "" } else { ", " });
-                    self.f.push_str(&param.ident);
-                    self.f.push_str(": ");
-                    self.display_ty(param.ty);
-                }
+                self.display_params(params);
                 self.f.push_str(") -> ");
                 self.display_ty(ret);
-
                 self.display_block(body);
+            }
+            ExprKind::Struct { ident, fields } => {
+                self.f.push_str("struct ");
+                self.f.push_str(ident);
+                self.display_params(fields);
             }
             ExprKind::Let { ident, expr } => {
                 self.inside_expr = inside_expr;
@@ -154,6 +152,15 @@ impl Writer<'_, '_> {
         }
         self.inside_expr = inside_expr;
     }
+    fn display_params(&mut self, params: &[Param]) {
+        for (i, param) in params.iter().enumerate() {
+            self.f.push_str(if i == 0 { "" } else { ", " });
+            self.f.push_str(&param.ident);
+            self.f.push_str(": ");
+            self.display_ty(param.ty);
+        }
+    }
+
     fn display_lvalue(&mut self, lvalue: &LValue) {
         match lvalue {
             LValue::Name(name) => self.f.push_str(name),

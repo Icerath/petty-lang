@@ -108,6 +108,11 @@ impl Lowering<'_, '_> {
                 };
                 RValue::UnaryExpr { op, operand }
             }
+            ExprKind::Struct { ident, fields } => {
+                _ = ident;
+                _ = fields;
+                todo!()
+            }
             ExprKind::FnDecl(decl) => {
                 let hir::FnDecl { ident, params, body, .. } = &**decl;
 
@@ -330,8 +335,10 @@ impl Lowering<'_, '_> {
         if let Some(place) = self.bodies.last().unwrap().variables.get(&ident) {
             return RValue::Use(Operand::Place(*place));
         }
-        let location =
-            self.bodies.iter().rev().find_map(|body| body.functions.get(&ident)).unwrap();
+        let Some(location) = self.bodies.iter().rev().find_map(|body| body.functions.get(&ident))
+        else {
+            panic!("{ident}");
+        };
         RValue::Use(Operand::Constant(Constant::Func(*location)))
     }
 

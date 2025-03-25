@@ -51,6 +51,7 @@ pub enum ExprKind<'tcx> {
     If { arms: ThinVec<IfStmt>, els: ThinVec<ExprId> },
     Loop(ThinVec<ExprId>),
     Break,
+    Struct { ident: Symbol, fields: ThinVec<Param<'tcx>> },
     Return(ExprId),
 }
 

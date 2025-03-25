@@ -142,7 +142,15 @@ impl<'tcx> Lowering<'_, 'tcx> {
                 kind: ExprKind::Unary { op, expr: self.lower(expr) },
             },
             ast::ExprKind::Break => hir::Expr { ty: self.tcx.never(), kind: ExprKind::Break },
-            ast::ExprKind::Struct { .. } => hir::Expr::unit(self.tcx),
+            &ast::ExprKind::Struct { ident, ref fields } => {
+                let fields = (fields.iter())
+                    .map(|field| hir::Param {
+                        ident: field.ident,
+                        ty: self.ty_info.type_ids[field.ty],
+                    })
+                    .collect();
+                hir::Expr { ty: self.tcx.unit(), kind: ExprKind::Struct { ident, fields } }
+            }
             expr => todo!("{expr:?}"),
         }
     }
