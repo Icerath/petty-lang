@@ -55,10 +55,17 @@ pub enum TyKind<'tcx> {
     Range,
     RangeInclusive,
     Array(Ty<'tcx>),
-    Function { params: ThinVec<Ty<'tcx>>, generics: GenericRange, ret: Ty<'tcx> },
+    Function(Function<'tcx>),
     Struct { id: StructId, fields: ThinVec<Ty<'tcx>> },
     Generic(GenericId),
     Infer(TyVid),
+}
+
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Function<'tcx> {
+    pub params: ThinVec<Ty<'tcx>>,
+    pub generics: GenericRange,
+    pub ret: Ty<'tcx>,
 }
 
 pub struct TyCtx<'tcx> {
@@ -226,7 +233,7 @@ impl fmt::Display for TyKind<'_> {
             Self::Range => write!(f, "Range"),
             Self::RangeInclusive => write!(f, "RangeInclusive"),
             Self::Array(of) => write!(f, "[{of}]"),
-            Self::Function { params, generics, ret } => {
+            Self::Function(Function { params, generics, ret }) => {
                 _ = generics; // todo;
                 write!(f, "fn")?;
                 let mut debug_tuple = f.debug_tuple("");

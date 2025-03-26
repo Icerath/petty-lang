@@ -10,7 +10,7 @@ use crate::{
     },
     span::Span,
     symbol::Symbol,
-    ty::{GenericRange, Ty, TyCtx, TyKind},
+    ty::{Function, GenericRange, Ty, TyCtx, TyKind},
 };
 use miette::Result;
 
@@ -100,11 +100,11 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
 
             body.variables.insert(
                 *ident,
-                self.tcx.intern(TyKind::Function {
+                self.tcx.intern(TyKind::Function(Function {
                     params,
                     generics: GenericRange::EMPTY,
                     ret: struct_ty,
-                }),
+                })),
             );
         }
 
@@ -121,8 +121,10 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
             };
             let params =
                 params.iter().map(|param| self.read_ast_ty_with(param.ty, generics)).collect();
-            body.variables
-                .insert(*ident, self.tcx.intern(TyKind::Function { params, generics, ret }));
+            body.variables.insert(
+                *ident,
+                self.tcx.intern(TyKind::Function(Function { params, generics, ret })),
+            );
         }
         self.bodies.push(body);
         let out = self.analyze_block_inner(block)?;
@@ -278,7 +280,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
             }
             ExprKind::FnCall { function, ref args } => {
                 let fn_ty = self.analyze_expr(function)?;
-                let TyKind::Function { params, ret, .. } = fn_ty else {
+                let TyKind::Function(Function { params, ret, .. }) = fn_ty else {
                     panic!("expected `function`, found {fn_ty:?}");
                 };
 
@@ -290,7 +292,9 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
             }
             ExprKind::FnDecl(FnDecl { ident, ref params, block, .. }) => {
                 let fn_ty = self.bodies.last().unwrap().variables[&ident];
-                let TyKind::Function { params: param_tys, ret, .. } = fn_ty else { unreachable!() };
+                let TyKind::Function(Function { params: param_tys, ret, .. }) = fn_ty else {
+                    unreachable!()
+                };
                 let mut body = Body::new(ret);
                 for (param, ty) in std::iter::zip(params, param_tys) {
                     body.variables.insert(param.ident, *ty);
