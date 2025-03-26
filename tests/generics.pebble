@@ -1,2 +1,3 @@
 fn foo<T>(t: T) -> T {
+    t
 }

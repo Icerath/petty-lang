@@ -98,21 +98,36 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
             let struct_ty = self.tcx.new_struct(*ident, fields);
             self.bodies.last_mut().unwrap().ty_names.insert(*ident, struct_ty);
 
-            body.variables
-                .insert(*ident, self.tcx.intern(TyKind::Function { params, ret: struct_ty }));
+            body.variables.insert(
+                *ident,
+                self.tcx.intern(TyKind::Function {
+                    params,
+                    generics: ThinVec::new(),
+                    ret: struct_ty,
+                }),
+            );
         }
 
         for &id in &block.stmts {
-            let ExprKind::FnDecl(FnDecl { ident, params, ret, .. }) = &self.ast.exprs[id].kind
+            let ExprKind::FnDecl(FnDecl { ident, generics, params, ret, .. }) =
+                &self.ast.exprs[id].kind
             else {
                 continue;
             };
+            let generic_symbols = generics;
+            let generics: ThinVec<_> =
+                generics.iter().map(|&name| self.tcx.new_generic(name)).collect();
+
             let ret = match ret {
-                Some(ret) => self.read_ast_ty(*ret),
+                Some(ret) => self.read_ast_ty_with(*ret, generic_symbols, &generics),
                 None => self.tcx.unit(),
             };
-            let params = params.iter().map(|param| self.read_ast_ty(param.ty)).collect();
-            body.variables.insert(*ident, self.tcx.intern(TyKind::Function { params, ret }));
+            let params = params
+                .iter()
+                .map(|param| self.read_ast_ty_with(param.ty, generic_symbols, &generics))
+                .collect();
+            body.variables
+                .insert(*ident, self.tcx.intern(TyKind::Function { params, generics, ret }));
         }
         self.bodies.push(body);
         let out = self.analyze_block_inner(block)?;
@@ -138,17 +153,35 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         })
     }
 
+    #[track_caller]
     fn read_ast_ty(&mut self, id: ast::TypeId) -> Ty<'tcx> {
+        self.read_ast_ty_with(id, &[], &[])
+    }
+
+    #[track_caller]
+    fn read_ast_ty_with(
+        &mut self,
+        id: ast::TypeId,
+        generics: &[Symbol],
+        generic_ids: &[Ty<'tcx>],
+    ) -> Ty<'tcx> {
         let ty = match self.ast.types[id] {
             ast::Ty::Never => self.tcx.never(),
             ast::Ty::Unit => self.tcx.unit(),
-            ast::Ty::Array(of) => self.tcx.intern(TyKind::Array(self.read_ast_ty(of))),
+            ast::Ty::Array(of) => {
+                self.tcx.intern(TyKind::Array(self.read_ast_ty_with(of, generics, generic_ids)))
+            }
+            ast::Ty::Name(name) if generics.contains(&name) => {
+                let index = generics.iter().position(|&g| g == name).unwrap();
+                generic_ids[index]
+            }
             ast::Ty::Name(name) => self.read_named_ty(name),
         };
         self.ty_info.type_ids[id] = ty;
         ty
     }
 
+    #[track_caller]
     fn read_named_ty(&self, name: Symbol) -> Ty<'tcx> {
         self.bodies.iter().rev().find_map(|body| body.ty_names.get(&name)).unwrap()
     }
@@ -254,7 +287,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
             }
             ExprKind::FnCall { function, ref args } => {
                 let fn_ty = self.analyze_expr(function)?;
-                let TyKind::Function { params, ret } = fn_ty else {
+                let TyKind::Function { params, ret, .. } = fn_ty else {
                     panic!("expected `function`, found {fn_ty:?}");
                 };
 
@@ -266,7 +299,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
             }
             ExprKind::FnDecl(FnDecl { ident, ref params, block, .. }) => {
                 let fn_ty = self.bodies.last().unwrap().variables[&ident];
-                let TyKind::Function { params: param_tys, ret } = fn_ty else { unreachable!() };
+                let TyKind::Function { params: param_tys, ret, .. } = fn_ty else { unreachable!() };
                 let mut body = Body::new(ret);
                 for (param, ty) in std::iter::zip(params, param_tys) {
                     body.variables.insert(param.ident, *ty);

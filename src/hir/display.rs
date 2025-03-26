@@ -31,6 +31,7 @@ impl fmt::Display for Hir<'_> {
 
 impl Writer<'_, '_> {
     fn display_ty(&mut self, ty: Ty) {
+        // FIXME: we'll need tcx to read the names of structs/generics, etc..
         let str = match *ty {
             TyKind::Never => "!",
             TyKind::Unit => "()",
@@ -45,6 +46,7 @@ impl Writer<'_, '_> {
                 self.f.push(']');
                 return;
             }
+            TyKind::Generic(..) => "<generic>",
             TyKind::Range => "<range>",
             TyKind::RangeInclusive => "<range_inclusive>",
             TyKind::Struct { .. } | TyKind::Function { .. } => "<unnamable>",

@@ -39,6 +39,7 @@ impl TyKind<'_> {
 }
 
 define_id!(pub TyVid = u32);
+define_id!(pub GenericId = u32);
 define_id!(pub StructId = u32);
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -52,8 +53,9 @@ pub enum TyKind<'tcx> {
     Range,
     RangeInclusive,
     Array(Ty<'tcx>),
-    Function { params: ThinVec<Ty<'tcx>>, ret: Ty<'tcx> },
+    Function { params: ThinVec<Ty<'tcx>>, generics: ThinVec<Ty<'tcx>>, ret: Ty<'tcx> },
     Struct { id: StructId, fields: ThinVec<Ty<'tcx>> },
+    Generic(GenericId),
     Infer(TyVid),
 }
 
@@ -65,6 +67,9 @@ pub struct TyCtx<'tcx> {
 impl<'tcx> TyCtx<'tcx> {
     pub fn new(interner: &'tcx TyInterner) -> Self {
         Self { inner: RefCell::default(), interner }
+    }
+    pub fn new_generic(&self, name: Symbol) -> Ty<'tcx> {
+        self.intern(self.inner.borrow_mut().new_generic(name))
     }
     pub fn new_struct(&self, name: Symbol, fields: ThinVec<Ty<'tcx>>) -> Ty<'tcx> {
         self.intern(self.inner.borrow_mut().new_struct(name, fields))
@@ -95,12 +100,17 @@ impl<'tcx> TyCtx<'tcx> {
 struct TyCtxInner<'tcx> {
     subs: IndexVec<TyVid, Ty<'tcx>>,
     struct_names: IndexVec<StructId, Symbol>,
+    generic_names: IndexVec<GenericId, Symbol>,
 }
 
 impl<'tcx> TyCtxInner<'tcx> {
     fn new_struct(&mut self, name: Symbol, fields: ThinVec<Ty<'tcx>>) -> TyKind<'tcx> {
         let id = self.struct_names.push(name);
         TyKind::Struct { id, fields }
+    }
+
+    fn new_generic(&mut self, symbol: Symbol) -> TyKind<'tcx> {
+        TyKind::Generic(self.generic_names.push(symbol))
     }
 
     fn new_infer(&mut self, intern: &'tcx TyInterner) -> Ty<'tcx> {
@@ -206,7 +216,8 @@ impl fmt::Display for TyKind<'_> {
             Self::Range => write!(f, "Range"),
             Self::RangeInclusive => write!(f, "RangeInclusive"),
             Self::Array(of) => write!(f, "[{of}]"),
-            Self::Function { params, ret } => {
+            Self::Function { params, generics, ret } => {
+                _ = generics; // todo;
                 write!(f, "fn")?;
                 let mut debug_tuple = f.debug_tuple("");
                 for param in params {
@@ -216,6 +227,7 @@ impl fmt::Display for TyKind<'_> {
                 write!(f, " -> {ret}")
             }
             Self::Infer(var) => write!(f, "infer<{}>", var.index()),
+            Self::Generic(id) => write!(f, "<generic {id:?}>"),
             Self::Struct { .. } => write!(f, "struct"),
         }
     }
