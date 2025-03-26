@@ -114,7 +114,7 @@ impl<'tcx> Lowering<'_, 'tcx> {
             }
             &ast::ExprKind::Block(block) => self.lower_block(block),
             ast::ExprKind::Lit(lit) => self.lower_literal(lit, expr_id),
-            ast::ExprKind::FnDecl { ident, params, ret, block } => {
+            ast::ExprKind::FnDecl(ast::FnDecl { ident, params, ret, block }) => {
                 self.lower_fn_decl(*ident, params, *ret, *block, expr_id)
             }
             &ast::ExprKind::Let { ident, expr, .. } => self.lower_let_stmt(ident, expr),

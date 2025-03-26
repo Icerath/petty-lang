@@ -6,8 +6,8 @@ use std::path::Path;
 
 use crate::{
     ast::{
-        ArraySeg, Ast, BinOpKind, BinaryOp, Block, BlockId, Expr, ExprId, ExprKind, IfStmt, Lit,
-        Param, Ty, TypeId,
+        ArraySeg, Ast, BinOpKind, BinaryOp, Block, BlockId, Expr, ExprId, ExprKind, FnDecl, IfStmt,
+        Lit, Param, Ty, TypeId,
     },
     errors,
     span::Span,
@@ -204,7 +204,7 @@ fn parse_fn(stream: &mut Stream) -> Result<Expr> {
         stream.expect(TokenKind::LBrace)?;
     }
     let block = stream.parse()?;
-    Ok((ExprKind::FnDecl { ident, params, ret, block }).todo_span())
+    Ok((ExprKind::FnDecl(FnDecl { ident, params, ret, block })).todo_span())
 }
 
 fn parse_struct(stream: &mut Stream) -> Result<Expr> {

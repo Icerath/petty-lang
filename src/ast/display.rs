@@ -5,7 +5,7 @@ use std::{
 
 use crate::ast::{Ast, BinOpKind, BinaryOp, BlockId, ExprId, Lit, Ty, UnaryOp};
 
-use super::{ExprKind, Param, TypeId};
+use super::{ExprKind, FnDecl, Param, TypeId};
 struct Writer<'ast> {
     ast: &'ast Ast,
     f: String,
@@ -116,7 +116,7 @@ impl Writer<'_> {
                 self.f.push_str(field);
             }
             ExprKind::Block(block) => self.display_block(*block),
-            ExprKind::FnDecl { ident, params, ret, block } => {
+            ExprKind::FnDecl(FnDecl { ident, params, ret, block }) => {
                 self.inside_expr = inside_expr;
                 _ = write!(self.f, "fn {ident}");
                 self.display_params(params);

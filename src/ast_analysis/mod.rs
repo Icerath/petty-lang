@@ -4,7 +4,10 @@ use std::path::PathBuf;
 
 use crate::{
     HashMap,
-    ast::{self, Ast, BinOpKind, BinaryOp, Block, BlockId, ExprId, ExprKind, Lit, TypeId, UnaryOp},
+    ast::{
+        self, Ast, BinOpKind, BinaryOp, Block, BlockId, ExprId, ExprKind, FnDecl, Lit, TypeId,
+        UnaryOp,
+    },
     span::Span,
     symbol::Symbol,
     ty::{Ty, TyCtx, TyKind},
@@ -100,7 +103,8 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         }
 
         for &id in &block.stmts {
-            let ExprKind::FnDecl { ident, params, ret, .. } = &self.ast.exprs[id].kind else {
+            let ExprKind::FnDecl(FnDecl { ident, params, ret, .. }) = &self.ast.exprs[id].kind
+            else {
                 continue;
             };
             let ret = match ret {
@@ -260,7 +264,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 }
                 *ret
             }
-            ExprKind::FnDecl { block, ref params, ident, .. } => {
+            ExprKind::FnDecl(FnDecl { ident, ref params, block, .. }) => {
                 let fn_ty = self.bodies.last().unwrap().variables[&ident];
                 let TyKind::Function { params: param_tys, ret } = fn_ty else { unreachable!() };
                 let mut body = Body::new(ret);
