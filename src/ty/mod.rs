@@ -6,7 +6,7 @@ use index_vec::IndexVec;
 pub use interner::TyInterner;
 use thin_vec::ThinVec;
 
-use crate::symbol::Symbol;
+use crate::{define_id, symbol::Symbol};
 
 pub type Ty<'tcx> = &'tcx TyKind<'tcx>;
 
@@ -38,14 +38,8 @@ impl TyKind<'_> {
     }
 }
 
-index_vec::define_index_type! {
-    pub struct TyVid = u32;
-    DISABLE_MAX_INDEX_CHECK = cfg!(not(debug_assertions));
-}
-
-index_vec::define_index_type! {
-    pub struct StructId = u32;
-}
+define_id!(pub TyVid = u32);
+define_id!(pub StructId = u32);
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum TyKind<'tcx> {

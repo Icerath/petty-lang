@@ -3,23 +3,11 @@ mod display;
 use index_vec::IndexVec;
 use thin_vec::ThinVec;
 
-use crate::symbol::Symbol;
+use crate::{define_id, symbol::Symbol};
 
-index_vec::define_index_type! {
-    pub struct BodyId = u32;
-    DISABLE_MAX_INDEX_CHECK = cfg!(not(debug_assertions));
-}
-
-index_vec::define_index_type! {
-    pub struct BlockId = u16;
-    DISABLE_MAX_INDEX_CHECK = cfg!(not(debug_assertions));
-}
-
-index_vec::define_index_type! {
-    #[derive(Default)]
-    pub struct Place = u16;
-    DISABLE_MAX_INDEX_CHECK = cfg!(not(debug_assertions));
-}
+define_id!(pub BodyId);
+define_id!(pub BlockId = u16);
+define_id!(pub Place = u16);
 
 impl BlockId {
     pub const PLACEHOLDER: Self = Self { _raw: u16::MAX };

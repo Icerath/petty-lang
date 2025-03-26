@@ -2,7 +2,7 @@ mod display;
 
 use std::fmt;
 
-use crate::{span::Span, symbol::Symbol};
+use crate::{define_id, span::Span, symbol::Symbol};
 use index_vec::IndexVec;
 use thin_vec::ThinVec;
 
@@ -14,23 +14,9 @@ pub struct Ast {
     pub top_level: Vec<ExprId>,
 }
 
-index_vec::define_index_type! {
-    pub struct ExprId = u32;
-
-    DISABLE_MAX_INDEX_CHECK = cfg!(not(debug_assertions));
-}
-
-index_vec::define_index_type! {
-    pub struct BlockId = u32;
-
-    DISABLE_MAX_INDEX_CHECK = cfg!(not(debug_assertions));
-}
-
-index_vec::define_index_type! {
-    pub struct TypeId = u32;
-
-    DISABLE_MAX_INDEX_CHECK = cfg!(not(debug_assertions));
-}
+define_id!(pub ExprId);
+define_id!(pub BlockId);
+define_id!(pub TypeId);
 
 impl fmt::Debug for Ast {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

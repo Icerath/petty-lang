@@ -12,6 +12,7 @@ mod compile;
 mod errors;
 mod hir;
 mod hir_lowering;
+mod id;
 mod mir;
 mod mir_interpreter;
 mod mir_optimizations;

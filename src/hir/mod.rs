@@ -4,6 +4,7 @@ use index_vec::IndexVec;
 use thin_vec::ThinVec;
 
 use crate::{
+    define_id,
     symbol::Symbol,
     ty::{Ty, TyCtx},
 };
@@ -14,15 +15,8 @@ pub struct Hir<'tcx> {
     pub root: Vec<ExprId>,
 }
 
-index_vec::define_index_type! {
-    pub struct ExprId = u32;
-    DISABLE_MAX_INDEX_CHECK = cfg!(not(debug_assertions));
-}
-
-index_vec::define_index_type! {
-    pub struct BlockId = u32;
-    DISABLE_MAX_INDEX_CHECK = cfg!(not(debug_assertions));
-}
+define_id!(pub ExprId);
+define_id!(pub BlockId);
 
 #[derive(Debug)]
 pub struct Expr<'tcx> {
