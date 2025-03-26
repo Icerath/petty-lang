@@ -161,14 +161,12 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
             ast::Ty::Array(of) => {
                 self.tcx.intern(TyKind::Array(self.read_ast_ty_with(of, generics)))
             }
-            ast::Ty::Name(name)
-                if generics.iter().any(|id| name == self.tcx.generic_symbol(id)) =>
-            {
-                self.tcx.intern(TyKind::Generic(
-                    generics.iter().find(|&g| self.tcx.generic_symbol(g) == name).unwrap(),
-                ))
+            ast::Ty::Name(name) => {
+                match generics.iter().find(|&g| self.tcx.generic_symbol(g) == name) {
+                    Some(id) => self.tcx.intern(TyKind::Generic(id)),
+                    None => self.read_named_ty(name),
+                }
             }
-            ast::Ty::Name(name) => self.read_named_ty(name),
         };
         self.ty_info.type_ids[id] = ty;
         ty
