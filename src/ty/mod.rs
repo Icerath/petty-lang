@@ -1,7 +1,9 @@
+mod generic_range;
 mod interner;
 
 use std::{cell::RefCell, fmt, hash::Hash};
 
+pub use generic_range::GenericRange;
 use index_vec::IndexVec;
 pub use interner::TyInterner;
 use thin_vec::ThinVec;
@@ -53,7 +55,7 @@ pub enum TyKind<'tcx> {
     Range,
     RangeInclusive,
     Array(Ty<'tcx>),
-    Function { params: ThinVec<Ty<'tcx>>, generics: ThinVec<Ty<'tcx>>, ret: Ty<'tcx> },
+    Function { params: ThinVec<Ty<'tcx>>, generics: GenericRange, ret: Ty<'tcx> },
     Struct { id: StructId, fields: ThinVec<Ty<'tcx>> },
     Generic(GenericId),
     Infer(TyVid),
@@ -68,8 +70,16 @@ impl<'tcx> TyCtx<'tcx> {
     pub fn new(interner: &'tcx TyInterner) -> Self {
         Self { inner: RefCell::default(), interner }
     }
-    pub fn new_generic(&self, name: Symbol) -> Ty<'tcx> {
-        self.intern(self.inner.borrow_mut().new_generic(name))
+    pub fn new_generics(&self, generics: &[Symbol]) -> GenericRange {
+        let mut inner = self.inner.borrow_mut();
+        let mut iter = generics.iter();
+        let Some(start) = iter.next() else { return GenericRange::EMPTY };
+        let start = inner.new_generic(*start);
+        iter.for_each(|generic| _ = inner.new_generic(*generic));
+        GenericRange { start, len: generics.len().try_into().unwrap() }
+    }
+    pub fn generic_symbol(&self, id: GenericId) -> Symbol {
+        self.inner.borrow_mut().generic_names[id]
     }
     pub fn new_struct(&self, name: Symbol, fields: ThinVec<Ty<'tcx>>) -> Ty<'tcx> {
         self.intern(self.inner.borrow_mut().new_struct(name, fields))
@@ -109,8 +119,8 @@ impl<'tcx> TyCtxInner<'tcx> {
         TyKind::Struct { id, fields }
     }
 
-    fn new_generic(&mut self, symbol: Symbol) -> TyKind<'tcx> {
-        TyKind::Generic(self.generic_names.push(symbol))
+    fn new_generic(&mut self, symbol: Symbol) -> GenericId {
+        self.generic_names.push(symbol)
     }
 
     fn new_infer(&mut self, intern: &'tcx TyInterner) -> Ty<'tcx> {

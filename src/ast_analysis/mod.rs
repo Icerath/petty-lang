@@ -10,7 +10,7 @@ use crate::{
     },
     span::Span,
     symbol::Symbol,
-    ty::{Ty, TyCtx, TyKind},
+    ty::{GenericRange, Ty, TyCtx, TyKind},
 };
 use miette::Result;
 
@@ -102,7 +102,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 *ident,
                 self.tcx.intern(TyKind::Function {
                     params,
-                    generics: ThinVec::new(),
+                    generics: GenericRange::EMPTY,
                     ret: struct_ty,
                 }),
             );
@@ -114,18 +114,13 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
             else {
                 continue;
             };
-            let generic_symbols = generics;
-            let generics: ThinVec<_> =
-                generics.iter().map(|&name| self.tcx.new_generic(name)).collect();
-
+            let generics = self.tcx.new_generics(generics);
             let ret = match ret {
-                Some(ret) => self.read_ast_ty_with(*ret, generic_symbols, &generics),
+                Some(ret) => self.read_ast_ty_with(*ret, generics),
                 None => self.tcx.unit(),
             };
-            let params = params
-                .iter()
-                .map(|param| self.read_ast_ty_with(param.ty, generic_symbols, &generics))
-                .collect();
+            let params =
+                params.iter().map(|param| self.read_ast_ty_with(param.ty, generics)).collect();
             body.variables
                 .insert(*ident, self.tcx.intern(TyKind::Function { params, generics, ret }));
         }
@@ -155,25 +150,23 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
 
     #[track_caller]
     fn read_ast_ty(&mut self, id: ast::TypeId) -> Ty<'tcx> {
-        self.read_ast_ty_with(id, &[], &[])
+        self.read_ast_ty_with(id, GenericRange::EMPTY)
     }
 
     #[track_caller]
-    fn read_ast_ty_with(
-        &mut self,
-        id: ast::TypeId,
-        generics: &[Symbol],
-        generic_ids: &[Ty<'tcx>],
-    ) -> Ty<'tcx> {
+    fn read_ast_ty_with(&mut self, id: ast::TypeId, generics: GenericRange) -> Ty<'tcx> {
         let ty = match self.ast.types[id] {
             ast::Ty::Never => self.tcx.never(),
             ast::Ty::Unit => self.tcx.unit(),
             ast::Ty::Array(of) => {
-                self.tcx.intern(TyKind::Array(self.read_ast_ty_with(of, generics, generic_ids)))
+                self.tcx.intern(TyKind::Array(self.read_ast_ty_with(of, generics)))
             }
-            ast::Ty::Name(name) if generics.contains(&name) => {
-                let index = generics.iter().position(|&g| g == name).unwrap();
-                generic_ids[index]
+            ast::Ty::Name(name)
+                if generics.iter().any(|id| name == self.tcx.generic_symbol(id)) =>
+            {
+                self.tcx.intern(TyKind::Generic(
+                    generics.iter().find(|&g| self.tcx.generic_symbol(g) == name).unwrap(),
+                ))
             }
             ast::Ty::Name(name) => self.read_named_ty(name),
         };
