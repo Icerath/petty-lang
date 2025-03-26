@@ -280,15 +280,16 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
             }
             ExprKind::FnCall { function, ref args } => {
                 let fn_ty = self.analyze_expr(function)?;
-                let TyKind::Function(Function { params, ret, .. }) = fn_ty else {
+                let TyKind::Function(func) = fn_ty else {
                     panic!("expected `function`, found {fn_ty:?}");
                 };
+                let (params, ret) = func.caller(self.tcx);
 
-                for (&arg, &param) in std::iter::zip(args, params) {
+                for (&arg, param) in std::iter::zip(args, params) {
                     let arg = self.analyze_expr(arg)?;
                     self.subtype(arg, param, id)?;
                 }
-                *ret
+                ret
             }
             ExprKind::FnDecl(FnDecl { ident, ref params, block, .. }) => {
                 let fn_ty = self.bodies.last().unwrap().variables[&ident];

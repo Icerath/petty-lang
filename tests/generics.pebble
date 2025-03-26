@@ -1,3 +1,5 @@
 fn foo<T>(t: T) -> T {
     t
 }
+
+let x: int = foo(1);

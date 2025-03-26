@@ -12,6 +12,41 @@ use crate::{define_id, symbol::Symbol};
 
 pub type Ty<'tcx> = &'tcx TyKind<'tcx>;
 
+impl<'tcx> TyKind<'tcx> {
+    pub fn replace_generics(
+        &'tcx self,
+        tcx: &'tcx TyCtx<'tcx>,
+        map: Option<(GenericId, TyVid)>,
+    ) -> Ty<'tcx> {
+        match *self {
+            Self::Generic(id) => {
+                let map = map.unwrap();
+                assert!(id >= map.0);
+                let dif = id.index() - map.0.index();
+                let vid = map.1 + dif;
+                tcx.intern(TyKind::Infer(vid))
+            }
+            Self::Array(ty) => ty.replace_generics(tcx, map),
+            Self::Function(Function { ref params, ret, .. }) => {
+                let params = params.iter().map(|param| param.replace_generics(tcx, map)).collect();
+                let ret = ret.replace_generics(tcx, map);
+                let func = Function { params, ret, generics: GenericRange::EMPTY };
+                tcx.intern(TyKind::Function(func))
+            }
+            Self::Struct { .. } => todo!(),
+            Self::Infer(..) => unreachable!(),
+            Self::Unit
+            | Self::Bool
+            | Self::Char
+            | Self::Int
+            | Self::Never
+            | Self::Range
+            | Self::RangeInclusive
+            | Self::Str => self,
+        }
+    }
+}
+
 #[expect(dead_code)]
 impl TyKind<'_> {
     pub const fn is_never(&self) -> bool {
@@ -61,11 +96,23 @@ pub enum TyKind<'tcx> {
     Infer(TyVid),
 }
 
+// TODO: We shouldn't actually need to keep track of a function's generics.
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Function<'tcx> {
     pub params: ThinVec<Ty<'tcx>>,
     pub generics: GenericRange,
     pub ret: Ty<'tcx>,
+}
+
+impl<'tcx> Function<'tcx> {
+    pub fn caller(&self, tcx: &'tcx TyCtx<'tcx>) -> (Vec<Ty<'tcx>>, Ty<'tcx>) {
+        let mut giter = self.generics.iter().map(|id| (id, tcx.new_vid()));
+        let first = giter.next();
+        giter.count();
+        let params = self.params.iter().map(|param| param.replace_generics(tcx, first)).collect();
+        let ret = self.ret.replace_generics(tcx, first);
+        (params, ret)
+    }
 }
 
 pub struct TyCtx<'tcx> {
@@ -94,8 +141,11 @@ impl<'tcx> TyCtx<'tcx> {
     pub fn intern(&self, kind: TyKind<'tcx>) -> Ty<'tcx> {
         self.interner.intern(kind)
     }
+    pub fn new_vid(&self) -> TyVid {
+        self.inner.borrow_mut().vid(self.interner)
+    }
     pub fn new_infer(&self) -> Ty<'tcx> {
-        self.inner.borrow_mut().new_infer(self.interner)
+        self.interner.intern(TyKind::Infer(self.new_vid()))
     }
     pub fn infer_shallow(&self, ty: Ty<'tcx>) -> Ty<'tcx> {
         self.inner.borrow().infer_shallow(ty)
@@ -128,10 +178,6 @@ impl<'tcx> TyCtxInner<'tcx> {
 
     fn new_generic(&mut self, symbol: Symbol) -> GenericId {
         self.generic_names.push(symbol)
-    }
-
-    fn new_infer(&mut self, intern: &'tcx TyInterner) -> Ty<'tcx> {
-        intern.intern(TyKind::Infer(self.vid(intern)))
     }
 
     fn vid(&mut self, intern: &'tcx TyInterner) -> TyVid {
