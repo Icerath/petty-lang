@@ -47,8 +47,11 @@ impl Stream<'_, '_> {
         }
         Err(self.handle_eof())
     }
+    fn clone(&mut self) -> Stream {
+        Stream { lexer: self.lexer.clone(), ast: self.ast, path: self.path }
+    }
     fn peek(&mut self) -> Result<Token> {
-        Stream { lexer: self.lexer.clone(), ast: self.ast, path: self.path }.next()
+        self.clone().next()
     }
     #[inline(never)]
     #[cold]
@@ -127,6 +130,12 @@ trait Parse: Sized {
     fn parse(stream: &mut Stream) -> Result<Self>;
 }
 
+impl Parse for Symbol {
+    fn parse(stream: &mut Stream) -> Result<Self> {
+        stream.expect_ident()
+    }
+}
+
 impl Parse for Block {
     fn parse(stream: &mut Stream) -> Result<Self> {
         let start = stream.lexer.current_pos() - 1; // ugly hack to include lbrace in span.
@@ -194,6 +203,13 @@ impl Parse for Ty {
 
 fn parse_fn(stream: &mut Stream) -> Result<Expr> {
     let ident = stream.expect_ident()?;
+    let peek = stream.clone().any(&[TokenKind::Less, TokenKind::LParen])?;
+    let mut generics = ThinVec::new();
+    if peek.kind == TokenKind::Less {
+        _ = stream.next();
+        generics = stream.parse_separated(TokenKind::Comma, TokenKind::Greater)?;
+    }
+
     stream.expect(TokenKind::LParen)?;
     let params = stream.parse_separated(TokenKind::Comma, TokenKind::RParen)?;
 
@@ -204,7 +220,7 @@ fn parse_fn(stream: &mut Stream) -> Result<Expr> {
         stream.expect(TokenKind::LBrace)?;
     }
     let block = stream.parse()?;
-    Ok((ExprKind::FnDecl(FnDecl { ident, params, ret, block })).todo_span())
+    Ok((ExprKind::FnDecl(FnDecl { ident, generics, params, ret, block })).todo_span())
 }
 
 fn parse_struct(stream: &mut Stream) -> Result<Expr> {

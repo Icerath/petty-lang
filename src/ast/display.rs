@@ -3,7 +3,10 @@ use std::{
     mem,
 };
 
-use crate::ast::{Ast, BinOpKind, BinaryOp, BlockId, ExprId, Lit, Ty, UnaryOp};
+use crate::{
+    ast::{Ast, BinOpKind, BinaryOp, BlockId, ExprId, Lit, Ty, UnaryOp},
+    symbol::Symbol,
+};
 
 use super::{ExprKind, FnDecl, Param, TypeId};
 struct Writer<'ast> {
@@ -116,9 +119,11 @@ impl Writer<'_> {
                 self.f.push_str(field);
             }
             ExprKind::Block(block) => self.display_block(*block),
-            ExprKind::FnDecl(FnDecl { ident, params, ret, block }) => {
+            ExprKind::FnDecl(FnDecl { ident, generics, params, ret, block }) => {
                 self.inside_expr = inside_expr;
-                _ = write!(self.f, "fn {ident}");
+                self.f.push_str("fn ");
+                self.f.push_str(ident);
+                self.display_generics(generics);
                 self.display_params(params);
                 if let Some(ret) = ret {
                     self.f.push_str(" -> ");
@@ -166,6 +171,18 @@ impl Writer<'_> {
             }
         }
         self.inside_expr = inside_expr;
+    }
+
+    fn display_generics(&mut self, generics: &[Symbol]) {
+        if generics.is_empty() {
+            return;
+        }
+        self.f.push('<');
+        for (i, generic) in generics.iter().enumerate() {
+            self.f.push_str(if i == 0 { "" } else { ", " });
+            self.f.push_str(generic);
+        }
+        self.f.push('>');
     }
 
     fn display_params(&mut self, params: &[Param]) {
