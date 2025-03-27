@@ -48,6 +48,10 @@ impl Writer<'_> {
         // FIXME: take precedence into account to use minimum parens needed
         let inside_expr = mem::replace(&mut self.inside_expr, true);
         match &self.ast.exprs[expr].kind {
+            ExprKind::Assert(expr) => {
+                self.f.push_str("assert ");
+                self.display_expr(*expr);
+            }
             ExprKind::Struct { ident, fields } => {
                 self.f.push_str("struct ");
                 self.f.push_str(ident);

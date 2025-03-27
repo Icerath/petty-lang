@@ -1,9 +1,9 @@
-use thin_vec::ThinVec;
+use thin_vec::{ThinVec, thin_vec};
 
 use crate::{
     ast::{self, Ast, BinOpKind, BinaryOp},
     ast_analysis::TyInfo,
-    hir::{self, Expr, ExprKind, Hir},
+    hir::{self, Expr, ExprKind, Hir, IfStmt, Lit},
     symbol::Symbol,
     ty::{Ty, TyCtx},
 };
@@ -51,6 +51,7 @@ impl<'tcx> Lowering<'_, 'tcx> {
         }
     }
 
+    #[allow(clippy::too_many_lines)]
     fn lower_inner(&mut self, expr_id: ast::ExprId) -> hir::Expr<'tcx> {
         match &self.ast.exprs[expr_id].kind {
             &ast::ExprKind::Binary {
@@ -150,6 +151,17 @@ impl<'tcx> Lowering<'_, 'tcx> {
                     })
                     .collect();
                 hir::Expr { ty: self.tcx.unit(), kind: ExprKind::Struct { ident, fields } }
+            }
+            &ast::ExprKind::Assert(expr) => {
+                let abort = (self.hir.exprs)
+                    .push(Expr { ty: self.tcx.never(), kind: ExprKind::Literal(Lit::Abort) });
+                let body = ThinVec::from([abort]);
+                let condition_kind =
+                    ExprKind::Unary { op: ast::UnaryOp::Not, expr: self.lower(expr) };
+                let condition =
+                    self.hir.exprs.push(Expr { ty: self.tcx.bool(), kind: condition_kind });
+                let arms = thin_vec![IfStmt { condition, body }];
+                Expr { ty: self.tcx.unit(), kind: hir::ExprKind::If { arms, els: ThinVec::new() } }
             }
             expr => todo!("{expr:?}"),
         }

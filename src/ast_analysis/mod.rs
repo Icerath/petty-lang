@@ -190,6 +190,11 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
     #[expect(clippy::too_many_lines)]
     fn analyze_expr(&mut self, id: ExprId) -> Result<Ty<'tcx>> {
         let ty = match self.ast.exprs[id].kind {
+            ExprKind::Assert(expr) => {
+                let ty = self.analyze_expr(expr)?;
+                self.subtype(ty, self.tcx.bool(), expr)?;
+                self.tcx.unit()
+            }
             ExprKind::Lit(ref lit) => self.analyze_lit(lit)?,
             ExprKind::Ident(ident) => self.read_ident(ident)?,
             ExprKind::Unary { expr, op } => {

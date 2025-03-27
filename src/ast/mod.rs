@@ -66,6 +66,7 @@ pub enum ExprKind {
     While { condition: ExprId, block: BlockId },
     If { arms: ThinVec<IfStmt>, els: Option<BlockId> },
     Return(Option<ExprId>),
+    Assert(ExprId),
     Break,
     FnDecl(FnDecl),
     Struct { ident: Symbol, fields: ThinVec<Param> },

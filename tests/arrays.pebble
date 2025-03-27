@@ -11,14 +11,12 @@ fn main() {
     }
     i = 0;
     while (i < 8) {
-        if (array[i] != i) {
-            abort
-        }
+        assert array[i] == i;
         i += 1;
     }
 
     let arr2d: [[int]] = [[1]];
-    if arr2d[0][0] != 1 { abort }
+    assert arr2d[0][0] == 1;
     arr2d[0][0] = 2;
-    if arr2d[0][0] != 2 { abort }
+    assert arr2d[0][0] == 2;
 }

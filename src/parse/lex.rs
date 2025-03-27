@@ -197,6 +197,7 @@ impl Lexer<'_> {
 
 fn ident_kind(str: &str) -> TokenKind {
     match str {
+        "assert" => TokenKind::Assert,
         "abort" => TokenKind::Abort,
         "break" => TokenKind::Break,
         "else" => TokenKind::Else,
