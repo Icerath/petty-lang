@@ -2,4 +2,11 @@ fn foo<T>(t: T) -> T {
     t
 }
 
-let x: int = foo(1);
+fn bar<T>(arr: [T]) -> T {
+    arr[0]
+}
+
+fn main() {
+    let x: int = foo(1);
+    let y: str = bar(["Hi"]);
+}

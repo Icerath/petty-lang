@@ -26,7 +26,7 @@ impl<'tcx> TyKind<'tcx> {
                 let vid = map.1 + dif;
                 tcx.intern(TyKind::Infer(vid))
             }
-            Self::Array(ty) => ty.replace_generics(tcx, map),
+            Self::Array(ty) => tcx.intern(TyKind::Array(ty.replace_generics(tcx, map))),
             Self::Function(Function { ref params, ret, .. }) => {
                 let params = params.iter().map(|param| param.replace_generics(tcx, map)).collect();
                 let ret = ret.replace_generics(tcx, map);
