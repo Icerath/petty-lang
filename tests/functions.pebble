@@ -1,0 +1,11 @@
+fn times_two(x: int) -> int {
+    x * 2
+}
+
+fn calls_twice(x: int, f: fn(int) -> int) -> int {
+    f(f(x))
+}
+
+fn main() {
+    assert calls_twice(1, times_two) == 4
+}

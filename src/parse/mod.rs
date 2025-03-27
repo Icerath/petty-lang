@@ -179,12 +179,24 @@ impl Parse for TypeId {
 impl Parse for Ty {
     fn parse(stream: &mut Stream) -> Result<Self> {
         let any = stream.any(&[
+            TokenKind::Fn,
             TokenKind::Ident,
             TokenKind::LBracket,
             TokenKind::LParen,
             TokenKind::Not,
         ])?;
         Ok(match any.kind {
+            TokenKind::Fn => {
+                stream.expect(TokenKind::LParen)?;
+                let params = stream.parse_separated(TokenKind::Comma, TokenKind::RParen)?;
+                let ret = if stream.peek()?.kind == TokenKind::ThinArrow {
+                    _ = stream.next();
+                    Some(stream.parse()?)
+                } else {
+                    None
+                };
+                Self::Func { params, ret }
+            }
             TokenKind::Not => Self::Never,
             TokenKind::Ident => Self::Name(Symbol::from(&stream.lexer.src()[any.span])),
             TokenKind::LBracket => {

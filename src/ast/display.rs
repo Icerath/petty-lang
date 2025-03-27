@@ -33,6 +33,20 @@ impl fmt::Display for Ast {
 impl Writer<'_> {
     fn display_ty(&mut self, ty: TypeId) {
         match self.ast.types[ty] {
+            Ty::Func { ref params, ret } => {
+                self.f.push_str("fn(");
+                for (i, param) in params.iter().enumerate() {
+                    if i != 0 {
+                        self.f.push_str(", ");
+                    }
+                    self.display_ty(*param);
+                }
+                self.f.push(')');
+                if let Some(ty) = ret {
+                    self.f.push_str(" -> ");
+                    self.display_ty(ty);
+                }
+            }
             Ty::Never => self.f.push('!'),
             Ty::Unit => self.f.push_str("()"),
             Ty::Array(of) => {
