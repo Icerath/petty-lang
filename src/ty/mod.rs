@@ -1,7 +1,7 @@
 mod generic_range;
 mod interner;
 
-use std::{cell::RefCell, fmt, hash::Hash};
+use std::{cell::RefCell, collections::HashMap, fmt, hash::Hash};
 
 pub use generic_range::GenericRange;
 use index_vec::IndexVec;
@@ -16,20 +16,14 @@ impl<'tcx> TyKind<'tcx> {
     pub fn replace_generics(
         &'tcx self,
         tcx: &'tcx TyCtx<'tcx>,
-        map: Option<(GenericId, TyVid)>,
+        mut f: impl FnMut(GenericId) -> TyVid + Copy,
     ) -> Ty<'tcx> {
         match *self {
-            Self::Generic(id) => {
-                let map = map.unwrap();
-                assert!(id >= map.0);
-                let dif = id.index() - map.0.index();
-                let vid = map.1 + dif;
-                tcx.intern(TyKind::Infer(vid))
-            }
-            Self::Array(ty) => tcx.intern(TyKind::Array(ty.replace_generics(tcx, map))),
+            Self::Generic(id) => tcx.intern(TyKind::Infer(f(id))),
+            Self::Array(ty) => tcx.intern(TyKind::Array(ty.replace_generics(tcx, f))),
             Self::Function(Function { ref params, ret, .. }) => {
-                let params = params.iter().map(|param| param.replace_generics(tcx, map)).collect();
-                let ret = ret.replace_generics(tcx, map);
+                let params = params.iter().map(|param| param.replace_generics(tcx, f)).collect();
+                let ret = ret.replace_generics(tcx, f);
                 let func = Function { params, ret, generics: GenericRange::EMPTY };
                 tcx.intern(TyKind::Function(func))
             }
@@ -106,11 +100,10 @@ pub struct Function<'tcx> {
 
 impl<'tcx> Function<'tcx> {
     pub fn caller(&self, tcx: &'tcx TyCtx<'tcx>) -> (Vec<Ty<'tcx>>, Ty<'tcx>) {
-        let mut giter = self.generics.iter().map(|id| (id, tcx.new_vid()));
-        let first = giter.next();
-        giter.count();
-        let params = self.params.iter().map(|param| param.replace_generics(tcx, first)).collect();
-        let ret = self.ret.replace_generics(tcx, first);
+        let map: HashMap<_, _> = self.generics.iter().map(|id| (id, tcx.new_vid())).collect();
+        let f = |id| map[&id];
+        let params = self.params.iter().map(|param| param.replace_generics(tcx, f)).collect();
+        let ret = self.ret.replace_generics(tcx, f);
         (params, ret)
     }
 }
