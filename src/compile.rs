@@ -26,7 +26,7 @@ fn compile_inner(
         ($name:ident, $what:ident) => {
             if dump {
                 _ = std::fs::write(
-                    format!("target/dump-{}.txt", stringify!($what)),
+                    format!("target/dump-{}.txt", stringify!($name)),
                     format!("{}", $what),
                 );
             }
