@@ -20,6 +20,7 @@ test! { inference }
 test! { never }
 test! { arrays }
 test! { generics }
+test! { if_expr }
 
 test! { "expected `!`, found `int`" fail_never }
 test! { "expected `int`, found `str`" fail_variables }

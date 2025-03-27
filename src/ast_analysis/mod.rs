@@ -355,8 +355,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                     // TODO: specialized error message here.
                     self.subtype(expected_ty, self.tcx.unit(), id)?;
                 }
-                self.ty_info.expr_tys[id] = expected_ty;
-                self.tcx.unit()
+                expected_ty
             }
             ExprKind::Block(block_id) => {
                 let block = &self.ast.blocks[block_id];
