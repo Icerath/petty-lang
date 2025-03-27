@@ -8,10 +8,15 @@ use crate::{
     ty::{Ty, TyCtx},
 };
 
-pub fn lower<'tcx>(mut ast: Ast, ty_info: TyInfo<'tcx>, tcx: &'tcx TyCtx<'tcx>) -> Hir<'tcx> {
+pub fn lower<'tcx>(
+    src: &str,
+    mut ast: Ast,
+    ty_info: TyInfo<'tcx>,
+    tcx: &'tcx TyCtx<'tcx>,
+) -> Hir<'tcx> {
     assert_eq!(ast.exprs.len(), ty_info.expr_tys.len());
     let top_level = std::mem::take(&mut ast.top_level);
-    let mut lowering = Lowering { ast: &ast, hir: Hir::default(), tcx, ty_info };
+    let mut lowering = Lowering { src, ast: &ast, hir: Hir::default(), tcx, ty_info };
     let mut hir_root = vec![];
     for expr in top_level {
         hir_root.push(lowering.lower(expr));
@@ -20,14 +25,15 @@ pub fn lower<'tcx>(mut ast: Ast, ty_info: TyInfo<'tcx>, tcx: &'tcx TyCtx<'tcx>) 
     lowering.hir
 }
 
-struct Lowering<'ast, 'tcx> {
+struct Lowering<'src, 'ast, 'tcx> {
     ast: &'ast Ast,
     hir: Hir<'tcx>,
     tcx: &'tcx TyCtx<'tcx>,
     ty_info: TyInfo<'tcx>,
+    src: &'src str,
 }
 
-impl<'tcx> Lowering<'_, 'tcx> {
+impl<'tcx> Lowering<'_, '_, 'tcx> {
     #[track_caller]
     fn get_ty(&self, expr_id: ast::ExprId) -> Ty<'tcx> {
         // Note: Does it provide any real benefit to remove the bounds check here? It seems relatively safe so I'm not opposed to it.
@@ -153,9 +159,14 @@ impl<'tcx> Lowering<'_, 'tcx> {
                 hir::Expr { ty: self.tcx.unit(), kind: ExprKind::Struct { ident, fields } }
             }
             &ast::ExprKind::Assert(expr) => {
+                let span = self.ast.exprs[expr].span;
+                let display = ExprKind::PrintStr(Symbol::from(&self.src[span]));
+                let display = self.hir.exprs.push(Expr { ty: self.tcx.unit(), kind: display });
+
                 let abort = (self.hir.exprs)
                     .push(Expr { ty: self.tcx.never(), kind: ExprKind::Literal(Lit::Abort) });
-                let body = ThinVec::from([abort]);
+
+                let body = ThinVec::from([display, abort]);
                 let condition_kind =
                     ExprKind::Unary { op: ast::UnaryOp::Not, expr: self.lower(expr) };
                 let condition =

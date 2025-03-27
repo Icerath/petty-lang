@@ -32,6 +32,7 @@ impl<'tcx> Expr<'tcx> {
 
 #[derive(Debug)]
 pub enum ExprKind<'tcx> {
+    PrintStr(Symbol), // temporary
     Ident(Symbol),
     Binary { lhs: ExprId, op: BinaryOp, rhs: ExprId },
     Assignment { lhs: LValue, expr: ExprId },

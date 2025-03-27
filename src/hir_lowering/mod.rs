@@ -7,7 +7,7 @@ use crate::{
     hir::{self, ArraySeg, ExprId, ExprKind, Hir, LValue, Lit},
     mir::{
         self, Block, BlockId, Body, BodyId, Constant, Mir, Operand, Place, RValue, Statement,
-        Terminator,
+        Terminator, UnaryOp,
     },
     symbol::Symbol,
     ty::TyKind,
@@ -99,6 +99,10 @@ impl Lowering<'_, '_> {
         let is_unit = expr.ty.is_unit();
 
         match &expr.kind {
+            ExprKind::PrintStr(str) => RValue::UnaryExpr {
+                op: UnaryOp::StrPrint,
+                operand: Operand::Constant(Constant::Str(*str)),
+            },
             ExprKind::Literal(lit) => self.lit_rvalue(lit),
             ExprKind::Unary { op, expr } => {
                 let operand = self.lower(*expr);

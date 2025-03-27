@@ -53,10 +53,15 @@ impl Writer<'_, '_> {
         };
         self.f.push_str(str);
     }
+    #[allow(clippy::too_many_lines)]
     fn display_expr(&mut self, expr: ExprId) {
         // FIXME: take precedence into account to use minimum parens needed
         let inside_expr = mem::replace(&mut self.inside_expr, true);
         match &self.hir.exprs[expr].kind {
+            ExprKind::PrintStr(s) => {
+                self.f.push_str("print ");
+                _ = write!(self.f, "{s:?}");
+            }
             ExprKind::Return(expr) => {
                 self.f.push_str("return");
                 self.display_expr(*expr);
