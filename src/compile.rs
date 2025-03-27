@@ -15,6 +15,7 @@ pub fn compile(src: &str, file: Option<PathBuf>, verbose: bool) -> miette::Resul
     compile_inner(src, file, true, verbose)
 }
 
+#[expect(clippy::needless_pass_by_value)]
 fn compile_inner(
     src: &str,
     file: Option<PathBuf>,
@@ -40,8 +41,8 @@ fn compile_inner(
     let ty_intern = TyInterner::default();
     dump!(ast);
     let tcx = TyCtx::new(&ty_intern);
-    let analysis = ast_analysis::analyze(file, &src, &ast, &tcx)?;
-    let hir = ast_lowering::lower(&src, ast, analysis, &tcx);
+    let analysis = ast_analysis::analyze(file.clone(), &src, &ast, &tcx)?;
+    let hir = ast_lowering::lower(&src, file.as_deref(), ast, analysis, &tcx);
     dump!(hir);
     let mut mir = hir_lowering::lower(&hir);
     drop(hir);

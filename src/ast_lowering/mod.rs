@@ -1,8 +1,10 @@
+use std::path::Path;
 use thin_vec::{ThinVec, thin_vec};
 
 use crate::{
     ast::{self, Ast, BinOpKind, BinaryOp},
     ast_analysis::TyInfo,
+    errors,
     hir::{self, Expr, ExprKind, Hir, IfStmt, Lit},
     symbol::Symbol,
     ty::{Ty, TyCtx},
@@ -10,13 +12,14 @@ use crate::{
 
 pub fn lower<'tcx>(
     src: &str,
+    path: Option<&Path>,
     mut ast: Ast,
     ty_info: TyInfo<'tcx>,
     tcx: &'tcx TyCtx<'tcx>,
 ) -> Hir<'tcx> {
     assert_eq!(ast.exprs.len(), ty_info.expr_tys.len());
     let top_level = std::mem::take(&mut ast.top_level);
-    let mut lowering = Lowering { src, ast: &ast, hir: Hir::default(), tcx, ty_info };
+    let mut lowering = Lowering { src, path, ast: &ast, hir: Hir::default(), tcx, ty_info };
     let mut hir_root = vec![];
     for expr in top_level {
         hir_root.push(lowering.lower(expr));
@@ -31,6 +34,7 @@ struct Lowering<'src, 'ast, 'tcx> {
     tcx: &'tcx TyCtx<'tcx>,
     ty_info: TyInfo<'tcx>,
     src: &'src str,
+    path: Option<&'src Path>,
 }
 
 impl<'tcx> Lowering<'_, '_, 'tcx> {
@@ -159,8 +163,7 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
                 hir::Expr { ty: self.tcx.unit(), kind: ExprKind::Struct { ident, fields } }
             }
             &ast::ExprKind::Assert(expr) => {
-                let span = self.ast.exprs[expr].span;
-                let display = ExprKind::PrintStr(Symbol::from(&self.src[span]));
+                let display = ExprKind::PrintStr(self.assert_failed_error(expr));
                 let display = self.hir.exprs.push(Expr { ty: self.tcx.unit(), kind: display });
 
                 let abort = (self.hir.exprs)
@@ -176,6 +179,12 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
             }
             expr => todo!("{expr:?}"),
         }
+    }
+
+    fn assert_failed_error(&self, expr: ast::ExprId) -> Symbol {
+        let span = self.ast.exprs[expr].span;
+        let report = errors::error("assertion failed", self.path, self.src, &[(span, "".into())]);
+        Symbol::from(format!("{report:?}").as_str())
     }
 
     fn lower_fn_call(
