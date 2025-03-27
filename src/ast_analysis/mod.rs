@@ -330,10 +330,13 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 self.tcx.unit()
             }
             ExprKind::For { ident, iter, body } => {
-                _ = ident;
-                _ = iter;
-                _ = body;
-                todo!()
+                // for now only allow ranges
+                let iter_ty = self.analyze_expr(iter)?;
+                self.subtype(iter_ty, &TyKind::Range, iter)?;
+                self.bodies.last_mut().unwrap().variables.insert(ident, self.tcx.int());
+                let out = self.analyze_block(body)?;
+                self.subtype_block(out, &TyKind::Unit, body)?;
+                self.tcx.unit()
             }
             ExprKind::While { condition, block } => {
                 let condition_ty = self.analyze_expr(condition)?;
