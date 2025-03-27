@@ -42,7 +42,7 @@ fn compile_inner(
     dump!(ast);
     let tcx = TyCtx::new(&ty_intern);
     let analysis = ast_analysis::analyze(file.clone(), &src, &ast, &tcx)?;
-    let hir = ast_lowering::lower(&src, file.as_deref(), ast, analysis, &tcx);
+    let hir = ast_lowering::lower(&src, file.as_deref(), ast, analysis);
     dump!(hir);
     let mut mir = hir_lowering::lower(&hir);
     drop(hir);

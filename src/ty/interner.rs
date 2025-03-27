@@ -1,10 +1,8 @@
-use super::{Ty, TyCtx, TyKind};
+use super::{Ty, TyKind};
 use crate::HashSet;
 use std::{cell::RefCell, mem};
 
 pub struct TyInterner {
-    // drop artificial statics first.
-    common: CommonTypes<'static>,
     inner: Inner,
 }
 
@@ -18,10 +16,7 @@ struct Inner {
 impl Default for TyInterner {
     fn default() -> Self {
         let inner = Inner::default();
-        let common = CommonTypes::init(&inner);
-        let common = unsafe { mem::transmute::<CommonTypes<'_>, CommonTypes<'static>>(common) };
-
-        Self { common, inner }
+        Self { inner }
     }
 }
 
@@ -44,34 +39,3 @@ impl Inner {
         ty
     }
 }
-
-macro_rules! common {
-    [$($name: ident : $kind: ident),* $(,)?] => {
-        struct CommonTypes<'tcx> {
-            $($name: Ty<'tcx>),*
-        }
-
-        impl<'tcx> CommonTypes<'tcx> {
-            fn init(intern: &'tcx Inner) -> Self {
-                CommonTypes {
-                    $($name: intern.intern(TyKind::$kind)),*
-                }
-            }
-        }
-
-        impl<'tcx> TyCtx<'tcx> {
-            $(pub const fn $name(&self) -> Ty<'tcx> {
-                self.interner.common.$name
-            })*
-        }
-    };
-}
-
-common![
-    unit: Unit,
-    bool: Bool,
-    int: Int,
-    char: Char,
-    str: Str,
-    never: Never,
-];

@@ -6,7 +6,7 @@ use thin_vec::ThinVec;
 use crate::{
     define_id,
     symbol::Symbol,
-    ty::{Ty, TyCtx},
+    ty::{Ty, TyKind},
 };
 
 #[derive(Default, Debug)]
@@ -24,10 +24,8 @@ pub struct Expr<'tcx> {
     pub kind: ExprKind<'tcx>,
 }
 
-impl<'tcx> Expr<'tcx> {
-    pub fn unit(tcx: &'tcx TyCtx<'tcx>) -> Self {
-        Self { ty: tcx.unit(), kind: ExprKind::Literal(Lit::Unit) }
-    }
+impl Expr<'_> {
+    pub const UNIT: Self = Self { ty: &TyKind::Unit, kind: ExprKind::Literal(Lit::Unit) };
 }
 
 #[derive(Debug)]

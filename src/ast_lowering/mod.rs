@@ -7,7 +7,7 @@ use crate::{
     errors,
     hir::{self, Expr, ExprKind, Hir, IfStmt, Lit},
     symbol::Symbol,
-    ty::{Ty, TyCtx},
+    ty::{Ty, TyKind},
 };
 
 pub fn lower<'tcx>(
@@ -15,11 +15,10 @@ pub fn lower<'tcx>(
     path: Option<&Path>,
     mut ast: Ast,
     ty_info: TyInfo<'tcx>,
-    tcx: &'tcx TyCtx<'tcx>,
 ) -> Hir<'tcx> {
     assert_eq!(ast.exprs.len(), ty_info.expr_tys.len());
     let top_level = std::mem::take(&mut ast.top_level);
-    let mut lowering = Lowering { src, path, ast: &ast, hir: Hir::default(), tcx, ty_info };
+    let mut lowering = Lowering { src, path, ast: &ast, hir: Hir::default(), ty_info };
     let mut hir_root = vec![];
     for expr in top_level {
         hir_root.push(lowering.lower(expr));
@@ -31,7 +30,6 @@ pub fn lower<'tcx>(
 struct Lowering<'src, 'ast, 'tcx> {
     ast: &'ast Ast,
     hir: Hir<'tcx>,
-    tcx: &'tcx TyCtx<'tcx>,
     ty_info: TyInfo<'tcx>,
     src: &'src str,
     path: Option<&'src Path>,
@@ -144,15 +142,15 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
             &ast::ExprKind::Return(expr) => {
                 let inner = match expr {
                     Some(expr) => self.lower(expr),
-                    None => self.hir.exprs.push(hir::Expr::unit(self.tcx)),
+                    None => self.hir.exprs.push(hir::Expr::UNIT),
                 };
-                hir::Expr { ty: self.tcx.never(), kind: ExprKind::Return(inner) }
+                hir::Expr { ty: &TyKind::Never, kind: ExprKind::Return(inner) }
             }
             &ast::ExprKind::Unary { op, expr } => hir::Expr {
                 ty: self.get_ty(expr_id),
                 kind: ExprKind::Unary { op, expr: self.lower(expr) },
             },
-            ast::ExprKind::Break => hir::Expr { ty: self.tcx.never(), kind: ExprKind::Break },
+            ast::ExprKind::Break => hir::Expr { ty: &TyKind::Never, kind: ExprKind::Break },
             &ast::ExprKind::Struct { ident, ref fields } => {
                 let fields = (fields.iter())
                     .map(|field| hir::Param {
@@ -160,22 +158,22 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
                         ty: self.ty_info.type_ids[field.ty],
                     })
                     .collect();
-                hir::Expr { ty: self.tcx.unit(), kind: ExprKind::Struct { ident, fields } }
+                hir::Expr { ty: &TyKind::Unit, kind: ExprKind::Struct { ident, fields } }
             }
             &ast::ExprKind::Assert(expr) => {
                 let display = ExprKind::PrintStr(self.assert_failed_error(expr));
-                let display = self.hir.exprs.push(Expr { ty: self.tcx.unit(), kind: display });
+                let display = self.hir.exprs.push(Expr { ty: &TyKind::Unit, kind: display });
 
                 let abort = (self.hir.exprs)
-                    .push(Expr { ty: self.tcx.never(), kind: ExprKind::Literal(Lit::Abort) });
+                    .push(Expr { ty: &TyKind::Never, kind: ExprKind::Literal(Lit::Abort) });
 
                 let body = ThinVec::from([display, abort]);
                 let condition_kind =
                     ExprKind::Unary { op: ast::UnaryOp::Not, expr: self.lower(expr) };
                 let condition =
-                    self.hir.exprs.push(Expr { ty: self.tcx.bool(), kind: condition_kind });
+                    self.hir.exprs.push(Expr { ty: &TyKind::Bool, kind: condition_kind });
                 let arms = thin_vec![IfStmt { condition, body }];
-                Expr { ty: self.tcx.unit(), kind: hir::ExprKind::If { arms, els: ThinVec::new() } }
+                Expr { ty: &TyKind::Unit, kind: hir::ExprKind::If { arms, els: ThinVec::new() } }
             }
             expr => todo!("{expr:?}"),
         }
@@ -200,14 +198,14 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
 
     fn lower_while_loop(&mut self, condition: ast::ExprId, body: ast::BlockId) -> hir::Expr<'tcx> {
         let condition = hir::Expr {
-            ty: self.tcx.bool(),
+            ty: &TyKind::Bool,
             kind: hir::ExprKind::Unary { op: hir::UnaryOp::Not, expr: self.lower(condition) },
         };
         let condition = self.hir.exprs.push(condition);
-        let break_ = hir::Expr { ty: self.tcx.unit(), kind: ExprKind::Break };
+        let break_ = hir::Expr { ty: &TyKind::Unit, kind: ExprKind::Break };
         let break_ = self.hir.exprs.push(break_);
         let if_stmt = hir::Expr {
-            ty: self.tcx.unit(),
+            ty: &TyKind::Unit,
             kind: ExprKind::If {
                 arms: ThinVec::from([hir::IfStmt { condition, body: ThinVec::from([break_]) }]),
                 els: ThinVec::new(),
@@ -215,7 +213,7 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
         };
         let mut block = self.lower_block_inner(body).1;
         block.insert(0, self.hir.exprs.push(if_stmt));
-        hir::Expr { ty: self.tcx.unit(), kind: ExprKind::Loop(block) }
+        hir::Expr { ty: &TyKind::Unit, kind: ExprKind::Loop(block) }
     }
 
     fn lower_if_stmt(
@@ -237,10 +235,7 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
     }
 
     fn lower_let_stmt(&mut self, ident: Symbol, expr: ast::ExprId) -> hir::Expr<'tcx> {
-        hir::Expr {
-            ty: self.tcx.unit(),
-            kind: hir::ExprKind::Let { ident, expr: self.lower(expr) },
-        }
+        hir::Expr { ty: &TyKind::Unit, kind: hir::ExprKind::Let { ident, expr: self.lower(expr) } }
     }
 
     fn lower_fn_decl(
@@ -253,7 +248,7 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
     ) -> hir::Expr<'tcx> {
         let ret = match ret {
             Some(ret) => self.ty_info.type_ids[ret],
-            None => self.tcx.unit(),
+            None => &TyKind::Unit,
         };
         let params = params
             .iter()
@@ -295,7 +290,7 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
     fn lower_block_inner(&mut self, block_id: ast::BlockId) -> (Ty<'tcx>, ThinVec<hir::ExprId>) {
         let block = &self.ast.blocks[block_id];
         let block_ty =
-            if block.is_expr { self.get_ty(*block.stmts.last().unwrap()) } else { self.tcx.unit() };
+            if block.is_expr { self.get_ty(*block.stmts.last().unwrap()) } else { &TyKind::Unit };
         let needs_unit = self.block_needs_terminating_unit(block);
 
         let mut new = ThinVec::with_capacity(block.stmts.len() + usize::from(needs_unit));
@@ -303,7 +298,7 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
             new.push(self.lower(expr));
         }
         if needs_unit {
-            new.push(self.hir.exprs.push(hir::Expr::unit(self.tcx)));
+            new.push(self.hir.exprs.push(hir::Expr::UNIT));
         }
         (block_ty, new)
     }
@@ -313,6 +308,6 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
         if block.is_expr {
             return false;
         }
-        block.stmts.last().is_some_and(|last| self.get_ty(*last) != self.tcx.unit())
+        block.stmts.last().is_some_and(|last| self.get_ty(*last) != &TyKind::Unit)
     }
 }
