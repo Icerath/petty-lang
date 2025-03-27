@@ -163,6 +163,11 @@ impl Writer<'_> {
                 self.inside_expr = false;
                 self.display_expr(*expr);
             }
+            &ExprKind::For { ident, iter, body } => {
+                _ = write!(self.f, "for {ident} in ");
+                self.display_expr(iter);
+                self.display_block(body);
+            }
             ExprKind::While { condition, block } => {
                 self.inside_expr = inside_expr;
                 self.f.push_str("while ");

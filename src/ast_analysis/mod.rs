@@ -329,6 +329,12 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 body.variables.insert(ident, ty);
                 self.tcx.unit()
             }
+            ExprKind::For { ident, iter, body } => {
+                _ = ident;
+                _ = iter;
+                _ = body;
+                todo!()
+            }
             ExprKind::While { condition, block } => {
                 let condition_ty = self.analyze_expr(condition)?;
                 self.subtype(condition_ty, self.tcx.bool(), condition)?;

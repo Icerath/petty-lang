@@ -262,6 +262,15 @@ fn parse_while(stream: &mut Stream) -> Result<Expr> {
     Ok((ExprKind::While { condition, block }).todo_span())
 }
 
+fn parse_for(stream: &mut Stream) -> Result<Expr> {
+    let ident = stream.expect_ident()?;
+    stream.expect(TokenKind::In)?;
+    let iter = stream.parse()?;
+    stream.expect(TokenKind::LBrace)?;
+    let body = stream.parse()?;
+    Ok((ExprKind::For { ident, iter, body }).todo_span())
+}
+
 fn parse_ifchain(stream: &mut Stream) -> Result<Expr> {
     let mut arms = thin_vec![];
     let els = loop {
@@ -381,6 +390,7 @@ fn parse_atom_with(stream: &mut Stream, tok: Token) -> Result<ExprId> {
         TokenKind::Struct => parse_struct(stream),
         TokenKind::Let => parse_let(stream),
         TokenKind::While => parse_while(stream),
+        TokenKind::For => parse_for(stream),
         TokenKind::If => parse_ifchain(stream),
         TokenKind::True => lit!(Lit::Bool(true)),
         TokenKind::False => lit!(Lit::Bool(false)),

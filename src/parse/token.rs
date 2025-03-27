@@ -53,6 +53,8 @@ pub enum TokenKind {
     Struct,
     True,
     While,
+    For,
+    In,
     // Literals
     Char,
     Int,
@@ -74,6 +76,8 @@ impl TokenKind {
             Self::Break => "break",
             Self::Let => "let",
             Self::While => "while",
+            Self::For => "for",
+            Self::In => "in",
             Self::True => "true",
             Self::False => "false",
             Self::If => "if",
