@@ -2,7 +2,7 @@ fn times_two(x: int) -> int {
     x * 2
 }
 
-fn calls_twice(x: int, f: fn(int) -> int) -> int {
+fn calls_twice<T>(x: T, f: fn(T) -> T) -> T {
     f(f(x))
 }
 

@@ -100,11 +100,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
 
             body.variables.insert(
                 *ident,
-                self.tcx.intern(TyKind::Function(Function {
-                    params,
-                    generics: GenericRange::EMPTY,
-                    ret: struct_ty,
-                })),
+                self.tcx.intern(TyKind::Function(Function { params, ret: struct_ty })),
             );
         }
 
@@ -121,10 +117,8 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
             };
             let params =
                 params.iter().map(|param| self.read_ast_ty_with(param.ty, generics)).collect();
-            body.variables.insert(
-                *ident,
-                self.tcx.intern(TyKind::Function(Function { params, generics, ret })),
-            );
+            body.variables
+                .insert(*ident, self.tcx.intern(TyKind::Function(Function { params, ret })));
         }
         self.bodies.push(body);
         let out = self.analyze_block_inner(block)?;
@@ -162,11 +156,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 let ret = ret.map_or(self.tcx.unit(), |ty| self.read_ast_ty_with(ty, generics));
                 let params =
                     params.iter().map(|param| self.read_ast_ty_with(*param, generics)).collect();
-                self.tcx.intern(TyKind::Function(Function {
-                    params,
-                    generics: GenericRange::EMPTY,
-                    ret,
-                }))
+                self.tcx.intern(TyKind::Function(Function { params, ret }))
             }
             ast::Ty::Never => self.tcx.never(),
             ast::Ty::Unit => self.tcx.unit(),

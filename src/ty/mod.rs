@@ -13,6 +13,27 @@ use crate::{define_id, symbol::Symbol};
 pub type Ty<'tcx> = &'tcx TyKind<'tcx>;
 
 impl<'tcx> TyKind<'tcx> {
+    pub fn generics(&self, f: &mut impl FnMut(GenericId)) {
+        match *self {
+            Self::Generic(id) => f(id),
+            Self::Array(ty) => ty.generics(f),
+            Self::Function(ref func) => func.generics(f),
+            Self::Struct { ref fields, .. } => {
+                // this seems wrong.
+                fields.iter().for_each(|field| field.generics(f));
+            }
+            Self::Infer(..)
+            | Self::Unit
+            | Self::Bool
+            | Self::Char
+            | Self::Int
+            | Self::Never
+            | Self::Range
+            | Self::RangeInclusive
+            | Self::Str => {}
+        }
+    }
+
     pub fn replace_generics(
         &'tcx self,
         tcx: &'tcx TyCtx<'tcx>,
@@ -24,7 +45,7 @@ impl<'tcx> TyKind<'tcx> {
             Self::Function(Function { ref params, ret, .. }) => {
                 let params = params.iter().map(|param| param.replace_generics(tcx, f)).collect();
                 let ret = ret.replace_generics(tcx, f);
-                let func = Function { params, ret, generics: GenericRange::EMPTY };
+                let func = Function { params, ret };
                 tcx.intern(TyKind::Function(func))
             }
             Self::Struct { .. } => todo!(),
@@ -94,17 +115,21 @@ pub enum TyKind<'tcx> {
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Function<'tcx> {
     pub params: ThinVec<Ty<'tcx>>,
-    pub generics: GenericRange,
     pub ret: Ty<'tcx>,
 }
 
 impl<'tcx> Function<'tcx> {
     pub fn caller(&self, tcx: &'tcx TyCtx<'tcx>) -> (Vec<Ty<'tcx>>, Ty<'tcx>) {
-        let map: HashMap<_, _> = self.generics.iter().map(|id| (id, tcx.new_vid())).collect();
+        let mut map = HashMap::new();
+        self.generics(&mut |id| _ = map.entry(id).or_insert_with(|| tcx.new_vid()));
         let f = |id| map[&id];
         let params = self.params.iter().map(|param| param.replace_generics(tcx, f)).collect();
         let ret = self.ret.replace_generics(tcx, f);
         (params, ret)
+    }
+    pub fn generics(&self, f: &mut impl FnMut(GenericId)) {
+        self.params.iter().for_each(|param| param.generics(f));
+        self.ret.generics(f);
     }
 }
 
@@ -209,6 +234,11 @@ impl<'tcx> TyCtxInner<'tcx> {
             (TyKind::Infer(var), _) => self.insertl(*var, rhs),
             (_, TyKind::Infer(var)) => self.insertr(lhs, *var),
             (TyKind::Array(lhs), TyKind::Array(rhs)) => self.try_eq(lhs, rhs),
+            (TyKind::Function(lhs), TyKind::Function(rhs)) => {
+                assert_eq!(lhs.params.len(), rhs.params.len());
+                lhs.params.iter().zip(&rhs.params).try_for_each(|(l, r)| self.try_eq(l, r))?;
+                self.try_eq(lhs.ret, rhs.ret)
+            }
             (lhs, rhs) if lhs == rhs => Ok(()),
             (..) => Err([lhs, rhs]),
         }
@@ -276,8 +306,7 @@ impl fmt::Display for TyKind<'_> {
             Self::Range => write!(f, "Range"),
             Self::RangeInclusive => write!(f, "RangeInclusive"),
             Self::Array(of) => write!(f, "[{of}]"),
-            Self::Function(Function { params, generics, ret }) => {
-                _ = generics; // todo;
+            Self::Function(Function { params, ret }) => {
                 write!(f, "fn")?;
                 let mut debug_tuple = f.debug_tuple("");
                 for param in params {
