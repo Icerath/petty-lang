@@ -19,6 +19,7 @@ macro_rules! test {
 test! { inference }
 test! { never }
 test! { arrays }
+test! { generics }
 
 test! { "expected `!`, found `int`" fail_never }
 test! { "expected `int`, found `str`" fail_variables }
