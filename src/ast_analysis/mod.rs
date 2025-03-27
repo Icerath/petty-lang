@@ -179,6 +179,10 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         self.bodies.iter().rev().find_map(|body| body.ty_names.get(&name)).unwrap()
     }
 
+    fn eq(&self, lhs: Ty<'tcx>, rhs: Ty<'tcx>, expr: ExprId) -> Result<()> {
+        self.tcx.try_eq(lhs, rhs).map_err(|[lhs, rhs]| self.subtype_err(lhs, rhs, expr))
+    }
+
     fn subtype(&self, lhs: Ty<'tcx>, rhs: Ty<'tcx>, expr: ExprId) -> Result<()> {
         self.tcx.try_subtype(lhs, rhs).map_err(|[lhs, rhs]| self.subtype_err(lhs, rhs, expr))
     }
@@ -241,8 +245,8 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                     },
             } => {
                 let lhs = self.analyze_expr(lhs)?;
-                let rhs = self.analyze_expr(rhs)?;
-                self.tcx.eq(lhs, rhs);
+                let rhs_ty = self.analyze_expr(rhs)?;
+                self.eq(lhs, rhs_ty, rhs)?;
                 self.tcx.bool()
             }
             ExprKind::Binary {
@@ -251,11 +255,11 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 op: op @ BinaryOp { kind: BinOpKind::Range | BinOpKind::RangeInclusive, .. },
             } => {
                 let lhs = self.analyze_expr(lhs)?;
-                let rhs = self.analyze_expr(rhs)?;
-                self.tcx.eq(lhs, rhs);
+                let rhs_ty = self.analyze_expr(rhs)?;
+                self.eq(lhs, rhs_ty, rhs)?;
 
                 self.subtype(lhs, self.tcx.int(), id)?;
-                self.subtype(rhs, self.tcx.int(), id)?;
+                self.subtype(rhs_ty, self.tcx.int(), id)?;
 
                 match op.kind {
                     BinOpKind::Range => self.tcx.intern(TyKind::Range),
@@ -265,8 +269,8 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
             }
             ExprKind::Binary { lhs, rhs, .. } => {
                 let lhs = self.analyze_expr(lhs)?;
-                let rhs = self.analyze_expr(rhs)?;
-                self.tcx.eq(lhs, rhs);
+                let rhs_ty = self.analyze_expr(rhs)?;
+                self.eq(lhs, rhs_ty, rhs)?;
                 lhs
             }
             ExprKind::Index { expr, index } => {
@@ -405,13 +409,15 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 };
                 let first_ty = self.analyze_expr(first.expr)?;
                 if let Some(repeated) = first.repeated {
-                    self.tcx.eq(self.analyze_expr(repeated)?, self.tcx.int());
+                    let ty = self.analyze_expr(repeated)?;
+                    self.eq(ty, self.tcx.int(), repeated)?;
                 }
                 for seg in segments {
                     let seg_ty = self.analyze_expr(seg.expr)?;
-                    self.tcx.eq(first_ty, seg_ty);
+                    self.eq(first_ty, seg_ty, seg.expr)?;
                     if let Some(repeated) = seg.repeated {
-                        self.tcx.eq(self.analyze_expr(repeated)?, self.tcx.int());
+                        let ty = self.analyze_expr(repeated)?;
+                        self.eq(ty, self.tcx.int(), repeated)?;
                     }
                 }
                 self.tcx.intern(TyKind::Array(first_ty))

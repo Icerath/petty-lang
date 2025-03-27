@@ -158,6 +158,10 @@ impl<'tcx> TyCtx<'tcx> {
         self.inner.borrow_mut().eq(lhs, rhs);
     }
     #[track_caller]
+    pub fn try_eq(&self, lhs: Ty<'tcx>, rhs: Ty<'tcx>) -> Result<(), [Ty<'tcx>; 2]> {
+        self.inner.borrow_mut().try_eq(lhs, rhs)
+    }
+    #[track_caller]
     pub fn try_subtype(&self, lhs: Ty<'tcx>, rhs: Ty<'tcx>) -> Result<(), [Ty<'tcx>; 2]> {
         self.inner.borrow_mut().subtype(lhs, rhs)
     }
