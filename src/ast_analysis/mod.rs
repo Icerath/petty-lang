@@ -303,6 +303,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                     panic!("expected `function`, found {fn_ty:?}");
                 };
                 let (params, ret) = func.caller(self.tcx);
+                assert_eq!(args.len(), params.len());
 
                 for (&arg, param) in std::iter::zip(args, params) {
                     let arg = self.analyze_expr(arg)?;
