@@ -173,7 +173,7 @@ impl<'tcx> TyCtx<'tcx> {
     }
     #[track_caller]
     pub fn eq(&self, lhs: Ty<'tcx>, rhs: Ty<'tcx>) {
-        self.inner.borrow_mut().eq(lhs, rhs);
+        self.try_eq(lhs, rhs).unwrap();
     }
     #[track_caller]
     pub fn try_eq(&self, lhs: Ty<'tcx>, rhs: Ty<'tcx>) -> Result<(), [Ty<'tcx>; 2]> {
@@ -220,11 +220,6 @@ impl<'tcx> TyCtxInner<'tcx> {
             TyKind::Array(of) => intern.intern(TyKind::Array(self.infer_deep(of, intern))),
             ty => ty,
         }
-    }
-
-    #[track_caller]
-    fn eq(&mut self, lhs: Ty<'tcx>, rhs: Ty<'tcx>) {
-        self.try_eq(lhs, rhs).unwrap();
     }
 
     fn try_eq(&mut self, lhs: Ty<'tcx>, rhs: Ty<'tcx>) -> Result<(), [Ty<'tcx>; 2]> {
