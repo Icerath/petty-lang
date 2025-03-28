@@ -216,10 +216,9 @@ impl<'tcx> TyCtxInner<'tcx> {
     }
 
     fn infer_deep(&self, ty: Ty<'tcx>, intern: &'tcx TyInterner) -> Ty<'tcx> {
-        let ty = self.infer_shallow(ty);
-        match *ty {
+        match self.infer_shallow(ty) {
             TyKind::Array(of) => intern.intern(TyKind::Array(self.infer_deep(of, intern))),
-            _ => ty,
+            ty => ty,
         }
     }
 
