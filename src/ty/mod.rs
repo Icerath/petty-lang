@@ -172,10 +172,6 @@ impl<'tcx> TyCtx<'tcx> {
         self.inner.borrow().infer_deep(ty, self.interner)
     }
     #[track_caller]
-    pub fn eq(&self, lhs: Ty<'tcx>, rhs: Ty<'tcx>) {
-        self.try_eq(lhs, rhs).unwrap();
-    }
-    #[track_caller]
     pub fn try_eq(&self, lhs: Ty<'tcx>, rhs: Ty<'tcx>) -> Result<(), [Ty<'tcx>; 2]> {
         self.inner.borrow_mut().try_eq(lhs, rhs)
     }

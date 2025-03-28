@@ -187,6 +187,10 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         self.tcx.try_eq(lhs, rhs).map_err(|[lhs, rhs]| self.subtype_err(lhs, rhs, expr))
     }
 
+    fn eq_block(&self, lhs: Ty<'tcx>, rhs: Ty<'tcx>, block: BlockId) -> Result<()> {
+        self.tcx.try_eq(lhs, rhs).map_err(|[lhs, rhs]| self.subtype_err_block(lhs, rhs, block))
+    }
+
     fn subtype(&self, lhs: Ty<'tcx>, rhs: Ty<'tcx>, expr: ExprId) -> Result<()> {
         self.tcx.try_subtype(lhs, rhs).map_err(|[lhs, rhs]| self.subtype_err(lhs, rhs, expr))
     }
@@ -355,7 +359,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                     self.subtype(ty, &TyKind::Bool, id)?;
                     let block_ty = self.analyze_block(arm.body)?;
                     if let Some(expected_ty) = expected_ty {
-                        self.tcx.eq(expected_ty, block_ty);
+                        self.eq_block(expected_ty, block_ty, arm.body)?;
                     } else {
                         expected_ty = Some(block_ty);
                     }
