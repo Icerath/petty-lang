@@ -3,12 +3,15 @@ use std::{
     mem,
 };
 
+use thin_vec::ThinVec;
+
 use crate::{
     ast::{Ast, BinOpKind, BinaryOp, BlockId, ExprId, Lit, Ty, UnaryOp},
     symbol::Symbol,
 };
 
-use super::{ExprKind, FnDecl, Param, TypeId};
+use super::{ArraySeg, ExprKind, FnDecl, Param, TypeId};
+
 struct Writer<'ast> {
     ast: &'ast Ast,
     f: String,
@@ -19,216 +22,175 @@ struct Writer<'ast> {
 impl fmt::Display for Ast {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         let f = String::new();
-        let mut writer = Writer { ast: self, f, indent: 0, inside_expr: false };
-        for &expr in &self.top_level {
-            writer.display_expr(expr);
-            writer.ln();
-        }
+        let mut w = Writer { ast: self, f, indent: 0, inside_expr: false };
+        self.top_level.iter().for_each(|expr| (expr, Line).write(&mut w));
         #[cfg(debug_assertions)]
-        crate::parse::parse(&writer.f, None).unwrap();
-        fmt.write_str(&writer.f)
+        crate::parse::parse(&w.f, None).unwrap();
+        fmt.write_str(&w.f)
     }
 }
 
 impl Writer<'_> {
-    fn display_ty(&mut self, ty: TypeId) {
-        match self.ast.types[ty] {
-            Ty::Func { ref params, ret } => {
-                self.f.push_str("fn(");
-                for (i, param) in params.iter().enumerate() {
-                    if i != 0 {
-                        self.f.push_str(", ");
-                    }
-                    self.display_ty(*param);
-                }
-                self.f.push(')');
-                if let Some(ty) = ret {
-                    self.f.push_str(" -> ");
-                    self.display_ty(ty);
-                }
-            }
-            Ty::Never => self.f.push('!'),
-            Ty::Unit => self.f.push_str("()"),
-            Ty::Array(of) => {
-                self.f.push('[');
-                self.display_ty(of);
-                self.f.push(']');
-            }
-            Ty::Name(name) => self.f.push_str(&name),
-        }
-    }
-    #[expect(clippy::too_many_lines)]
     fn display_expr(&mut self, expr: ExprId) {
-        // FIXME: take precedence into account to use minimum parens needed
         let inside_expr = mem::replace(&mut self.inside_expr, true);
         match &self.ast.exprs[expr].kind {
-            ExprKind::Assert(expr) => {
-                self.f.push_str("assert ");
-                self.display_expr(*expr);
-            }
-            ExprKind::Struct { ident, fields } => {
-                self.f.push_str("struct ");
-                self.f.push_str(ident);
-                self.display_params(fields);
-            }
-            ExprKind::Break => self.f.push_str("break"),
-            ExprKind::Return(expr) => {
-                self.f.push_str("return");
-                if let Some(expr) = expr {
-                    self.f.push(' ');
-                    self.display_expr(*expr);
-                }
-            }
-            ExprKind::Lit(lit) => self.display_lit(lit),
+            ExprKind::Assert(expr) => ("assert ", expr).write(self),
+            ExprKind::Struct { ident, fields } => ("struct ", ident, fields).write(self),
+            ExprKind::Break => "break".write(self),
+            ExprKind::Return(expr) => ("return", expr.map(|expr| (" ", expr))).write(self),
+            ExprKind::Lit(lit) => lit.write(self),
             ExprKind::Binary { lhs, op, rhs } => {
-                if inside_expr {
-                    self.f.push('(');
-                }
-                self.display_expr(*lhs);
-                self.f.push(' ');
-                self.display_binary_op(*op);
-                self.f.push(' ');
-                self.display_expr(*rhs);
-                if inside_expr {
-                    self.f.push(')');
-                }
+                (inside_expr.then_some("("), lhs, " ", op, " ", rhs, inside_expr.then_some(")"))
+                    .write(self);
             }
-            ExprKind::Ident(ident) => self.f.push_str(ident),
+            ExprKind::Ident(ident) => ident.write(self),
             ExprKind::FnCall { function, args } => {
-                self.display_expr(*function);
-                self.f.push('(');
-                for (i, arg) in args.iter().enumerate() {
-                    self.f.push_str(if i == 0 { "" } else { ", " });
-                    self.display_expr(*arg);
-                }
-                self.f.push(')');
+                (function, "(", Sep(args, ", "), ")").write(self);
             }
-            ExprKind::Index { expr, index } => {
-                self.display_expr(*expr);
-                self.f.push('[');
-                self.display_expr(*index);
-                self.f.push(']');
-            }
+            ExprKind::Index { expr, index } => (expr, "[", index, "]").write(self),
             ExprKind::Unary { op, expr } => {
-                if inside_expr {
-                    self.f.push('(');
-                }
-                self.display_unary_op(*op);
-                self.display_expr(*expr);
-                if inside_expr {
-                    self.f.push(')');
-                }
+                (inside_expr.then_some("("), op, expr, inside_expr.then_some(")")).write(self);
             }
             ExprKind::MethodCall { expr, method, args } => {
-                self.display_expr(*expr);
-                self.f.push('.');
-                self.f.push_str(method);
-                self.f.push('(');
-                for (i, arg) in args.iter().enumerate() {
-                    self.f.push_str(if i == 0 { "" } else { ", " });
-                    self.display_expr(*arg);
-                }
-                self.f.push(')');
+                (expr, ".", method, "(", Sep(args, ", "), ")").write(self);
             }
-            ExprKind::FieldAccess { expr, field } => {
-                // NOTE: FieldAccess should always be higher priority, so we shouldn't need to wrap with parens
-                self.display_expr(*expr);
-                self.f.push('.');
-                self.f.push_str(field);
-            }
+            ExprKind::FieldAccess { expr, field } => (expr, ".", field).write(self),
             ExprKind::Block(block) => self.display_block(*block),
             ExprKind::FnDecl(FnDecl { ident, generics, params, ret, block }) => {
                 self.inside_expr = inside_expr;
-                self.f.push_str("fn ");
-                self.f.push_str(ident);
-                self.display_generics(generics);
-                self.display_params(params);
-                if let Some(ret) = ret {
-                    self.f.push_str(" -> ");
-                    self.display_ty(*ret);
-                }
-
-                self.display_block(*block);
+                ("fn ", ident, Generics(generics), params, ret.map(|ret| (" -> ", ret)), block)
+                    .write(self);
             }
             ExprKind::Let { ident, ty, expr } => {
                 self.inside_expr = inside_expr;
-                self.f.push_str("let ");
-                self.f.push_str(ident);
-                if let Some(ty) = ty {
-                    self.f.push_str(": ");
-                    self.display_ty(*ty);
-                }
-                self.f.push_str(" = ");
-
+                ("let ", ident, ty.map(|ty| (": ", ty)), " = ").write(self);
                 self.inside_expr = false;
-                self.display_expr(*expr);
+                expr.write(self);
             }
             &ExprKind::For { ident, iter, body } => {
-                _ = write!(self.f, "for {ident} in ");
-                self.display_expr(iter);
-                self.display_block(body);
+                ("for ", ident, " in ", iter, body).write(self);
             }
-            ExprKind::While { condition, block } => {
+            &ExprKind::While { condition, block } => {
                 self.inside_expr = inside_expr;
-                self.f.push_str("while ");
-                self.display_expr(*condition);
-                self.display_block(*block);
+                ("while ", condition, block).write(self);
             }
             ExprKind::If { arms, els } => {
                 self.inside_expr = inside_expr;
                 for (i, arm) in arms.iter().enumerate() {
-                    if i != 0 {
-                        self.f.push_str("else ");
-                    }
-                    self.f.push_str("if ");
-                    self.display_expr(arm.condition);
-                    self.display_block(arm.body);
-                    if i + 1 != arms.len() {
-                        self.ln();
-                    }
+                    (
+                        (i != 0).then_some("else "),
+                        "if ",
+                        arm.condition,
+                        arm.body,
+                        (i + 1 != arms.len()).then_some(Line),
+                    )
+                        .write(self);
                 }
-                if let &Some(els) = els {
-                    self.f.push_str("else ");
-                    self.display_block(els);
-                }
+                els.map(|els| ("else ", els)).write(self);
             }
         }
         self.inside_expr = inside_expr;
     }
 
-    fn display_generics(&mut self, generics: &[Symbol]) {
-        if generics.is_empty() {
+    fn display_block(&mut self, block: BlockId) {
+        let block = &self.ast.blocks[block];
+        if !self.f.chars().next_back().is_some_and(char::is_whitespace) {
+            self.f.push(' ');
+        }
+        self.inside_expr = false;
+        if block.stmts.is_empty() {
+            self.f.push_str("{}");
             return;
         }
-        self.f.push('<');
-        for (i, generic) in generics.iter().enumerate() {
-            self.f.push_str(if i == 0 { "" } else { ", " });
-            self.f.push_str(generic);
+        self.indent += 1;
+        ("{", Line).write(self);
+        for (index, &expr) in block.stmts.iter().enumerate() {
+            self.inside_expr = false;
+            self.display_expr(expr);
+            if !block.is_expr || index + 1 < block.stmts.len() {
+                self.f.push(';');
+            }
+            if index + 1 == block.stmts.len() {
+                self.indent -= 1;
+            }
+            (Line).write(self);
         }
-        self.f.push('>');
+        self.f.push('}');
     }
+}
 
-    fn display_params(&mut self, params: &[Param]) {
-        self.f.push('(');
-        for (i, param) in params.iter().enumerate() {
-            self.f.push_str(if i == 0 { "" } else { ", " });
-            self.f.push_str(&param.ident);
-            self.f.push_str(": ");
-            self.display_ty(param.ty);
+trait Dump {
+    fn write(&self, w: &mut Writer);
+}
+
+struct Sep<'a, T, S>(&'a [T], S);
+
+impl<T: Dump, S: Dump> Dump for Sep<'_, T, S> {
+    fn write(&self, w: &mut Writer) {
+        for (i, arg) in self.0.iter().enumerate() {
+            ((i != 0).then_some(&self.1), arg).write(w);
         }
-        self.f.push(')');
     }
-    fn display_unary_op(&mut self, op: UnaryOp) {
-        let str = match op {
-            UnaryOp::Not => "!",
-            UnaryOp::Neg => "-",
-        };
-        self.f.push_str(str);
-    }
+}
 
-    fn display_binary_op(&mut self, op: BinaryOp) {
+impl Dump for ThinVec<Param> {
+    fn write(&self, w: &mut Writer) {
+        ("(", Sep(self, ", "), ")").write(w);
+    }
+}
+
+struct Generics<'a>(&'a ThinVec<Symbol>);
+
+impl Dump for Generics<'_> {
+    fn write(&self, w: &mut Writer) {
+        (!self.0.is_empty()).then_some(("<", Sep(self.0, ", "), ">")).write(w);
+    }
+}
+
+impl Dump for Lit {
+    fn write(&self, w: &mut Writer) {
+        match self {
+            Lit::Abort => w.f.push_str("abort"),
+            Lit::Unit => w.f.push_str("()"),
+            Lit::Bool(bool) => _ = write!(w.f, "{bool}"),
+            Lit::Int(int) => _ = write!(w.f, "{int}"),
+            Lit::Str(str) => _ = write!(w.f, "{:?}", &**str),
+            Lit::Char(char) => _ = write!(w.f, "{char:?}"),
+            Lit::Array { segments } => ("[", Sep(segments, ", "), "]").write(w),
+        }
+    }
+}
+
+impl Dump for Param {
+    fn write(&self, w: &mut Writer) {
+        (self.ident, ": ", self.ty).write(w);
+    }
+}
+
+impl Dump for TypeId {
+    fn write(&self, w: &mut Writer) {
+        match w.ast.types[*self] {
+            Ty::Func { ref params, ret } => {
+                ("fn(", Sep(params, ", "), ")", ret.map(|ret| (" -> ", ret))).write(w);
+            }
+            Ty::Never => w.f.push('!'),
+            Ty::Unit => w.f.push_str("()"),
+            Ty::Array(of) => ("[", of, "]").write(w),
+            Ty::Name(name) => w.f.push_str(&name),
+        }
+    }
+}
+
+impl Dump for ArraySeg {
+    fn write(&self, w: &mut Writer) {
+        (self.expr, self.repeated.map(|repeated| ("; ", repeated))).write(w);
+    }
+}
+
+impl Dump for BinaryOp {
+    fn write(&self, w: &mut Writer) {
         use BinOpKind as B;
-        let str = match op.kind {
+        w.f.push_str(match self.kind {
             B::Add => "+",
             B::AddAssign => "+=",
             B::Div => "/",
@@ -248,63 +210,81 @@ impl Writer<'_> {
             B::Sub => "-",
             B::SubAssign => "-=",
             B::Assign => "=",
-        };
-        self.f.push_str(str);
-    }
-
-    fn display_lit(&mut self, lit: &Lit) {
-        match lit {
-            Lit::Abort => self.f.push_str("abort"),
-            Lit::Unit => self.f.push_str("()"),
-            Lit::Bool(bool) => _ = write!(self.f, "{bool}"),
-            Lit::Int(int) => _ = write!(self.f, "{int}"),
-            Lit::Str(str) => _ = write!(self.f, "{:?}", &**str),
-            Lit::Char(char) => _ = write!(self.f, "{char:?}"),
-            Lit::Array { segments } => {
-                self.f.push('[');
-                for (i, segment) in segments.iter().enumerate() {
-                    self.f.push_str(if i == 0 { "" } else { ", " });
-                    self.display_expr(segment.expr);
-                    if let Some(repeated) = segment.repeated {
-                        self.f.push_str("; ");
-                        self.display_expr(repeated);
-                    }
-                }
-                self.f.push(']');
-            }
-        }
-    }
-
-    fn display_block(&mut self, block: BlockId) {
-        let block = &self.ast.blocks[block];
-        if !self.f.chars().next_back().is_some_and(char::is_whitespace) {
-            self.f.push(' ');
-        }
-        self.inside_expr = false;
-        if block.stmts.is_empty() {
-            self.f.push_str("{}");
-            return;
-        }
-        self.indent += 1;
-        self.f.push('{');
-        self.ln();
-        for (index, &expr) in block.stmts.iter().enumerate() {
-            self.inside_expr = false;
-            self.display_expr(expr);
-            if !block.is_expr || index + 1 < block.stmts.len() {
-                self.f.push(';');
-            }
-            self.ln();
-        }
-        self.indent -= 1;
-        for _ in 0..4 {
-            self.f.pop().unwrap();
-        }
-        self.f.push('}');
-    }
-
-    fn ln(&mut self) {
-        self.f.push('\n');
-        self.f.extend(std::iter::repeat_n(' ', self.indent * 4));
+        });
     }
 }
+
+impl Dump for UnaryOp {
+    fn write(&self, w: &mut Writer) {
+        w.f.push_str(match self {
+            UnaryOp::Not => "!",
+            UnaryOp::Neg => "-",
+        });
+    }
+}
+
+impl Dump for ExprId {
+    fn write(&self, w: &mut Writer) {
+        w.display_expr(*self);
+    }
+}
+
+impl Dump for BlockId {
+    fn write(&self, w: &mut Writer) {
+        w.display_block(*self);
+    }
+}
+
+struct Line;
+impl Dump for Line {
+    fn write(&self, w: &mut Writer) {
+        w.f.push('\n');
+        w.f.extend(std::iter::repeat_n(' ', w.indent * 4));
+    }
+}
+
+impl Dump for &'static str {
+    fn write(&self, w: &mut Writer) {
+        w.f.push_str(self);
+    }
+}
+
+impl Dump for Symbol {
+    fn write(&self, w: &mut Writer) {
+        w.f.push_str(self.as_str());
+    }
+}
+
+impl<T: Dump> Dump for Option<T> {
+    fn write(&self, w: &mut Writer) {
+        if let Some(t) = self {
+            t.write(w);
+        }
+    }
+}
+
+impl<T: Dump> Dump for &T {
+    fn write(&self, w: &mut Writer) {
+        T::write(self, w);
+    }
+}
+
+macro_rules! impl_tuples {
+    ($($t:ident),+) => {
+        impl<$($t: Dump),+> Dump for ($($t),+,) {
+            fn write(&self, w: &mut Writer) {
+                #[allow(non_snake_case)]
+                let ($($t),+,) = self;
+                $($t.write(w));+
+            }
+        }
+    };
+}
+
+impl_tuples!(A);
+impl_tuples!(A, B);
+impl_tuples!(A, B, C);
+impl_tuples!(A, B, C, D);
+impl_tuples!(A, B, C, D, E);
+impl_tuples!(A, B, C, D, E, F);
+impl_tuples!(A, B, C, D, E, F, G);
