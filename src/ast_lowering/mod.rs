@@ -175,7 +175,9 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
                 let arms = thin_vec![IfStmt { condition, body }];
                 Expr { ty: &TyKind::Unit, kind: hir::ExprKind::If { arms, els: ThinVec::new() } }
             }
-            expr => todo!("{expr:?}"),
+            ast::ExprKind::MethodCall { .. } => todo!(),
+            ast::ExprKind::FieldAccess { .. } => todo!(),
+            ast::ExprKind::For { .. } => todo!(),
         }
     }
 
