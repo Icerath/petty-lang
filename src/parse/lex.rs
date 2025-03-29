@@ -30,6 +30,16 @@ impl<'src> Lexer<'src> {
     pub fn span(&self) -> Span {
         Span::from(self.token_start..self.current_pos())
     }
+
+    fn try_next(&mut self, expected: char) -> bool {
+        match self.chars.clone().next() {
+            Some(c) if c == expected => {
+                _ = self.chars.next();
+                true
+            }
+            _ => false,
+        }
+    }
 }
 
 impl Iterator for Lexer<'_> {
@@ -48,63 +58,23 @@ impl Iterator for Lexer<'_> {
         self.token_start = self.current_pos() - char.len_utf8() as u32;
         let kind = match char {
             // Longer Symbols
-            '-' if self.chars.clone().next() == Some('>') => {
-                self.chars.next();
-                TokenKind::ThinArrow
-            }
-            '.' if self.chars.clone().next() == Some('.') => {
-                self.chars.next();
-                if self.chars.clone().next() == Some('=') {
-                    self.chars.next();
+            '.' if self.try_next('.') => {
+                if self.try_next('=') {
                     TokenKind::DotDotEq
                 } else {
                     TokenKind::DotDot
                 }
             }
-            '.' if self.chars.clone().next() == Some('.') => {
-                self.chars.next();
-                TokenKind::DotDot
-            }
-
-            '+' if self.chars.clone().next() == Some('=') => {
-                self.chars.next();
-                TokenKind::PlusEq
-            }
-            '-' if self.chars.clone().next() == Some('=') => {
-                self.chars.next();
-                TokenKind::MinusEq
-            }
-            '*' if self.chars.clone().next() == Some('=') => {
-                self.chars.next();
-                TokenKind::MulEq
-            }
-            '/' if self.chars.clone().next() == Some('=') => {
-                self.chars.next();
-                TokenKind::DivEq
-            }
-            '%' if self.chars.clone().next() == Some('=') => {
-                self.chars.next();
-                TokenKind::ModEq
-            }
-
-            '=' if self.chars.clone().next() == Some('=') => {
-                self.chars.next();
-                TokenKind::EqEq
-            }
-
-            '!' if self.chars.clone().next() == Some('=') => {
-                self.chars.next();
-                TokenKind::Neq
-            }
-            '>' if self.chars.clone().next() == Some('=') => {
-                self.chars.next();
-                TokenKind::GreaterEq
-            }
-            '<' if self.chars.clone().next() == Some('=') => {
-                self.chars.next();
-                TokenKind::LessEq
-            }
-
+            '-' if self.try_next('>') => TokenKind::ThinArrow,
+            '+' if self.try_next('=') => TokenKind::PlusEq,
+            '-' if self.try_next('=') => TokenKind::MinusEq,
+            '*' if self.try_next('=') => TokenKind::MulEq,
+            '/' if self.try_next('=') => TokenKind::DivEq,
+            '%' if self.try_next('=') => TokenKind::ModEq,
+            '=' if self.try_next('=') => TokenKind::EqEq,
+            '!' if self.try_next('=') => TokenKind::Neq,
+            '>' if self.try_next('=') => TokenKind::GreaterEq,
+            '<' if self.try_next('=') => TokenKind::LessEq,
             // Symbols
             '.' => TokenKind::Dot,
             ',' => TokenKind::Comma,
