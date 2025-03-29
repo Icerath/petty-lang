@@ -71,7 +71,7 @@ pub enum ExprKind {
     Assert(ExprId),
     Break,
     FnDecl(FnDecl),
-    Struct { ident: Symbol, fields: ThinVec<Param> },
+    Struct { ident: Symbol, span: Span, fields: ThinVec<Param> },
 }
 
 #[derive(Debug)]

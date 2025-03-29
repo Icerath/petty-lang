@@ -94,7 +94,9 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
     ) -> Result<(Ty<'tcx>, Body<'tcx>)> {
         // look for structs/enums first.
         for id in &block.stmts {
-            let ExprKind::Struct { ident, fields } = &self.ast.exprs[*id].kind else { continue };
+            let ExprKind::Struct { ident, fields, .. } = &self.ast.exprs[*id].kind else {
+                continue;
+            };
 
             let fields: ThinVec<_> =
                 fields.iter().map(|field| self.read_ast_ty(field.ty)).collect();

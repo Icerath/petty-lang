@@ -35,7 +35,7 @@ impl Writer<'_> {
         let inside_expr = mem::replace(&mut self.inside_expr, true);
         match &self.ast.exprs[expr].kind {
             ExprKind::Assert(expr) => ("assert ", expr).write(self),
-            ExprKind::Struct { ident, fields } => ("struct ", ident, fields).write(self),
+            ExprKind::Struct { ident, fields, .. } => ("struct ", ident, fields).write(self),
             ExprKind::Break => "break".write(self),
             ExprKind::Return(expr) => ("return", expr.map(|expr| (" ", expr))).write(self),
             ExprKind::Lit(lit) => lit.write(self),

@@ -104,6 +104,12 @@ impl Stream<'_, '_> {
         let token = self.expect(TokenKind::Ident)?;
         Ok(Symbol::from(&self.lexer.src()[token.span]))
     }
+
+    fn ident_spanned(&mut self) -> Result<(Symbol, Span)> {
+        let token = self.expect(TokenKind::Ident)?;
+        Ok((Symbol::from(&self.lexer.src()[token.span]), token.span))
+    }
+
     fn parse<T: Parse>(&mut self) -> Result<T> {
         T::parse(self)
     }
@@ -236,11 +242,11 @@ fn parse_fn(stream: &mut Stream) -> Result<Expr> {
 }
 
 fn parse_struct(stream: &mut Stream) -> Result<Expr> {
-    let ident = stream.expect_ident()?;
+    let (ident, span) = stream.ident_spanned()?;
     stream.expect(TokenKind::LParen)?;
     let fields = stream.parse_separated(TokenKind::Comma, TokenKind::RParen)?;
 
-    Ok((ExprKind::Struct { ident, fields }).todo_span())
+    Ok((ExprKind::Struct { ident, fields, span }).todo_span())
 }
 
 fn parse_let(stream: &mut Stream) -> Result<Expr> {
