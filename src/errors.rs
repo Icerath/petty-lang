@@ -4,13 +4,9 @@ use miette::{Error, LabeledSpan, NamedSource};
 
 use crate::span::Span;
 
-pub fn error(error: &str, path: Option<&Path>, src: &str, labels: &[(Span, Cow<str>)]) -> Error {
-    error_inner(error, path, src, labels)
-}
-
 #[inline(never)]
 #[cold]
-fn error_inner(error: &str, path: Option<&Path>, src: &str, labels: &[(Span, Cow<str>)]) -> Error {
+pub fn error(error: &str, path: Option<&Path>, src: &str, labels: &[(Span, Cow<str>)]) -> Error {
     let labels: Vec<_> = labels
         .iter()
         .map(|(span, msg)| LabeledSpan::at(offset_span(*span).into_range_usize(), msg.as_ref()))
