@@ -129,6 +129,7 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
             ast::ExprKind::Let { ident, expr, .. } => self.lower_let_stmt(ident, expr),
             ast::ExprKind::If { ref arms, els } => self.lower_if_stmt(arms, els, expr_id),
             ast::ExprKind::While { condition, block } => self.lower_while_loop(condition, block),
+            ast::ExprKind::For { ident, iter, body } => self.lower_for_loop(ident, iter, body),
             ast::ExprKind::Ident(symbol) => {
                 hir::Expr { ty: self.get_ty(expr_id), kind: ExprKind::Ident(symbol) }
             }
@@ -177,7 +178,6 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
             }
             ast::ExprKind::MethodCall { .. } => todo!(),
             ast::ExprKind::FieldAccess { .. } => todo!(),
-            ast::ExprKind::For { .. } => todo!(),
         }
     }
 
@@ -216,6 +216,18 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
         let mut block = self.lower_block_inner(body).1;
         block.insert(0, self.hir.exprs.push(if_stmt));
         hir::Expr { ty: &TyKind::Unit, kind: ExprKind::Loop(block) }
+    }
+
+    fn lower_for_loop(
+        &mut self,
+        ident: Symbol,
+        iter: ast::ExprId,
+        body: ast::BlockId,
+    ) -> hir::Expr<'tcx> {
+        _ = ident;
+        _ = iter;
+        _ = body;
+        todo!()
     }
 
     fn lower_if_stmt(
