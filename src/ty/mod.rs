@@ -48,7 +48,10 @@ impl<'tcx> TyKind<'tcx> {
                 let func = Function { params, ret };
                 tcx.intern(TyKind::Function(func))
             }
-            Self::Struct { .. } => todo!(),
+            Self::Struct { ref fields, id } => {
+                let fields = fields.iter().map(|field| field.replace_generics(tcx, f)).collect();
+                tcx.intern(Self::Struct { id, fields })
+            }
             Self::Infer(..) => unreachable!(),
             Self::Unit
             | Self::Bool
