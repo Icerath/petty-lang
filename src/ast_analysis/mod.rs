@@ -21,6 +21,7 @@ use thin_vec::ThinVec;
 pub struct TyInfo<'tcx> {
     pub expr_tys: IndexVec<ExprId, Ty<'tcx>>,
     pub type_ids: IndexVec<TypeId, Ty<'tcx>>,
+    pub struct_types: HashMap<Span, Ty<'tcx>>,
 }
 
 #[derive(Debug)]
@@ -50,6 +51,7 @@ fn setup_ty_info<'tcx>(ast: &Ast) -> TyInfo<'tcx> {
     TyInfo {
         expr_tys: std::iter::repeat_n(shared, ast.exprs.len()).collect(),
         type_ids: std::iter::repeat_n(shared, ast.types.len()).collect(),
+        struct_types: HashMap::default(),
     }
 }
 
@@ -94,7 +96,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
     ) -> Result<(Ty<'tcx>, Body<'tcx>)> {
         // look for structs/enums first.
         for id in &block.stmts {
-            let ExprKind::Struct { ident, fields, .. } = &self.ast.exprs[*id].kind else {
+            let ExprKind::Struct { ident, fields, span } = &self.ast.exprs[*id].kind else {
                 continue;
             };
 
@@ -103,6 +105,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
             let params = fields.clone();
             let struct_ty = self.tcx.new_struct(*ident, fields);
             self.bodies.last_mut().unwrap().ty_names.insert(*ident, struct_ty);
+            self.ty_info.struct_types.insert(*span, struct_ty);
 
             body.variables.insert(
                 *ident,
