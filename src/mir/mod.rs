@@ -134,6 +134,7 @@ pub enum Constant {
     Char(char),
     Str(Symbol),
     Func(BodyId),
+    StructInit,
 }
 
 #[expect(dead_code)]

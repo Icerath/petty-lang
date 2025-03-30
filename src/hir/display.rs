@@ -58,6 +58,7 @@ impl Writer<'_, '_> {
         // FIXME: take precedence into account to use minimum parens needed
         let inside_expr = mem::replace(&mut self.inside_expr, true);
         match &self.hir.exprs[expr].kind {
+            ExprKind::StructInit => self.f.push_str("<struct init>"),
             ExprKind::PrintStr(s) => {
                 self.f.push_str("print ");
                 _ = write!(self.f, "{s:?}");
@@ -121,11 +122,6 @@ impl Writer<'_, '_> {
                 self.f.push_str(") -> ");
                 self.display_ty(ret);
                 self.display_block(body);
-            }
-            ExprKind::Struct { ident, fields } => {
-                self.f.push_str("struct ");
-                self.f.push_str(ident);
-                self.display_params(fields);
             }
             ExprKind::Let { ident, expr } => {
                 self.inside_expr = inside_expr;

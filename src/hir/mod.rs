@@ -30,6 +30,7 @@ impl Expr<'_> {
 
 #[derive(Debug)]
 pub enum ExprKind<'tcx> {
+    StructInit,
     PrintStr(Symbol), // temporary
     Ident(Symbol),
     Binary { lhs: ExprId, op: BinaryOp, rhs: ExprId },
@@ -44,7 +45,6 @@ pub enum ExprKind<'tcx> {
     If { arms: ThinVec<IfStmt>, els: ThinVec<ExprId> },
     Loop(ThinVec<ExprId>),
     Break,
-    Struct { ident: Symbol, fields: ThinVec<Param<'tcx>> },
     Return(ExprId),
 }
 
@@ -94,7 +94,7 @@ pub struct ArraySeg {
     pub repeated: Option<ExprId>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Param<'tcx> {
     pub ident: Symbol,
     pub ty: Ty<'tcx>,

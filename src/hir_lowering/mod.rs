@@ -99,6 +99,7 @@ impl Lowering<'_, '_> {
         let is_unit = expr.ty.is_unit();
 
         match &expr.kind {
+            ExprKind::StructInit => RValue::Use(Operand::Constant(Constant::StructInit)),
             ExprKind::PrintStr(str) => RValue::UnaryExpr {
                 op: UnaryOp::StrPrint,
                 operand: Operand::Constant(Constant::Str(*str)),
@@ -111,11 +112,6 @@ impl Lowering<'_, '_> {
                     hir::UnaryOp::Neg => mir::UnaryOp::IntNeg,
                 };
                 RValue::UnaryExpr { op, operand }
-            }
-            ExprKind::Struct { ident, fields } => {
-                _ = ident;
-                _ = fields;
-                todo!()
             }
             ExprKind::FnDecl(decl) => {
                 let hir::FnDecl { ident, params, body, .. } = &**decl;

@@ -8,6 +8,7 @@ use std::{
 use arcstr::ArcStr;
 use array::Array;
 use index_vec::IndexSlice;
+use thin_vec::ThinVec;
 
 macro_rules! value {
     ($ty:ident, $value: expr) => {{
@@ -84,7 +85,12 @@ enum Value {
     Char(char),
     Str(ArcStr),
     Fn(BodyId),
-    ArrayRef { array: Array, index: u32 },
+    #[expect(dead_code)]
+    Struct(ThinVec<Value>),
+    ArrayRef {
+        array: Array,
+        index: u32,
+    },
 }
 
 impl Interpreter<'_> {
@@ -234,6 +240,7 @@ impl Interpreter<'_> {
                 Constant::Char(char) => Value::Char(char),
                 Constant::Str(str) => Value::Str(str.as_str().into()),
                 Constant::Func(body) => Value::Fn(body),
+                Constant::StructInit => Value::Struct(places.iter().cloned().collect()),
             },
             Operand::Place(place) => places[place].clone(),
             Operand::Unreachable => unreachable!(),

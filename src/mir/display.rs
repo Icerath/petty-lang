@@ -91,6 +91,7 @@ impl fmt::Display for Constant {
             Self::Char(char) => write!(f, "{char:?}"),
             Self::Str(str) => write!(f, "{str:?}"),
             Self::Func(id) => write!(f, "fn{id:?}"),
+            Self::StructInit => write!(f, "<struct init>"),
         }
     }
 }

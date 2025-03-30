@@ -153,14 +153,29 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
             },
             ast::ExprKind::Break => hir::Expr { ty: &TyKind::Never, kind: ExprKind::Break },
             ast::ExprKind::Struct { ident, ref fields, span } => {
-                _ = span;
-                let fields = (fields.iter())
+                let struct_ty = self.ty_info.struct_types[&span];
+
+                let fields: ThinVec<_> = (fields.iter())
                     .map(|field| hir::Param {
                         ident: field.ident,
                         ty: self.ty_info.type_ids[field.ty],
                     })
                     .collect();
-                hir::Expr { ty: &TyKind::Unit, kind: ExprKind::Struct { ident, fields } }
+
+                let body = ThinVec::from([self
+                    .hir
+                    .exprs
+                    .push(Expr { ty: struct_ty, kind: hir::ExprKind::StructInit })]);
+
+                hir::Expr {
+                    kind: hir::ExprKind::FnDecl(Box::new(hir::FnDecl {
+                        ident,
+                        params: fields.clone().into(),
+                        ret: struct_ty,
+                        body,
+                    })),
+                    ty: &TyKind::Unit,
+                }
             }
             ast::ExprKind::Assert(expr) => {
                 let display = ExprKind::PrintStr(self.assert_failed_error(expr));
