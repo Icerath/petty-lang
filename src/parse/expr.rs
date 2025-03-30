@@ -1,10 +1,10 @@
-use crate::ast::{BinOpKind, BinaryOp, ExprId, ExprKind, Lit, UnaryOp};
+use miette::Result;
 
 use super::{
     Parse, Stream, parse_atom_with,
     token::{Token, TokenKind},
 };
-use miette::Result;
+use crate::ast::{BinOpKind, BinaryOp, ExprId, ExprKind, Lit, UnaryOp};
 
 impl Parse for ExprId {
     fn parse(stream: &mut Stream) -> Result<Self> {

@@ -2,9 +2,10 @@ mod display;
 
 use std::fmt;
 
-use crate::{define_id, span::Span, symbol::Symbol};
 use index_vec::IndexVec;
 use thin_vec::ThinVec;
+
+use crate::{define_id, span::Span, symbol::Symbol};
 
 #[derive(Default)]
 pub struct Ast {

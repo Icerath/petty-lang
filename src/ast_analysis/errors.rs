@@ -1,11 +1,10 @@
+use super::Collector;
 use crate::{
     ast::{BlockId, ExprId, ExprKind},
     errors,
     span::Span,
     ty::Ty,
 };
-
-use super::Collector;
 
 impl<'tcx> Collector<'_, '_, 'tcx> {
     #[cold]

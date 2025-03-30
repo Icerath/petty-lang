@@ -1,9 +1,8 @@
+use super::Lowering;
 use crate::{
     mir::{BinaryOp, Operand, RValue, Statement, Terminator, UnaryOp},
     symbol::Symbol,
 };
-
-use super::Lowering;
 
 impl Lowering<'_, '_> {
     pub fn try_instrinsic(&mut self, ident: Symbol) -> bool {

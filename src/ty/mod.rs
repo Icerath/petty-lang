@@ -7,10 +7,10 @@ use std::{cell::RefCell, collections::HashMap, hash::Hash};
 pub use generic_range::GenericRange;
 use index_vec::IndexVec;
 pub use interner::TyInterner;
+pub use kind::TyKind;
 use thin_vec::ThinVec;
 
 use crate::{define_id, symbol::Symbol};
-pub use kind::TyKind;
 
 pub type Ty<'tcx> = &'tcx TyKind<'tcx>;
 

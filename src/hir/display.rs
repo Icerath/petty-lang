@@ -3,12 +3,11 @@ use std::{
     mem,
 };
 
+use super::{ExprKind, FnDecl, LValue, Param};
 use crate::{
     hir::{BinaryOp, ExprId, Hir, Lit, Ty, UnaryOp},
     ty::TyKind,
 };
-
-use super::{ExprKind, FnDecl, LValue, Param};
 
 struct Writer<'hir, 'tcx> {
     hir: &'hir Hir<'tcx>,

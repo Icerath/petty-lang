@@ -5,12 +5,11 @@ use std::{
 
 use thin_vec::ThinVec;
 
+use super::{ArraySeg, ExprKind, FnDecl, Param, TypeId};
 use crate::{
     ast::{Ast, BinOpKind, BinaryOp, BlockId, ExprId, Lit, Ty, UnaryOp},
     symbol::Symbol,
 };
-
-use super::{ArraySeg, ExprKind, FnDecl, Param, TypeId};
 
 struct Writer<'ast> {
     ast: &'ast Ast,

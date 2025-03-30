@@ -2,6 +2,10 @@ mod errors;
 
 use std::path::PathBuf;
 
+use index_vec::IndexVec;
+use miette::Result;
+use thin_vec::ThinVec;
+
 use crate::{
     HashMap,
     ast::{
@@ -12,10 +16,6 @@ use crate::{
     symbol::Symbol,
     ty::{Function, GenericRange, Ty, TyCtx, TyKind},
 };
-use miette::Result;
-
-use index_vec::IndexVec;
-use thin_vec::ThinVec;
 
 #[derive(Default, Debug)]
 pub struct TyInfo<'tcx> {

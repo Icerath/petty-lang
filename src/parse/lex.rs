@@ -1,9 +1,9 @@
-use miette::Result;
 use std::str::Chars;
 
-use crate::{errors, span::Span};
+use miette::Result;
 
 use super::token::{Token, TokenKind};
+use crate::{errors, span::Span};
 
 #[derive(Clone)]
 pub struct Lexer<'src> {

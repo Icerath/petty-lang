@@ -4,6 +4,11 @@ mod token;
 
 use std::path::Path;
 
+use lex::Lexer;
+use miette::{Error, Result};
+use thin_vec::{ThinVec, thin_vec};
+use token::{Token, TokenKind};
+
 use crate::{
     ast::{
         ArraySeg, Ast, BinOpKind, BinaryOp, Block, BlockId, Expr, ExprId, ExprKind, FnDecl, IfStmt,
@@ -13,10 +18,6 @@ use crate::{
     span::Span,
     symbol::Symbol,
 };
-use lex::Lexer;
-use miette::{Error, Result};
-use thin_vec::{ThinVec, thin_vec};
-use token::{Token, TokenKind};
 
 pub fn parse(src: &str, path: Option<&Path>) -> Result<Ast> {
     let lexer = Lexer::new(src);

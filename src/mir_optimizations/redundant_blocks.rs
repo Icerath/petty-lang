@@ -1,5 +1,7 @@
-use crate::HashMap;
-use crate::mir::{self, Mir, Terminator};
+use crate::{
+    HashMap,
+    mir::{self, Mir, Terminator},
+};
 
 pub fn optimize(mir: &mut Mir, body_id: mir::BodyId) {
     // FIXME: horrendously naive algorithm.

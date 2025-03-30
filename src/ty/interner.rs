@@ -1,6 +1,7 @@
+use std::{cell::RefCell, mem};
+
 use super::{Ty, TyKind};
 use crate::HashSet;
-use std::{cell::RefCell, mem};
 
 #[derive(Default)]
 pub struct TyInterner {
