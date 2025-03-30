@@ -17,11 +17,12 @@ mod mir;
 mod mir_interpreter;
 mod mir_optimizations;
 mod parse;
-mod span;
+mod source;
 mod symbol;
 mod ty;
 
 pub use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
+use source::span;
 
 pub const STD: &str = concat!(include_str!("std.pebble"), "\n\n");
 
