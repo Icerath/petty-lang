@@ -73,14 +73,14 @@ fn parse_leaf_expr(stream: &mut Stream) -> Result<ExprId> {
             TokenKind::Dot => 'block: {
                 _ = stream.next();
                 let field = stream.expect_ident()?;
-                if stream.peek()?.kind == TokenKind::LParen {
-                    _ = stream.next();
+                if stream.peek()?.kind != TokenKind::LParen {
                     let end = stream.lexer.current_pos();
                     let span = stream.ast.exprs[expr].span.start()..end;
                     expr = (stream.ast.exprs)
                         .push((ExprKind::FieldAccess { expr, field }).with_span(span));
                     break 'block;
                 }
+                _ = stream.next();
                 let args = stream.parse_separated(TokenKind::Comma, TokenKind::RParen)?;
                 let end = stream.lexer.current_pos();
                 let span = stream.ast.exprs[expr].span.start()..end;
