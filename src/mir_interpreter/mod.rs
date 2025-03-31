@@ -117,7 +117,7 @@ impl Interpreter<'_> {
                 }
             }
             match block.terminator {
-                Terminator::Abort => std::process::abort(),
+                Terminator::Abort => std::process::exit(1),
                 Terminator::Goto(block) => block_id = block,
                 Terminator::Branch { ref condition, fals, tru } => {
                     let condition = Self::operand(condition, &places).unwrap_bool();
