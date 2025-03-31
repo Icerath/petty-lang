@@ -33,7 +33,7 @@ fn accessible_blocks(body: &Body) -> IndexVec<BlockId, bool> {
 }
 
 fn fill_visisted(body: &Body, block: BlockId, visisted: &mut IndexVec<BlockId, bool>) {
-    if std::mem::replace(&mut visisted[block], true) {
+    if mem::replace(&mut visisted[block], true) {
         return;
     }
     body.blocks[block].terminator.with_jumps(|block| fill_visisted(body, block, visisted));
