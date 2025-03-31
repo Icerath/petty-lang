@@ -1,4 +1,4 @@
-use std::{path::PathBuf, time::Instant};
+use std::{path::Path, time::Instant};
 
 use crate::{
     ast_analysis, ast_lowering, hir_lowering, mir_interpreter, mir_optimizations,
@@ -11,17 +11,11 @@ pub fn compile_test(src: &str) -> miette::Result<()> {
     compile_inner(src, None, false, false)
 }
 
-pub fn compile(src: &str, file: Option<PathBuf>, verbose: bool) -> miette::Result<()> {
+pub fn compile(src: &str, file: Option<&Path>, verbose: bool) -> miette::Result<()> {
     compile_inner(src, file, true, verbose)
 }
 
-#[expect(clippy::needless_pass_by_value)]
-fn compile_inner(
-    src: &str,
-    file: Option<PathBuf>,
-    dump: bool,
-    verbose: bool,
-) -> miette::Result<()> {
+fn compile_inner(src: &str, file: Option<&Path>, dump: bool, verbose: bool) -> miette::Result<()> {
     macro_rules! dump {
         ($name:ident, $what:ident) => {
             if dump {
@@ -37,12 +31,12 @@ fn compile_inner(
     }
     let start = Instant::now();
     let src = crate::STD.to_string() + src;
-    let ast = parse(&src, file.as_deref())?;
+    let ast = parse(&src, file)?;
     let ty_intern = TyInterner::default();
     dump!(ast);
     let tcx = TyCtx::new(&ty_intern);
-    let analysis = ast_analysis::analyze(file.clone(), &src, &ast, &tcx)?;
-    let hir = ast_lowering::lower(&src, file.as_deref(), ast, analysis);
+    let analysis = ast_analysis::analyze(file, &src, &ast, &tcx)?;
+    let hir = ast_lowering::lower(&src, file, ast, analysis);
     dump!(hir);
     let mut mir = hir_lowering::lower(&hir);
     drop(hir);

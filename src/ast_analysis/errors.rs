@@ -25,7 +25,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
             .into_iter()
             .map(|span| (span, format!("expected `{rhs}`, found `{lhs}`").into()))
             .collect();
-        errors::error("mismatched_types", self.file.as_deref(), self.src, &labels)
+        errors::error("mismatched_types", self.file, self.src, &labels)
     }
     fn invalid_type_span(&self, expr: ExprId) -> Vec<Span> {
         let expr = &self.ast.exprs[expr];

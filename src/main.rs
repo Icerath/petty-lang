@@ -36,7 +36,7 @@ struct Args {
 fn main() {
     let args = Args::parse();
     let src = std::fs::read_to_string(&args.path).unwrap();
-    match compile::compile(&src, Some(args.path), args.verbose) {
+    match compile::compile(&src, Some(&*args.path), args.verbose) {
         Ok(()) => {}
         Err(err) => eprintln!("{err:?}"),
     }

@@ -1,6 +1,6 @@
 mod errors;
 
-use std::path::PathBuf;
+use std::path::Path;
 
 use index_vec::IndexVec;
 use miette::Result;
@@ -43,7 +43,7 @@ struct Collector<'src, 'ast, 'tcx> {
     ast: &'ast Ast,
     tcx: &'tcx TyCtx<'tcx>,
     src: &'src str,
-    file: Option<PathBuf>,
+    file: Option<&'src Path>,
 }
 
 fn setup_ty_info<'tcx>(ast: &Ast) -> TyInfo<'tcx> {
@@ -56,7 +56,7 @@ fn setup_ty_info<'tcx>(ast: &Ast) -> TyInfo<'tcx> {
 }
 
 pub fn analyze<'tcx>(
-    file: Option<PathBuf>,
+    file: Option<&Path>,
     src: &str,
     ast: &Ast,
     tcx: &'tcx TyCtx<'tcx>,
