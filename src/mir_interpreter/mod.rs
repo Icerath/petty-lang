@@ -117,6 +117,7 @@ impl Interpreter<'_> {
                 }
             }
             match block.terminator {
+                Terminator::Abort => std::process::abort(),
                 Terminator::Goto(block) => block_id = block,
                 Terminator::Branch { ref condition, fals, tru } => {
                     let condition = Self::operand(condition, &places).unwrap_bool();
@@ -129,7 +130,6 @@ impl Interpreter<'_> {
     #[allow(clippy::too_many_lines)]
     fn rvalue(&mut self, rvalue: &RValue, places: &mut IndexSlice<Place, [Value]>) -> Value {
         match rvalue {
-            RValue::Abort => std::process::abort(),
             RValue::Use(operand) => Self::operand(operand, places),
             RValue::Extend { array, value, repeat } => {
                 let value = Self::operand(value, places);

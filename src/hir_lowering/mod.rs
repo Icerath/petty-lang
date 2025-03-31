@@ -99,7 +99,10 @@ impl Lowering<'_, '_> {
         let is_unit = expr.ty.is_unit();
 
         match &expr.kind {
-            ExprKind::Abort => RValue::Abort,
+            ExprKind::Abort => {
+                let _ = self.finish_with(Terminator::Abort);
+                RValue::Use(Operand::Unreachable)
+            }
             ExprKind::StructInit => RValue::Use(Operand::Constant(Constant::StructInit)),
             ExprKind::PrintStr(str) => RValue::UnaryExpr {
                 op: UnaryOp::StrPrint,

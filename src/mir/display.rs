@@ -17,7 +17,6 @@ impl fmt::Display for Mir {
                             }
                             write!(f, "_{place:?} = ")?;
                             match rvalue {
-                                RValue::Abort => write!(f, "abort"),
                                 RValue::BinaryExpr { lhs, op, rhs } => {
                                     write!(f, "{op:?}({lhs}, {rhs})")
                                 }
@@ -43,6 +42,7 @@ impl fmt::Display for Mir {
                 }
                 write!(f, "{}", Indent(2))?;
                 match &block.terminator {
+                    Terminator::Abort => write!(f, "abort"),
                     Terminator::Goto(to) => write!(f, "goto bb{to:?}"),
                     Terminator::Branch { condition, fals, tru } => {
                         write!(f, "branch {condition}[false: bb{fals:?}, true: bb{tru:?}]")
