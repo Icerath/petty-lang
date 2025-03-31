@@ -15,7 +15,7 @@ pub fn error(error: &str, path: Option<&Path>, src: &str, labels: &[(Span, Cow<s
 }
 
 fn source(src: &str, path: Option<&Path>) -> NamedSource<String> {
-    let path = path.as_ref().and_then(|path| path.to_str()).unwrap_or("");
+    let path = path.and_then(|path| path.to_str()).unwrap_or("");
     let src = src[crate::STD.len()..].to_string();
     NamedSource::new(path, src)
 }
