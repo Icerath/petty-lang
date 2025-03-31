@@ -99,6 +99,7 @@ impl Lowering<'_, '_> {
         let is_unit = expr.ty.is_unit();
 
         match &expr.kind {
+            ExprKind::Abort => RValue::Abort,
             ExprKind::StructInit => RValue::Use(Operand::Constant(Constant::StructInit)),
             ExprKind::PrintStr(str) => RValue::UnaryExpr {
                 op: UnaryOp::StrPrint,
@@ -350,7 +351,6 @@ impl Lowering<'_, '_> {
             Lit::Char(char) => RValue::Use(Operand::Constant(Constant::Char(char))),
             Lit::String(str) => RValue::Use(Operand::Constant(Constant::Str(str))),
             Lit::Array { ref segments } => self.lower_array_lit(segments),
-            Lit::Abort => RValue::Abort,
         }
     }
 

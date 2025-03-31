@@ -30,6 +30,7 @@ impl Expr<'_> {
 
 #[derive(Debug)]
 pub enum ExprKind<'tcx> {
+    Abort,
     StructInit,
     PrintStr(Symbol), // temporary
     Ident(Symbol),
@@ -79,7 +80,6 @@ pub type UnaryOp = crate::ast::UnaryOp;
 
 #[derive(Debug)]
 pub enum Lit {
-    Abort,
     Unit,
     Bool(bool),
     Int(i64),

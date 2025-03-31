@@ -57,6 +57,7 @@ impl Writer<'_, '_> {
         // FIXME: take precedence into account to use minimum parens needed
         let inside_expr = mem::replace(&mut self.inside_expr, true);
         match &self.hir.exprs[expr].kind {
+            ExprKind::Abort => self.f.push_str("abort"),
             ExprKind::StructInit => self.f.push_str("<struct init>"),
             ExprKind::PrintStr(s) => {
                 self.f.push_str("print ");
@@ -207,7 +208,6 @@ impl Writer<'_, '_> {
 
     fn display_lit(&mut self, lit: &Lit) {
         match lit {
-            Lit::Abort => self.f.push_str("abort"),
             Lit::Unit => self.f.push_str("()"),
             Lit::Bool(bool) => _ = write!(self.f, "{bool}"),
             Lit::Int(int) => _ = write!(self.f, "{int}"),

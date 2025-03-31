@@ -6,7 +6,7 @@ use crate::{
     ast::{self, Ast, BinOpKind, BinaryOp},
     ast_analysis::TyInfo,
     errors,
-    hir::{self, Expr, ExprKind, Hir, IfStmt, Lit},
+    hir::{self, Expr, ExprKind, Hir, IfStmt},
     symbol::Symbol,
     ty::{Ty, TyKind},
 };
@@ -182,8 +182,8 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
                 let display = ExprKind::PrintStr(self.assert_failed_error(expr));
                 let display = self.hir.exprs.push(Expr { ty: &TyKind::Unit, kind: display });
 
-                let abort = (self.hir.exprs)
-                    .push(Expr { ty: &TyKind::Never, kind: ExprKind::Literal(Lit::Abort) });
+                let abort =
+                    (self.hir.exprs).push(Expr { ty: &TyKind::Never, kind: ExprKind::Abort });
 
                 let body = ThinVec::from([display, abort]);
                 let condition_kind =
@@ -295,7 +295,7 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
 
     fn lower_literal(&mut self, lit: &ast::Lit, expr_id: ast::ExprId) -> hir::Expr<'tcx> {
         let lit = match lit {
-            &ast::Lit::Abort => hir::Lit::Abort,
+            &ast::Lit::Abort => return hir::Expr { ty: &TyKind::Never, kind: ExprKind::Abort },
             &ast::Lit::Unit => hir::Lit::Unit,
             &ast::Lit::Bool(bool) => hir::Lit::Bool(bool),
             &ast::Lit::Int(int) => hir::Lit::Int(int),
