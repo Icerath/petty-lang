@@ -10,20 +10,20 @@ pub fn optimize(mir: &mut Mir, body_id: BodyId) {
         return;
     }
     let visisted = accessible_blocks(body);
-    let accessible: Vec<_> =
-        visisted.iter_enumerated().filter_map(|(id, &visible)| visible.then_some(id)).collect();
-    for (id, block) in &mut body.blocks.iter_mut_enumerated() {
-        if !visisted[id] {
-            continue;
-        }
-        block.terminator.with_jumps_mut(|jump| {
-            *jump = accessible.binary_search(jump).unwrap().into();
-        });
-    }
+
     body.blocks = mem::take(&mut body.blocks)
         .into_iter_enumerated()
         .filter_map(|(id, block)| visisted[id].then_some(block))
         .collect();
+
+    let new_locations: Vec<_> =
+        visisted.iter_enumerated().filter_map(|(id, &visible)| visible.then_some(id)).collect();
+
+    for block in &mut body.blocks.iter_mut() {
+        block.terminator.with_jumps_mut(|jump| {
+            *jump = new_locations.binary_search(jump).unwrap().into();
+        });
+    }
 }
 
 fn accessible_blocks(body: &Body) -> IndexVec<BlockId, bool> {
