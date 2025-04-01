@@ -26,6 +26,9 @@ impl Value {
     fn unwrap_int(&mut self) -> i64 {
         value!(Int, self)
     }
+    fn unwrap_struct(&mut self) -> Rc<Box<[Value]>> {
+        value!(Struct, self)
+    }
     fn unwrap_int_usize(&mut self) -> usize {
         let int = self.unwrap_int();
         int.try_into().unwrap_or_else(|_| panic!("{int}"))
@@ -85,12 +88,8 @@ enum Value {
     Char(char),
     Str(ArcStr),
     Fn(BodyId),
-    #[expect(dead_code)]
     Struct(Rc<Box<[Value]>>),
-    ArrayRef {
-        array: Array,
-        index: u32,
-    },
+    ArrayRef { array: Array, index: u32 },
 }
 
 impl Interpreter<'_> {
@@ -146,6 +145,11 @@ impl Interpreter<'_> {
                 let mut lhs = Self::operand(lhs, places);
                 let mut rhs = Self::operand(rhs, places);
                 match op {
+                    BinaryOp::StructField => {
+                        let fields = lhs.unwrap_struct();
+                        let index = rhs.unwrap_int_usize();
+                        fields[index].clone()
+                    }
                     BinaryOp::IntAdd => Value::Int(lhs.unwrap_int() + rhs.unwrap_int()),
                     BinaryOp::IntSub => Value::Int(lhs.unwrap_int() - rhs.unwrap_int()),
                     BinaryOp::IntMul => Value::Int(lhs.unwrap_int() * rhs.unwrap_int()),

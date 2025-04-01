@@ -1,5 +1,7 @@
 struct Point(x: int, y: int)
 
-let point = Point(1, 2);
-print(int_to_str(point.x));
-print(int_to_str(point.y));
+fn main() {
+    let point = Point(1, 2);
+    print(int_to_str(point.x));
+    print(int_to_str(point.y));
+}

@@ -103,11 +103,11 @@ impl Lowering<'_, '_> {
                 let _ = self.finish_with(Terminator::Abort);
                 RValue::Use(Operand::Unreachable)
             }
-            ExprKind::Field { expr, field } => {
-                _ = expr;
-                _ = field;
-                todo!()
-            }
+            &ExprKind::Field { expr, field } => RValue::BinaryExpr {
+                lhs: self.lower(expr),
+                op: mir::BinaryOp::StructField,
+                rhs: Operand::Constant(Constant::Int(field.try_into().unwrap())),
+            },
             ExprKind::StructInit => RValue::Use(Operand::Constant(Constant::StructInit)),
             ExprKind::PrintStr(str) => RValue::UnaryExpr {
                 op: UnaryOp::StrPrint,
