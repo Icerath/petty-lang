@@ -13,7 +13,7 @@ use index_vec::IndexSlice;
 macro_rules! value {
     ($ty:ident, $value: expr) => {{
         match $value {
-            Value::$ty(out) => out.clone(),
+            Value::$ty(out) => out,
             other => unreachable!("expected {}, found {other:?}", stringify!($ty)),
         }
     }};
@@ -21,12 +21,12 @@ macro_rules! value {
 
 impl Value {
     fn unwrap_bool(&mut self) -> bool {
-        value!(Bool, self)
+        *value!(Bool, self)
     }
     fn unwrap_int(&mut self) -> i64 {
-        value!(Int, self)
+        *value!(Int, self)
     }
-    fn unwrap_struct(&mut self) -> Rc<Box<[Value]>> {
+    fn unwrap_struct(&mut self) -> &Rc<Box<[Value]>> {
         value!(Struct, self)
     }
     fn unwrap_int_usize(&mut self) -> usize {
@@ -34,9 +34,9 @@ impl Value {
         int.try_into().unwrap_or_else(|_| panic!("{int}"))
     }
     fn unwrap_char(&mut self) -> char {
-        value!(Char, self)
+        *value!(Char, self)
     }
-    fn unwrap_str(&mut self) -> ArcStr {
+    fn unwrap_str(&mut self) -> &ArcStr {
         value!(Str, self)
     }
     fn unwrap_range(&mut self) -> Range<i64> {
@@ -50,9 +50,9 @@ impl Value {
         usize::try_from(range.start).unwrap()..usize::try_from(range.end).unwrap()
     }
     fn unwrap_fn(&mut self) -> BodyId {
-        value!(Fn, self)
+        *value!(Fn, self)
     }
-    fn unwrap_array(&mut self) -> Array {
+    fn unwrap_array(&mut self) -> &Array {
         value!(Array, self)
     }
     fn unwrap_arrayref(&self) -> (Array, u32) {
@@ -202,7 +202,7 @@ impl Interpreter<'_> {
                     }
                     BinaryOp::ArrayIndexRef => {
                         let index = rhs.unwrap_int_usize().try_into().unwrap();
-                        Value::ArrayRef { array: lhs.unwrap_array(), index }
+                        Value::ArrayRef { array: lhs.unwrap_array().clone(), index }
                     }
                 }
             }
