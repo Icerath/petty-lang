@@ -32,6 +32,7 @@ impl Expr<'_> {
 pub enum ExprKind<'tcx> {
     Abort,
     StructInit,
+    Field { expr: ExprId, field: usize },
     PrintStr(Symbol), // temporary
     Ident(Symbol),
     Binary { lhs: ExprId, op: BinaryOp, rhs: ExprId },

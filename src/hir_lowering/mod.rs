@@ -103,6 +103,11 @@ impl Lowering<'_, '_> {
                 let _ = self.finish_with(Terminator::Abort);
                 RValue::Use(Operand::Unreachable)
             }
+            ExprKind::Field { expr, field } => {
+                _ = expr;
+                _ = field;
+                todo!()
+            }
             ExprKind::StructInit => RValue::Use(Operand::Constant(Constant::StructInit)),
             ExprKind::PrintStr(str) => RValue::UnaryExpr {
                 op: UnaryOp::StrPrint,

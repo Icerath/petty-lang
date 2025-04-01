@@ -58,6 +58,10 @@ impl Writer<'_, '_> {
         let inside_expr = mem::replace(&mut self.inside_expr, true);
         match &self.hir.exprs[expr].kind {
             ExprKind::Abort => self.f.push_str("abort"),
+            &ExprKind::Field { expr, field } => {
+                self.display_expr(expr);
+                _ = write!(self.f, ".{field}");
+            }
             ExprKind::StructInit => self.f.push_str("<struct init>"),
             ExprKind::PrintStr(s) => {
                 self.f.push_str("print ");
