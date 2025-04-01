@@ -8,14 +8,14 @@ use crate::{
 
 #[cfg(test)]
 pub fn compile_test(src: &str) -> miette::Result<()> {
-    compile_inner(src, None, false, false)
+    compile_inner(src, None, false, 0)
 }
 
-pub fn compile(src: &str, file: Option<&Path>, verbose: bool) -> miette::Result<()> {
+pub fn compile(src: &str, file: Option<&Path>, verbose: u8) -> miette::Result<()> {
     compile_inner(src, file, true, verbose)
 }
 
-fn compile_inner(src: &str, file: Option<&Path>, dump: bool, verbose: bool) -> miette::Result<()> {
+fn compile_inner(src: &str, file: Option<&Path>, dump: bool, verbose: u8) -> miette::Result<()> {
     macro_rules! dump {
         ($name:ident, $what:ident) => {
             if dump {
@@ -43,12 +43,18 @@ fn compile_inner(src: &str, file: Option<&Path>, dump: bool, verbose: bool) -> m
     dump!(unoptimized_mir, mir);
     mir_optimizations::optimize(&mut mir);
     dump!(mir);
-    if verbose {
-        eprintln!("Time to compile: {:?}", start.elapsed());
+    if verbose > 1 {
+        eprintln!("type interner entries: {}", ty_intern.len());
+        eprintln!("type interner cache hits: {}", ty_intern.cache_hits());
+    }
+    if verbose > 0 {
+        eprintln!("compile time: {:?}", start.elapsed());
+        eprintln!();
     }
     mir_interpreter::interpret(&mir);
-    if verbose {
-        eprintln!("Total time: {:?}", start.elapsed());
+    if verbose > 0 {
+        eprintln!();
+        eprintln!("total time: {:?}", start.elapsed());
     }
     Ok(())
 }

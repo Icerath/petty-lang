@@ -29,8 +29,8 @@ pub const STD: &str = concat!(include_str!("std.pebble"), "\n\n");
 #[derive(Parser)]
 struct Args {
     path: PathBuf,
-    #[arg(long, short)]
-    verbose: bool,
+    #[arg(short, long, action = clap::ArgAction::Count)]
+    verbose: u8,
 }
 
 fn main() {
