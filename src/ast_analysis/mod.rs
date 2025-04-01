@@ -99,11 +99,11 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
             let ExprKind::Struct { ident, fields, span } = &self.ast.exprs[*id].kind else {
                 continue;
             };
-
+            let symbols: ThinVec<_> = fields.iter().map(|field| field.ident).collect();
             let fields: ThinVec<_> =
                 fields.iter().map(|field| self.read_ast_ty(field.ty)).collect();
             let params = fields.clone();
-            let struct_ty = self.tcx.new_struct(*ident, fields);
+            let struct_ty = self.tcx.new_struct(*ident, symbols, fields);
             self.bodies.last_mut().unwrap().ty_names.insert(*ident, struct_ty);
             self.ty_info.struct_types.insert(*span, struct_ty);
 
@@ -399,7 +399,15 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 &TyKind::Never
             }
             ExprKind::Break => &TyKind::Never,
-            ExprKind::FieldAccess { .. } => todo!(),
+            ExprKind::FieldAccess { expr, field } => {
+                let expr = self.tcx.infer_shallow(self.analyze_expr(expr)?);
+                let TyKind::Struct { symbols, fields, .. } = expr else { panic!() };
+                let field = symbols
+                    .iter()
+                    .position(|&s| s == field)
+                    .unwrap_or_else(|| panic!("unknown field: {field}"));
+                fields[field]
+            }
             ExprKind::MethodCall { .. } => todo!(),
         };
         self.ty_info.expr_tys[id] = ty;

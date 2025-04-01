@@ -3,6 +3,7 @@ use std::fmt;
 use thin_vec::ThinVec;
 
 use super::{Function, GenericId, StructId, Ty, TyCtx, TyVid};
+use crate::symbol::Symbol;
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum TyKind<'tcx> {
@@ -16,7 +17,7 @@ pub enum TyKind<'tcx> {
     RangeInclusive,
     Array(Ty<'tcx>),
     Function(Function<'tcx>),
-    Struct { id: StructId, fields: ThinVec<Ty<'tcx>> },
+    Struct { id: StructId, symbols: ThinVec<Symbol>, fields: ThinVec<Ty<'tcx>> },
     Generic(GenericId),
     Infer(TyVid),
 }
@@ -57,9 +58,9 @@ impl<'tcx> TyKind<'tcx> {
                 let func = Function { params, ret };
                 tcx.intern(TyKind::Function(func))
             }
-            Self::Struct { ref fields, id } => {
+            Self::Struct { ref fields, ref symbols, id } => {
                 let fields = fields.iter().map(|field| field.replace_generics(tcx, f)).collect();
-                tcx.intern(Self::Struct { id, fields })
+                tcx.intern(Self::Struct { id, symbols: symbols.clone(), fields })
             }
             Self::Infer(..) => unreachable!(),
             Self::Unit
