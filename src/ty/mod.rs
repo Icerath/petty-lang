@@ -83,11 +83,11 @@ impl<'tcx> TyCtx<'tcx> {
     pub fn infer_deep(&self, ty: Ty<'tcx>) -> Ty<'tcx> {
         self.inner.borrow().infer_deep(ty, self.interner)
     }
-    pub fn try_eq(&self, lhs: Ty<'tcx>, rhs: Ty<'tcx>) -> Result<(), [Ty<'tcx>; 2]> {
-        self.inner.borrow_mut().try_eq(lhs, rhs)
+    pub fn eq(&self, lhs: Ty<'tcx>, rhs: Ty<'tcx>) -> Result<(), [Ty<'tcx>; 2]> {
+        self.inner.borrow_mut().eq(lhs, rhs)
     }
-    pub fn try_subtype(&self, lhs: Ty<'tcx>, rhs: Ty<'tcx>) -> Result<(), [Ty<'tcx>; 2]> {
-        self.inner.borrow_mut().subtype(lhs, rhs)
+    pub fn sub(&self, lhs: Ty<'tcx>, rhs: Ty<'tcx>) -> Result<(), [Ty<'tcx>; 2]> {
+        self.inner.borrow_mut().sub(lhs, rhs)
     }
 }
 
@@ -133,16 +133,16 @@ impl<'tcx> TyCtxInner<'tcx> {
         }
     }
 
-    fn try_eq(&mut self, lhs: Ty<'tcx>, rhs: Ty<'tcx>) -> Result<(), [Ty<'tcx>; 2]> {
+    fn eq(&mut self, lhs: Ty<'tcx>, rhs: Ty<'tcx>) -> Result<(), [Ty<'tcx>; 2]> {
         match (lhs, rhs) {
             (TyKind::Infer(l), TyKind::Infer(r)) if l == r => Ok(()),
             (TyKind::Infer(var), _) => self.insertl(*var, rhs),
             (_, TyKind::Infer(var)) => self.insertr(lhs, *var),
-            (TyKind::Array(lhs), TyKind::Array(rhs)) => self.try_eq(lhs, rhs),
+            (TyKind::Array(lhs), TyKind::Array(rhs)) => self.eq(lhs, rhs),
             (TyKind::Function(lhs), TyKind::Function(rhs)) => {
                 assert_eq!(lhs.params.len(), rhs.params.len());
-                lhs.params.iter().zip(&rhs.params).try_for_each(|(l, r)| self.try_eq(l, r))?;
-                self.try_eq(lhs.ret, rhs.ret)
+                lhs.params.iter().zip(&rhs.params).try_for_each(|(l, r)| self.eq(l, r))?;
+                self.eq(lhs.ret, rhs.ret)
             }
             (lhs, rhs) if lhs == rhs => Ok(()),
             (..) => Err([lhs, rhs]),
@@ -151,8 +151,8 @@ impl<'tcx> TyCtxInner<'tcx> {
 
     /// Says that `lhs` must be a subtype of `rhs`.
     /// never is a subtype of everything.
-    fn subtype(&mut self, lhs: Ty<'tcx>, rhs: Ty<'tcx>) -> Result<(), [Ty<'tcx>; 2]> {
-        let Err([lhs, rhs]) = self.try_eq(lhs, rhs) else { return Ok(()) };
+    fn sub(&mut self, lhs: Ty<'tcx>, rhs: Ty<'tcx>) -> Result<(), [Ty<'tcx>; 2]> {
+        let Err([lhs, rhs]) = self.eq(lhs, rhs) else { return Ok(()) };
         if lhs.is_never() { Ok(()) } else { Err([lhs, rhs]) }
     }
 
@@ -176,7 +176,7 @@ impl<'tcx> TyCtxInner<'tcx> {
                     self.subs[var] = ty;
                 }
             }
-            return if is_left { self.try_eq(sub, ty) } else { self.try_eq(ty, sub) };
+            return if is_left { self.eq(sub, ty) } else { self.eq(ty, sub) };
         }
         assert!(!self.occurs_in(var, ty), "Infinite type: {var:?} - {ty:?}");
         self.subs[var] = ty;

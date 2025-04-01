@@ -189,19 +189,19 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
     }
 
     fn eq(&self, lhs: Ty<'tcx>, rhs: Ty<'tcx>, expr: ExprId) -> Result<()> {
-        self.tcx.try_eq(lhs, rhs).map_err(|[lhs, rhs]| self.subtype_err(lhs, rhs, expr))
+        self.tcx.eq(lhs, rhs).map_err(|[lhs, rhs]| self.subtype_err(lhs, rhs, expr))
     }
 
     fn eq_block(&self, lhs: Ty<'tcx>, rhs: Ty<'tcx>, block: BlockId) -> Result<()> {
-        self.tcx.try_eq(lhs, rhs).map_err(|[lhs, rhs]| self.subtype_err_block(lhs, rhs, block))
+        self.tcx.eq(lhs, rhs).map_err(|[lhs, rhs]| self.subtype_err_block(lhs, rhs, block))
     }
 
     fn subtype(&self, lhs: Ty<'tcx>, rhs: Ty<'tcx>, expr: ExprId) -> Result<()> {
-        self.tcx.try_subtype(lhs, rhs).map_err(|[lhs, rhs]| self.subtype_err(lhs, rhs, expr))
+        self.tcx.sub(lhs, rhs).map_err(|[lhs, rhs]| self.subtype_err(lhs, rhs, expr))
     }
 
     fn subtype_block(&self, lhs: Ty<'tcx>, rhs: Ty<'tcx>, block: BlockId) -> Result<()> {
-        self.tcx.try_subtype(lhs, rhs).map_err(|[lhs, rhs]| self.subtype_err_block(lhs, rhs, block))
+        self.tcx.sub(lhs, rhs).map_err(|[lhs, rhs]| self.subtype_err_block(lhs, rhs, block))
     }
 
     #[expect(clippy::too_many_lines)]
