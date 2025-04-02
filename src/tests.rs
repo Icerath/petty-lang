@@ -27,4 +27,4 @@ test! { structs }
 test! { "expected `!`, found `int`" fail_never }
 test! { "expected `int`, found `str`" fail_variables }
 test! { "expected `int`, found `str`" fail_return }
-// test! { "assertion failed" fail_assert }
+test! { "assertion failed" fail_assert }

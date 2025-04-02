@@ -116,6 +116,9 @@ impl Interpreter<'_> {
                 }
             }
             match block.terminator {
+                #[cfg(test)]
+                Terminator::Abort => std::panic::panic_any("assertion failed"),
+                #[cfg(not(test))]
                 Terminator::Abort => std::process::exit(1),
                 Terminator::Goto(block) => block_id = block,
                 Terminator::Branch { ref condition, fals, tru } => {
