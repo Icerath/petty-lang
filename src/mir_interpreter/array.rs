@@ -30,3 +30,9 @@ impl fmt::Debug for Array {
         self.with(|array| array.fmt(f))
     }
 }
+
+impl FromIterator<Value> for Array {
+    fn from_iter<I: IntoIterator<Item = Value>>(iter: I) -> Self {
+        Self { inner: Rc::new(Cell::new(iter.into_iter().collect())) }
+    }
+}

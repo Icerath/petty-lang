@@ -6,8 +6,8 @@ use crate::{
     HashMap,
     hir::{self, ArraySeg, ExprId, ExprKind, Hir, LValue, Lit},
     mir::{
-        self, Block, BlockId, Body, BodyId, Constant, Mir, Operand, Place, RValue, Statement,
-        Terminator, UnaryOp,
+        self, Block, BlockId, Body, BodyId, Constant, Deref, Mir, Operand, Place, RValue,
+        Statement, Terminator, UnaryOp,
     },
     symbol::Symbol,
     ty::TyKind,
@@ -229,11 +229,7 @@ impl Lowering<'_, '_> {
             ExprKind::Assignment { lhs, expr } => {
                 let rvalue = self.lower_inner(*expr);
                 let (place, deref) = self.get_lvalue_place(lhs, true);
-                let stmt = if deref {
-                    Statement::deref_assign(place, rvalue)
-                } else {
-                    Statement::assign(place, rvalue)
-                };
+                let stmt = Statement::Assign { place, deref, rvalue };
                 self.current().stmts.push(stmt);
                 RValue::Use(Operand::Constant(Constant::Unit))
             }
@@ -304,13 +300,27 @@ impl Lowering<'_, '_> {
         }
     }
 
-    fn get_lvalue_place(&mut self, lvalue: &LValue, want_ref: bool) -> (Place, bool) {
+    fn get_lvalue_place(&mut self, lvalue: &LValue, want_ref: bool) -> (Place, Option<Deref>) {
         match lvalue {
-            hir::LValue::Name(name) => (self.bodies.last().unwrap().variables[name], false),
+            hir::LValue::Name(name) => (self.bodies.last().unwrap().variables[name], None),
             hir::LValue::Field { expr, field } => {
-                _ = expr;
-                _ = field;
-                todo!()
+                let lhs = Operand::Place(self.get_lvalue_place(expr, false).0);
+                let rhs = Operand::Constant(Constant::Int((*field).try_into().unwrap()));
+                let place = self.new_place();
+
+                if want_ref {
+                    self.current().stmts.push(Statement::assign(
+                        place,
+                        RValue::BinaryExpr { lhs, op: mir::BinaryOp::StructFieldRef, rhs },
+                    ));
+                    (place, Some(Deref::Field))
+                } else {
+                    self.current().stmts.push(Statement::assign(
+                        place,
+                        RValue::BinaryExpr { lhs, op: mir::BinaryOp::StructField, rhs },
+                    ));
+                    (place, None)
+                }
             }
             hir::LValue::Index { indexee, index } => {
                 let rhs = self.lower(*index);
@@ -322,13 +332,13 @@ impl Lowering<'_, '_> {
                         place,
                         RValue::BinaryExpr { lhs, op: mir::BinaryOp::ArrayIndexRef, rhs },
                     ));
-                    (place, true)
+                    (place, Some(Deref::Array))
                 } else {
                     self.current().stmts.push(Statement::assign(
                         place,
                         RValue::BinaryExpr { lhs, op: mir::BinaryOp::ArrayIndex, rhs },
                     ));
-                    (place, false)
+                    (place, None)
                 }
             }
         }

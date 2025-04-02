@@ -3,7 +3,6 @@ mod array;
 use std::{
     io::{self, Write},
     ops::Range,
-    rc::Rc,
 };
 
 use arcstr::ArcStr;
@@ -25,9 +24,6 @@ impl Value {
     }
     fn unwrap_int(&mut self) -> i64 {
         *value!(Int, self)
-    }
-    fn unwrap_struct(&mut self) -> &Rc<Box<[Value]>> {
-        value!(Struct, self)
     }
     fn unwrap_int_usize(&mut self) -> usize {
         let int = self.unwrap_int();
@@ -61,10 +57,19 @@ impl Value {
             _ => unreachable!(),
         }
     }
+    fn unwrap_struct(&mut self) -> &Array {
+        value!(Struct, self)
+    }
+    fn unwrap_fieldref(&self) -> (&Array, u32) {
+        match self {
+            Value::FieldRef { fields, field } => (fields, *field),
+            _ => unreachable!(),
+        }
+    }
 }
 
 use crate::mir::{
-    BinaryOp, BlockId, BodyId, Constant, Mir, Operand, Place, RValue, Statement, Terminator,
+    BinaryOp, BlockId, BodyId, Constant, Deref, Mir, Operand, Place, RValue, Statement, Terminator,
     UnaryOp,
 };
 
@@ -88,8 +93,9 @@ enum Value {
     Char(char),
     Str(ArcStr),
     Fn(BodyId),
-    Struct(Rc<Box<[Value]>>),
+    Struct(Array),
     ArrayRef { array: Array, index: u32 },
+    FieldRef { fields: Array, field: u32 },
 }
 
 impl Interpreter<'_> {
@@ -106,11 +112,16 @@ impl Interpreter<'_> {
                 match *stmt {
                     Statement::Assign { place, deref, ref rvalue } => {
                         let rvalue = self.rvalue(rvalue, &mut places);
-                        if deref {
-                            let (array, index) = places[place].unwrap_arrayref();
-                            array.set(index as _, rvalue);
-                        } else {
-                            places[place] = rvalue;
+                        match deref {
+                            None => places[place] = rvalue,
+                            Some(Deref::Array) => {
+                                let (array, index) = places[place].unwrap_arrayref();
+                                array.set(index as _, rvalue);
+                            }
+                            Some(Deref::Field) => {
+                                let (fields, field) = places[place].unwrap_fieldref();
+                                fields.set(field as _, rvalue);
+                            }
                         }
                     }
                 }
@@ -148,11 +159,6 @@ impl Interpreter<'_> {
                 let mut lhs = Self::operand(lhs, places);
                 let mut rhs = Self::operand(rhs, places);
                 match op {
-                    BinaryOp::StructField => {
-                        let fields = lhs.unwrap_struct();
-                        let index = rhs.unwrap_int_usize();
-                        fields[index].clone()
-                    }
                     BinaryOp::IntAdd => Value::Int(lhs.unwrap_int() + rhs.unwrap_int()),
                     BinaryOp::IntSub => Value::Int(lhs.unwrap_int() - rhs.unwrap_int()),
                     BinaryOp::IntMul => Value::Int(lhs.unwrap_int() * rhs.unwrap_int()),
@@ -207,6 +213,15 @@ impl Interpreter<'_> {
                         let index = rhs.unwrap_int_usize().try_into().unwrap();
                         Value::ArrayRef { array: lhs.unwrap_array().clone(), index }
                     }
+                    BinaryOp::StructField => {
+                        let index = rhs.unwrap_int_usize();
+                        lhs.unwrap_struct().get(index).unwrap()
+                    }
+                    BinaryOp::StructFieldRef => {
+                        let fields = lhs.unwrap_struct().clone();
+                        let field = rhs.unwrap_int_usize().try_into().unwrap();
+                        Value::FieldRef { fields, field }
+                    }
                 }
             }
             RValue::UnaryExpr { op, operand } => {
@@ -247,7 +262,7 @@ impl Interpreter<'_> {
                 Constant::Char(char) => Value::Char(char),
                 Constant::Str(str) => Value::Str(str.as_str().into()),
                 Constant::Func(body) => Value::Fn(body),
-                Constant::StructInit => Value::Struct(Rc::new(places.iter().cloned().collect())),
+                Constant::StructInit => Value::Struct(places.iter().cloned().collect()),
             },
             Operand::Place(place) => places[place].clone(),
             Operand::Unreachable => unreachable!(),

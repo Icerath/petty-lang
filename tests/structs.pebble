@@ -2,5 +2,6 @@ struct Point(x: int, y: int)
 
 fn main() {
     let point = Point(1, 2);
-    assert point.x + point.y == 3;
+    point.x += 2;
+    assert point.x + point.y == 5;
 }

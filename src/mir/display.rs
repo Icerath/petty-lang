@@ -12,7 +12,7 @@ impl fmt::Display for Mir {
                     write!(f, "{}", Indent(2))?;
                     match statement {
                         Statement::Assign { place, deref, rvalue } => {
-                            if *deref {
+                            if deref.is_some() {
                                 write!(f, "deref ")?;
                             }
                             write!(f, "_{place:?} = ")?;
