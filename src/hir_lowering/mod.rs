@@ -98,13 +98,13 @@ impl Lowering<'_, '_> {
         let expr = &self.hir.exprs[id];
         let is_unit = expr.ty.is_unit();
 
-        match &expr.kind {
+        match expr.kind {
             ExprKind::Unreachable => RValue::Use(Operand::Unreachable),
             ExprKind::Abort => {
                 let _ = self.finish_with(Terminator::Abort);
                 RValue::Use(Operand::Unreachable)
             }
-            &ExprKind::Field { expr, field } => RValue::BinaryExpr {
+            ExprKind::Field { expr, field } => RValue::BinaryExpr {
                 lhs: self.lower(expr),
                 op: mir::BinaryOp::StructField,
                 rhs: Operand::Constant(Constant::Int(field.try_into().unwrap())),
@@ -112,36 +112,36 @@ impl Lowering<'_, '_> {
             ExprKind::StructInit => RValue::Use(Operand::Constant(Constant::StructInit)),
             ExprKind::PrintStr(str) => RValue::UnaryExpr {
                 op: UnaryOp::StrPrint,
-                operand: Operand::Constant(Constant::Str(*str)),
+                operand: Operand::Constant(Constant::Str(str)),
             },
-            ExprKind::Literal(lit) => self.lit_rvalue(lit),
+            ExprKind::Literal(ref lit) => self.lit_rvalue(lit),
             ExprKind::Unary { op, expr } => {
-                let operand = self.lower(*expr);
+                let operand = self.lower(expr);
                 let op = match op {
                     hir::UnaryOp::Not => mir::UnaryOp::BoolNot,
                     hir::UnaryOp::Neg => mir::UnaryOp::IntNeg,
                 };
                 RValue::UnaryExpr { op, operand }
             }
-            ExprKind::FnDecl(decl) => {
-                let hir::FnDecl { ident, params, body, .. } = &**decl;
+            ExprKind::FnDecl(ref decl) => {
+                let hir::FnDecl { ident, ref params, ref body, .. } = **decl;
 
                 assert!(self.current().stmts.is_empty(), "TODO");
                 let body_id = self.mir.bodies.push(Body::new(params.len()));
-                self.current().functions.insert(*ident, body_id);
+                self.current().functions.insert(ident, body_id);
                 self.bodies.push(BodyInfo::new(body_id));
                 if self.bodies.len() == 2 && ident.as_str() == "main" {
                     self.mir.main_body = Some(body_id);
                 }
 
-                if self.bodies.len() == 2 && self.try_instrinsic(*ident) {
+                if self.bodies.len() == 2 && self.try_instrinsic(ident) {
                 } else {
                     for (i, param) in params.iter().enumerate() {
                         self.current().variables.insert(param.ident, Place::from(i));
                     }
                     let mut last = Operand::UNIT;
-                    for expr in body {
-                        last = self.lower(*expr);
+                    for &expr in body {
+                        last = self.lower(expr);
                     }
                     self.finish_with(Terminator::Return(last));
                 }
@@ -149,18 +149,18 @@ impl Lowering<'_, '_> {
                 RValue::Use(Operand::UNIT)
             }
             ExprKind::Let { ident, expr } => {
-                let rvalue = self.lower_inner(*expr);
+                let rvalue = self.lower_inner(expr);
                 let place = self.mir.bodies[self.bodies.last().unwrap().body].new_place();
-                self.current().variables.insert(*ident, place);
+                self.current().variables.insert(ident, place);
                 self.current().stmts.push(Statement::assign(place, rvalue));
                 RValue::Use(Operand::UNIT)
             }
             ExprKind::Return(expr) => {
-                let place = self.lower(*expr);
+                let place = self.lower(expr);
                 self.finish_with(Terminator::Return(place));
                 RValue::Use(Operand::Unreachable)
             }
-            ExprKind::Loop(block) => {
+            ExprKind::Loop(ref block) => {
                 let loop_block = self.finish_next();
 
                 let prev_loop = mem::take(&mut self.current().breaks);
@@ -179,7 +179,7 @@ impl Lowering<'_, '_> {
                 }
                 RValue::Use(Operand::UNIT)
             }
-            ExprKind::If { arms, els } => {
+            ExprKind::If { ref arms, ref els } => {
                 let mut jump_to_ends = Vec::with_capacity(arms.len());
                 let out_place = self.new_place();
                 for arm in arms {
@@ -226,14 +226,14 @@ impl Lowering<'_, '_> {
                     RValue::Use(Operand::Place(out_place))
                 }
             }
-            ExprKind::Assignment { lhs, expr } => {
-                let rvalue = self.lower_inner(*expr);
+            ExprKind::Assignment { ref lhs, expr } => {
+                let rvalue = self.lower_inner(expr);
                 let (place, deref) = self.get_lvalue_place(lhs, true);
                 let stmt = Statement::Assign { place, deref, rvalue };
                 self.current().stmts.push(stmt);
                 RValue::Use(Operand::Constant(Constant::Unit))
             }
-            &ExprKind::Binary { lhs, op, rhs } => {
+            ExprKind::Binary { lhs, op, rhs } => {
                 let ty = self.hir.exprs[lhs].ty;
                 let op = match (ty, op) {
                     (TyKind::Int, op) => match op {
@@ -265,12 +265,12 @@ impl Lowering<'_, '_> {
 
                 RValue::BinaryExpr { lhs, op, rhs }
             }
-            ExprKind::Ident(ident) => match self.load_ident(*ident) {
+            ExprKind::Ident(ident) => match self.load_ident(ident) {
                 RValue::Use(operand) => RValue::Use(operand),
                 rvalue => rvalue,
             },
-            ExprKind::FnCall { function, args } => {
-                let function = self.lower(*function);
+            ExprKind::FnCall { function, ref args } => {
+                let function = self.lower(function);
                 let args = args.iter().map(|arg| self.lower(*arg)).collect();
 
                 RValue::Call { function, args }
@@ -281,22 +281,22 @@ impl Lowering<'_, '_> {
                 RValue::Use(Operand::Unreachable)
             }
             ExprKind::Index { expr, index } => {
-                let lhs = self.lower(*expr);
-                let rhs = self.lower(*index);
-                let op = if self.hir.exprs[*expr].ty.is_str() {
-                    if self.hir.exprs[*index].ty.is_range() {
+                let lhs = self.lower(expr);
+                let rhs = self.lower(index);
+                let op = if self.hir.exprs[expr].ty.is_str() {
+                    if self.hir.exprs[index].ty.is_range() {
                         mir::BinaryOp::StrIndexSlice
                     } else {
                         mir::BinaryOp::StrIndex
                     }
-                } else if self.hir.exprs[*index].ty.is_range() {
+                } else if self.hir.exprs[index].ty.is_range() {
                     mir::BinaryOp::ArrayIndexRange
                 } else {
                     mir::BinaryOp::ArrayIndex
                 };
                 RValue::BinaryExpr { lhs, op, rhs }
             }
-            ExprKind::Block(exprs) => self.block_expr(exprs),
+            ExprKind::Block(ref exprs) => self.block_expr(exprs),
         }
     }
 
