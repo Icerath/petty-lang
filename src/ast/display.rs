@@ -32,31 +32,31 @@ impl fmt::Display for Ast {
 impl Writer<'_> {
     fn display_expr(&mut self, expr: ExprId) {
         let inside_expr = mem::replace(&mut self.inside_expr, true);
-        match &self.ast.exprs[expr].kind {
+        match self.ast.exprs[expr].kind {
             ExprKind::Unreachable => "unreachable".write(self),
             ExprKind::Assert(expr) => ("assert ", expr).write(self),
-            ExprKind::Struct { ident, fields, .. } => ("struct ", ident, fields).write(self),
+            ExprKind::Struct { ident, ref fields, .. } => ("struct ", ident, fields).write(self),
             ExprKind::Break => "break".write(self),
             ExprKind::Return(expr) => ("return", expr.map(|expr| (" ", expr))).write(self),
-            ExprKind::Lit(lit) => lit.write(self),
+            ExprKind::Lit(ref lit) => lit.write(self),
             ExprKind::Binary { lhs, op, rhs } => {
                 (inside_expr.then_some("("), lhs, " ", op, " ", rhs, inside_expr.then_some(")"))
                     .write(self);
             }
             ExprKind::Ident(ident) => ident.write(self),
-            ExprKind::FnCall { function, args } => {
+            ExprKind::FnCall { function, ref args } => {
                 (function, "(", Sep(args, ", "), ")").write(self);
             }
             ExprKind::Index { expr, index } => (expr, "[", index, "]").write(self),
             ExprKind::Unary { op, expr } => {
                 (inside_expr.then_some("("), op, expr, inside_expr.then_some(")")).write(self);
             }
-            ExprKind::MethodCall { expr, method, args } => {
+            ExprKind::MethodCall { expr, method, ref args } => {
                 (expr, ".", method, "(", Sep(args, ", "), ")").write(self);
             }
             ExprKind::FieldAccess { expr, field } => (expr, ".", field).write(self),
-            ExprKind::Block(block) => self.display_block(*block),
-            ExprKind::FnDecl(FnDecl { ident, generics, params, ret, block }) => {
+            ExprKind::Block(block) => self.display_block(block),
+            ExprKind::FnDecl(FnDecl { ident, ref generics, ref params, ret, block }) => {
                 self.inside_expr = inside_expr;
                 ("fn ", ident, Generics(generics), params, ret.map(|ret| (" -> ", ret)), block)
                     .write(self);
@@ -67,14 +67,14 @@ impl Writer<'_> {
                 self.inside_expr = false;
                 expr.write(self);
             }
-            &ExprKind::For { ident, iter, body } => {
+            ExprKind::For { ident, iter, body } => {
                 ("for ", ident, " in ", iter, body).write(self);
             }
-            &ExprKind::While { condition, block } => {
+            ExprKind::While { condition, block } => {
                 self.inside_expr = inside_expr;
                 ("while ", condition, block).write(self);
             }
-            ExprKind::If { arms, els } => {
+            ExprKind::If { ref arms, els } => {
                 self.inside_expr = inside_expr;
                 for (i, arm) in arms.iter().enumerate() {
                     (
