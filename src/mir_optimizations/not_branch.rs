@@ -8,7 +8,8 @@ pub fn optimize(mir: &mut Mir, body_id: BodyId) {
         let block = &body.blocks[block_id];
         let Terminator::Branch { condition, fals, tru } = &block.terminator else { continue };
         let Operand::Place(cplace) = condition else { continue };
-        let Some(Statement::Assign { place, rvalue, deref: None }) = block.statements.last() else {
+        let Some(Statement::Assign { place, rvalue, deref: false }) = block.statements.last()
+        else {
             continue;
         };
         if cplace != place {

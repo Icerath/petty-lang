@@ -6,8 +6,8 @@ use crate::{
     HashMap,
     hir::{self, ArraySeg, ExprId, ExprKind, Hir, LValue, Lit},
     mir::{
-        self, Block, BlockId, Body, BodyId, Constant, Deref, Mir, Operand, Place, RValue,
-        Statement, Terminator, UnaryOp,
+        self, Block, BlockId, Body, BodyId, Constant, Mir, Operand, Place, RValue, Statement,
+        Terminator, UnaryOp,
     },
     symbol::Symbol,
     ty::TyKind,
@@ -300,9 +300,9 @@ impl Lowering<'_, '_> {
         }
     }
 
-    fn get_lvalue_place(&mut self, lvalue: &LValue, want_ref: bool) -> (Place, Option<Deref>) {
+    fn get_lvalue_place(&mut self, lvalue: &LValue, want_ref: bool) -> (Place, bool) {
         match lvalue {
-            hir::LValue::Name(name) => (self.bodies.last().unwrap().variables[name], None),
+            hir::LValue::Name(name) => (self.bodies.last().unwrap().variables[name], false),
             hir::LValue::Field { expr, field } => {
                 let lhs = Operand::Place(self.get_lvalue_place(expr, false).0);
                 let rhs = Operand::Constant(Constant::Int((*field).try_into().unwrap()));
@@ -313,13 +313,13 @@ impl Lowering<'_, '_> {
                         place,
                         RValue::BinaryExpr { lhs, op: mir::BinaryOp::StructFieldRef, rhs },
                     ));
-                    (place, Some(Deref::Field))
+                    (place, true)
                 } else {
                     self.current().stmts.push(Statement::assign(
                         place,
                         RValue::BinaryExpr { lhs, op: mir::BinaryOp::StructField, rhs },
                     ));
-                    (place, None)
+                    (place, false)
                 }
             }
             hir::LValue::Index { indexee, index } => {
@@ -332,13 +332,13 @@ impl Lowering<'_, '_> {
                         place,
                         RValue::BinaryExpr { lhs, op: mir::BinaryOp::ArrayIndexRef, rhs },
                     ));
-                    (place, Some(Deref::Array))
+                    (place, true)
                 } else {
                     self.current().stmts.push(Statement::assign(
                         place,
                         RValue::BinaryExpr { lhs, op: mir::BinaryOp::ArrayIndex, rhs },
                     ));
-                    (place, None)
+                    (place, false)
                 }
             }
         }

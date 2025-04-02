@@ -8,7 +8,7 @@ use index_vec::IndexSlice;
 use value::{Allocation, Value};
 
 use crate::mir::{
-    BinaryOp, BlockId, BodyId, Constant, Deref, Mir, Operand, Place, RValue, Statement, Terminator,
+    BinaryOp, BlockId, BodyId, Constant, Mir, Operand, Place, RValue, Statement, Terminator,
     UnaryOp,
 };
 
@@ -40,12 +40,13 @@ impl Interpreter<'_> {
                 match *stmt {
                     Statement::Assign { place, deref, ref rvalue } => {
                         let rvalue = self.rvalue(rvalue, &mut places);
-                        match deref {
-                            None => places[place] = rvalue.into(),
-                            Some(Deref::Array | Deref::Field) => match &*places[place].borrow() {
+                        if deref {
+                            match &*places[place].borrow() {
                                 Value::Ref(value) => *value.borrow() = rvalue,
                                 _ => unreachable!(),
-                            },
+                            }
+                        } else {
+                            places[place] = rvalue.into();
                         }
                     }
                 }

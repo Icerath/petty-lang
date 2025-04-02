@@ -9,12 +9,6 @@ define_id!(pub BodyId);
 define_id!(pub BlockId = u16);
 define_id!(pub Place = u16);
 
-#[derive(Debug, Clone, Copy)]
-pub enum Deref {
-    Array,
-    Field,
-}
-
 impl BlockId {
     pub const PLACEHOLDER: Self = Self { _raw: u16::MAX };
 }
@@ -87,12 +81,12 @@ impl Terminator {
 
 #[derive(Debug)]
 pub enum Statement {
-    Assign { place: Place, deref: Option<Deref>, rvalue: RValue },
+    Assign { place: Place, deref: bool, rvalue: RValue },
 }
 
 impl Statement {
     pub fn assign(place: Place, rvalue: RValue) -> Self {
-        Self::Assign { place, deref: None, rvalue }
+        Self::Assign { place, deref: false, rvalue }
     }
 }
 
