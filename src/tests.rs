@@ -23,6 +23,7 @@ test! { generics }
 test! { if_expr }
 test! { functions }
 test! { structs }
+test! { ref_assignment }
 
 test! { "expected `!`, found `int`" fail_never }
 test! { "expected `int`, found `str`" fail_variables }

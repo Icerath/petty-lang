@@ -1,0 +1,9 @@
+struct Foo(inner: [int])
+
+
+fn main() {
+    let foos = [Foo([1])];
+    assert foos[0].inner[0] == 1;
+    foos[0].inner[0] = 2;
+    assert foos[0].inner[0] == 2;
+}
