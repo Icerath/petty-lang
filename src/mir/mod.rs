@@ -110,6 +110,7 @@ impl RValue {
 pub enum Operand {
     Constant(Constant),
     Ref(Place),
+    FieldRef { strct: Place, field: u32 },
     Place(Place),
     Unreachable,
 }
@@ -167,7 +168,6 @@ pub enum BinaryOp {
     ArrayIndexRef,
 
     StructField,
-    StructFieldRef,
 }
 
 #[derive(Debug, Clone, Copy)]

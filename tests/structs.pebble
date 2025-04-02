@@ -1,7 +1,12 @@
 struct Point(x: int, y: int)
 
+fn pass_by_value(point: Point) {
+    point.x += 1;
+}
+
 fn main() {
     let point = Point(1, 2);
     point.x += 2;
+    pass_by_value(point); // cannot affect point.
     assert point.x + point.y == 5;
 }

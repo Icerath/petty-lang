@@ -5,6 +5,7 @@ use std::{
 };
 
 use arcstr::ArcStr;
+use thin_vec::ThinVec;
 
 use super::array::Array;
 use crate::mir::BodyId;
@@ -29,7 +30,7 @@ impl From<Value> for Allocation {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum Value {
     Unit,
     Array(Array),
@@ -39,8 +40,27 @@ pub enum Value {
     Char(char),
     Str(ArcStr),
     Fn(BodyId),
-    Struct(Array),
+    Struct(ThinVec<Allocation>),
     Ref(Allocation),
+}
+
+impl Clone for Value {
+    fn clone(&self) -> Self {
+        match *self {
+            Self::Unit => Self::Unit,
+            Self::Bool(bool) => Self::Bool(bool),
+            Self::Int(int) => Self::Int(int),
+            Self::Char(char) => Self::Char(char),
+            Self::Fn(func) => Self::Fn(func),
+            Self::Str(ref str) => Self::Str(str.clone()),
+            Self::Range(ref range) => Self::Range(range.clone()),
+            Self::Struct(ref strct) => {
+                Self::Struct(strct.iter().map(|a| a.clone_raw().into()).collect())
+            }
+            Self::Ref(ref inner) => Self::Ref(inner.clone()),
+            Self::Array(ref array) => Self::Array(array.clone()),
+        }
+    }
 }
 
 macro_rules! value {
@@ -88,8 +108,8 @@ impl Value {
     pub fn unwrap_array(&mut self) -> Array {
         value!(Array, self).clone()
     }
-    pub fn unwrap_struct(&mut self) -> Array {
-        value!(Struct, self).clone()
+    pub fn unwrap_struct(&mut self) -> &ThinVec<Allocation> {
+        value!(Struct, self)
     }
 }
 

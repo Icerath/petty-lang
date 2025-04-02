@@ -141,10 +141,6 @@ impl Interpreter<'_> {
                         let index = rhs.unwrap_int_usize();
                         lhs.unwrap_struct().get(index).unwrap().clone_raw()
                     }
-                    BinaryOp::StructFieldRef => {
-                        let fields = lhs.unwrap_struct().clone();
-                        Value::Ref(fields.get(rhs.unwrap_int_usize()).unwrap())
-                    }
                 }
             }
             RValue::UnaryExpr { op, operand } => {
@@ -178,6 +174,9 @@ impl Interpreter<'_> {
 
     fn operand(operand: &Operand, places: &IndexSlice<Place, [Allocation]>) -> Value {
         match *operand {
+            Operand::FieldRef { strct, field } => {
+                Value::Ref(places[strct].borrow().unwrap_struct()[field as usize].clone())
+            }
             Operand::Ref(place) => Value::Ref(places[place].clone()),
             Operand::Constant(ref constant) => match *constant {
                 Constant::Unit => Value::Unit,

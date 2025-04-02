@@ -327,16 +327,18 @@ impl Lowering<'_, '_> {
             hir::LValue::Name(name) => (self.bodies.last().unwrap().variables[name], false),
             hir::LValue::Field { expr, field } => {
                 let lhs = Operand::Place(self.get_lvalue_place(expr, false).0);
-                let rhs = Operand::Constant(Constant::Int((*field).try_into().unwrap()));
                 let place = self.new_place();
 
                 if want_ref {
+                    let field = (*field).try_into().unwrap();
+                    let Operand::Place(strct) = lhs else { panic!() };
                     self.current().stmts.push(Statement::assign(
                         place,
-                        RValue::BinaryExpr { lhs, op: mir::BinaryOp::StructFieldRef, rhs },
+                        RValue::Use(Operand::FieldRef { strct, field }),
                     ));
                     (place, true)
                 } else {
+                    let rhs = Operand::Constant(Constant::Int((*field).try_into().unwrap()));
                     self.current().stmts.push(Statement::assign(
                         place,
                         RValue::BinaryExpr { lhs, op: mir::BinaryOp::StructField, rhs },

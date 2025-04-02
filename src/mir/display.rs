@@ -71,6 +71,7 @@ impl fmt::Display for Indent {
 impl fmt::Display for Operand {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::FieldRef { strct, field } => write!(f, "ref _{strct:?}.{field:?}"),
             Self::Ref(place) => write!(f, "ref _{place:?}"),
             Self::Place(place) => write!(f, "_{place:?}"),
             Self::Constant(constant) => write!(f, "{constant}"),
