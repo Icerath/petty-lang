@@ -49,28 +49,6 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
         self.hir.exprs.push(hir_expr)
     }
 
-    fn lower_lvalue(&mut self, expr_id: ast::ExprId) -> hir::LValue {
-        match self.ast.exprs[expr_id].kind {
-            ast::ExprKind::Ident(name) => hir::LValue::Name(name),
-            ast::ExprKind::Index { expr, index } => {
-                let indexee = Box::new(self.lower_lvalue(expr));
-                hir::LValue::Index { indexee, index: self.lower(index) }
-            }
-            ast::ExprKind::FieldAccess { expr, field } => {
-                let TyKind::Struct { symbols, .. } = self.get_ty(expr) else { panic!() };
-                let field = symbols.iter().position(|&s| s == field).unwrap();
-
-                let expr = Box::new(self.lower_lvalue(expr));
-
-                hir::LValue::Field { expr, field }
-            }
-            ast::ExprKind::Unary { op: ast::UnaryOp::Deref, expr } => {
-                hir::LValue::Deref { expr: Box::new(self.lower_lvalue(expr)) }
-            }
-            _ => panic!("Invalid lhs of assignment"),
-        }
-    }
-
     #[allow(clippy::too_many_lines)]
     fn lower_inner(&mut self, expr_id: ast::ExprId) -> hir::Expr<'tcx> {
         match self.ast.exprs[expr_id].kind {
@@ -104,14 +82,12 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
                     self.hir.exprs.push(Expr { kind, ty: self.ty_info.expr_tys[rhs] })
                 };
 
-                let kind = hir::ExprKind::Assignment { lhs: self.lower_lvalue(lhs), expr };
+                let kind = hir::ExprKind::Assignment { lhs: self.lower(lhs), expr };
                 hir::Expr { ty: self.ty_info.expr_tys[expr_id], kind }
             }
             ast::ExprKind::Binary { lhs, op: BinaryOp { kind: BinOpKind::Assign, .. }, rhs } => {
-                let kind = hir::ExprKind::Assignment {
-                    lhs: self.lower_lvalue(lhs),
-                    expr: self.lower(rhs),
-                };
+                let kind =
+                    hir::ExprKind::Assignment { lhs: self.lower(lhs), expr: self.lower(rhs) };
                 hir::Expr { ty: self.ty_info.expr_tys[expr_id], kind }
             }
             ast::ExprKind::Binary { lhs, op, rhs } => {

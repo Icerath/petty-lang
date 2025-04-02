@@ -7,7 +7,26 @@ use crate::{define_id, symbol::Symbol};
 
 define_id!(pub BodyId);
 define_id!(pub BlockId = u16);
-define_id!(pub Place = u16);
+define_id!(pub Local = u16);
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct Place {
+    pub local: Local,
+    pub projections: Vec<Projection>,
+}
+
+impl Place {
+    pub fn local(local: Local) -> Self {
+        Self { local, projections: vec![] }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub enum Projection {
+    Deref,
+    Field(u32),
+    Index(Local),
+}
 
 impl BlockId {
     pub const PLACEHOLDER: Self = Self { _raw: u16::MAX };
@@ -23,16 +42,16 @@ pub struct Mir {
 #[derive(Debug)]
 pub struct Body {
     pub blocks: IndexVec<BlockId, Block>,
-    pub places: Place,
+    pub locals: Local,
 }
 
 impl Body {
     pub fn new(num_params: usize) -> Self {
-        Self { blocks: IndexVec::default(), places: num_params.into() }
+        Self { blocks: IndexVec::default(), locals: num_params.into() }
     }
-    pub fn new_place(&mut self) -> Place {
-        self.places += 1;
-        self.places - 1
+    pub fn new_local(&mut self) -> Local {
+        self.locals += 1;
+        self.locals - 1
     }
 }
 #[derive(Debug)]
@@ -50,7 +69,7 @@ pub enum Terminator {
 }
 
 impl Terminator {
-    pub fn mentions_place(&self, place: Place) -> bool {
+    pub fn mentions_place(&self, place: &Place) -> bool {
         match self {
             Self::Abort | Self::Goto(..) => false,
             Self::Branch { condition, .. } => condition.mentions_place(place),
@@ -81,19 +100,19 @@ impl Terminator {
 
 #[derive(Debug)]
 pub enum Statement {
-    Assign { place: Place, deref: bool, rvalue: RValue },
+    Assign { place: Place, rvalue: RValue },
 }
 
 impl Statement {
-    pub fn assign(place: Place, rvalue: RValue) -> Self {
-        Self::Assign { place, deref: false, rvalue }
+    pub fn assign(local: Local, rvalue: RValue) -> Self {
+        Self::Assign { place: Place::local(local), rvalue }
     }
 }
 
 #[must_use]
 #[derive(Debug)]
 pub enum RValue {
-    Extend { array: Place, value: Operand, repeat: Operand },
+    Extend { array: Local, value: Operand, repeat: Operand },
     Use(Operand),
     BinaryExpr { lhs: Operand, op: BinaryOp, rhs: Operand },
     UnaryExpr { op: UnaryOp, operand: Operand },
@@ -101,6 +120,9 @@ pub enum RValue {
 }
 
 impl RValue {
+    pub fn local(local: Local) -> Self {
+        Self::Use(Operand::local(local))
+    }
     pub fn is_unreachable(&self) -> bool {
         matches!(self, Self::Use(Operand::Unreachable))
     }
@@ -110,7 +132,6 @@ impl RValue {
 pub enum Operand {
     Constant(Constant),
     Ref(Place),
-    FieldRef { strct: Place, field: u32 },
     Place(Place),
     Unreachable,
 }
@@ -118,9 +139,13 @@ pub enum Operand {
 impl Operand {
     pub const UNIT: Self = Self::Constant(Constant::Unit);
 
+    pub fn local(local: Local) -> Self {
+        Self::Place(Place::local(local))
+    }
+
     // returns an operand to read to nth argument, used in intrinsics
     pub fn arg(nth: usize) -> Self {
-        Self::Place(nth.into())
+        Self::local(nth.into())
     }
 }
 
@@ -195,7 +220,7 @@ impl Statement {
 }
 
 impl RValue {
-    pub fn mentions_place(&self, place: Place) -> bool {
+    pub fn mentions_place(&self, place: &Place) -> bool {
         match self {
             Self::BinaryExpr { lhs, rhs, .. } => {
                 lhs.mentions_place(place) || rhs.mentions_place(place)
@@ -205,15 +230,17 @@ impl RValue {
             }
             Self::Use(operand) | Self::UnaryExpr { operand, .. } => operand.mentions_place(place),
             Self::Extend { array, value, repeat } => {
-                *array == place || value.mentions_place(place) || repeat.mentions_place(place)
+                Place::local(*array) == *place
+                    || value.mentions_place(place)
+                    || repeat.mentions_place(place)
             }
         }
     }
 }
 
 impl Operand {
-    pub fn mentions_place(&self, target: Place) -> bool {
-        match *self {
+    pub fn mentions_place(&self, target: &Place) -> bool {
+        match self {
             Self::Place(place) => target == place,
             _ => false,
         }

@@ -4,52 +4,44 @@ mod value;
 use std::io::{self, Write};
 
 use array::Array;
-use index_vec::IndexSlice;
+use index_vec::{IndexSlice, IndexVec};
 use value::{Allocation, Value};
 
 use crate::mir::{
-    BinaryOp, BlockId, BodyId, Constant, Mir, Operand, Place, RValue, Statement, Terminator,
-    UnaryOp,
+    BinaryOp, BlockId, BodyId, Constant, Local, Mir, Operand, Place, Projection, RValue, Statement,
+    Terminator, UnaryOp,
 };
+
+type Places = IndexSlice<Local, [Allocation]>;
 
 pub fn interpret(mir: &Mir) {
     let Some(main) = mir.main_body else { return };
-    let mut interpreter = Interpreter { mir, unit: Value::Unit.into() };
+    let mut interpreter = Interpreter { mir };
     interpreter.run(main, vec![]);
 }
 
 struct Interpreter<'mir> {
     mir: &'mir Mir,
-    unit: Allocation,
 }
 
 impl Interpreter<'_> {
-    fn unit(&self) -> Allocation {
-        self.unit.clone()
-    }
     fn run(&mut self, body_id: BodyId, args: Vec<Value>) -> Value {
         let body = &self.mir.bodies[body_id];
         let mut block_id = BlockId::from(0);
-        let mut places = index_vec::index_vec![self.unit(); body.places.index()];
+        let mut locals: IndexVec<Local, Allocation> =
+            std::iter::repeat_with(|| Allocation::from(Value::Unit))
+                .take(body.locals.index())
+                .collect();
         for (i, arg) in args.into_iter().enumerate() {
-            places[i] = arg.into();
+            locals[i] = arg.into();
         }
         loop {
             let block = &body.blocks[block_id];
             for stmt in &block.statements {
-                match *stmt {
-                    Statement::Assign { place, deref, ref rvalue } => {
-                        let rvalue = self.rvalue(rvalue, &mut places);
-                        if deref {
-                            match &*places[place].borrow() {
-                                Value::Ref(value) => *value.borrow() = rvalue,
-                                _ => unreachable!(),
-                            }
-                        } else {
-                            places[place] = rvalue.into();
-                        }
-                    }
-                }
+                let Statement::Assign { place, rvalue } = stmt;
+                let rvalue = self.rvalue(rvalue, &locals);
+                let alloc = self.load_place(place, &locals);
+                *alloc.borrow() = rvalue;
             }
             match block.terminator {
                 #[cfg(test)]
@@ -58,31 +50,31 @@ impl Interpreter<'_> {
                 Terminator::Abort => std::process::exit(1),
                 Terminator::Goto(block) => block_id = block,
                 Terminator::Branch { ref condition, fals, tru } => {
-                    let condition = Self::operand(condition, &places).unwrap_bool();
+                    let condition = self.operand(condition, &locals).unwrap_bool();
                     block_id = if condition { tru } else { fals };
                 }
-                Terminator::Return(ref operand) => return Self::operand(operand, &places),
+                Terminator::Return(ref operand) => return self.operand(operand, &locals),
             }
         }
     }
     #[allow(clippy::too_many_lines)]
-    fn rvalue(&mut self, rvalue: &RValue, places: &mut IndexSlice<Place, [Allocation]>) -> Value {
+    fn rvalue(&mut self, rvalue: &RValue, locals: &Places) -> Value {
         match rvalue {
-            RValue::Use(operand) => Self::operand(operand, places),
+            RValue::Use(operand) => self.operand(operand, locals),
             RValue::Extend { array, value, repeat } => {
-                let value = Self::operand(value, places);
-                let repeat: usize = Self::operand(repeat, places).unwrap_int().try_into().unwrap();
-                places[*array].unwrap_array().extend(value, repeat);
+                let value = self.operand(value, locals);
+                let repeat: usize = self.operand(repeat, locals).unwrap_int().try_into().unwrap();
+                locals[*array].borrow().unwrap_array().extend(value, repeat);
                 Value::Unit
             }
             RValue::Call { function, args } => {
-                let call_body = Self::operand(function, places).unwrap_fn();
-                let args = args.iter().map(|arg| Self::operand(arg, places)).collect();
+                let call_body = self.operand(function, locals).unwrap_fn();
+                let args = args.iter().map(|arg| self.operand(arg, locals)).collect();
                 self.run(call_body, args)
             }
             RValue::BinaryExpr { lhs, op, rhs } => {
-                let mut lhs = Self::operand(lhs, places);
-                let mut rhs = Self::operand(rhs, places);
+                let lhs = self.operand(lhs, locals);
+                let rhs = self.operand(rhs, locals);
                 match op {
                     BinaryOp::IntAdd => Value::Int(lhs.unwrap_int() + rhs.unwrap_int()),
                     BinaryOp::IntSub => Value::Int(lhs.unwrap_int() - rhs.unwrap_int()),
@@ -144,7 +136,7 @@ impl Interpreter<'_> {
                 }
             }
             RValue::UnaryExpr { op, operand } => {
-                let mut operand = Self::operand(operand, places);
+                let operand = self.operand(operand, locals);
                 match op {
                     UnaryOp::Deref => operand.unwrap_ref().clone_raw(),
                     UnaryOp::BoolNot => Value::Bool(!operand.unwrap_bool()),
@@ -172,12 +164,9 @@ impl Interpreter<'_> {
         }
     }
 
-    fn operand(operand: &Operand, places: &IndexSlice<Place, [Allocation]>) -> Value {
+    fn operand(&mut self, operand: &Operand, locals: &Places) -> Value {
         match *operand {
-            Operand::FieldRef { strct, field } => {
-                Value::Ref(places[strct].borrow().unwrap_struct()[field as usize].clone())
-            }
-            Operand::Ref(place) => Value::Ref(places[place].clone()),
+            Operand::Ref(ref place) => Value::Ref(self.load_place(place, locals)),
             Operand::Constant(ref constant) => match *constant {
                 Constant::Unit => Value::Unit,
                 Constant::EmptyArray => Value::Array(Array::default()),
@@ -186,10 +175,26 @@ impl Interpreter<'_> {
                 Constant::Char(char) => Value::Char(char),
                 Constant::Str(str) => Value::Str(str.as_str().into()),
                 Constant::Func(body) => Value::Fn(body),
-                Constant::StructInit => Value::Struct(places.iter().cloned().collect()),
+                Constant::StructInit => Value::Struct(locals.iter().cloned().collect()),
             },
-            Operand::Place(place) => places[place].clone_raw(),
+            Operand::Place(ref place) => self.load_place(place, locals).clone_raw(),
             Operand::Unreachable => unreachable!(),
         }
+    }
+
+    #[expect(clippy::unused_self)]
+    fn load_place(&mut self, place: &Place, locals: &Places) -> Allocation {
+        let mut alloc = locals[place.local].clone();
+        for projection in &place.projections {
+            alloc = match *projection {
+                Projection::Deref => alloc.borrow().unwrap_ref().clone(),
+                Projection::Field(field) => alloc.borrow().unwrap_struct()[field as usize].clone(),
+                Projection::Index(index) => {
+                    let index = locals[index].borrow().unwrap_int_usize();
+                    alloc.borrow().unwrap_array().get(index).unwrap().clone()
+                }
+            };
+        }
+        alloc
     }
 }

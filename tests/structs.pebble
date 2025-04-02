@@ -9,4 +9,7 @@ fn main() {
     point.x += 2;
     pass_by_value(point); // cannot affect point.
     assert point.x + point.y == 5;
+    let y = &point.y;
+    *y += 2;
+    assert *y == 4;
 }

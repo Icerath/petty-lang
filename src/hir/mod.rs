@@ -37,7 +37,7 @@ pub enum ExprKind<'tcx> {
     PrintStr(Symbol), // temporary
     Ident(Symbol),
     Binary { lhs: ExprId, op: BinaryOp, rhs: ExprId },
-    Assignment { lhs: LValue, expr: ExprId },
+    Assignment { lhs: ExprId, expr: ExprId },
     Unary { op: UnaryOp, expr: ExprId },
     Literal(Lit),
     Block(ThinVec<ExprId>),
@@ -106,12 +106,4 @@ pub struct Param<'tcx> {
 pub struct IfStmt {
     pub condition: ExprId,
     pub body: ThinVec<ExprId>,
-}
-
-#[derive(Debug)]
-pub enum LValue {
-    Name(Symbol),
-    Index { indexee: Box<LValue>, index: ExprId },
-    Field { expr: Box<LValue>, field: usize },
-    Deref { expr: Box<LValue> },
 }

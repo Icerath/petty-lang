@@ -4,10 +4,10 @@ use std::mem;
 
 use crate::{
     HashMap,
-    hir::{self, ArraySeg, ExprId, ExprKind, Hir, LValue, Lit},
+    hir::{self, ArraySeg, ExprId, ExprKind, Hir, Lit},
     mir::{
-        self, Block, BlockId, Body, BodyId, Constant, Mir, Operand, Place, RValue, Statement,
-        Terminator, UnaryOp,
+        self, Block, BlockId, Body, BodyId, Constant, Local, Mir, Operand, Place, Projection,
+        RValue, Statement, Terminator, UnaryOp,
     },
     symbol::Symbol,
     ty::TyKind,
@@ -36,7 +36,7 @@ struct Lowering<'hir, 'tcx> {
 struct BodyInfo {
     body: BodyId,
     functions: HashMap<Symbol, BodyId>,
-    variables: HashMap<Symbol, Place>,
+    variables: HashMap<Symbol, Local>,
     stmts: Vec<Statement>,
     breaks: Vec<BlockId>,
 }
@@ -73,8 +73,9 @@ impl Lowering<'_, '_> {
         self.finish_with(Terminator::Goto(next_block));
         next_block
     }
-    fn new_place(&mut self) -> Place {
-        self.body_mut().new_place()
+
+    fn new_local(&mut self) -> Local {
+        self.body_mut().new_local()
     }
 
     fn lower(&mut self, id: ExprId) -> Operand {
@@ -86,8 +87,8 @@ impl Lowering<'_, '_> {
         match rvalue {
             RValue::Use(operand) => operand,
             rvalue => {
-                let place = self.new_place();
-                self.current().stmts.push(Statement::assign(place, rvalue));
+                let place = Place::local(self.new_local());
+                self.current().stmts.push(Statement::Assign { place: place.clone(), rvalue });
                 Operand::Place(place)
             }
         }
@@ -116,17 +117,16 @@ impl Lowering<'_, '_> {
             },
             ExprKind::Literal(ref lit) => self.lit_rvalue(lit),
             ExprKind::Unary { op, expr } => 'outer: {
+                if let hir::UnaryOp::Ref = op {
+                    let arg = self.lower_place(expr);
+                    break 'outer RValue::Use(Operand::Ref(arg));
+                }
                 let operand = self.lower(expr);
                 let op = match op {
                     hir::UnaryOp::Not => mir::UnaryOp::BoolNot,
                     hir::UnaryOp::Neg => mir::UnaryOp::IntNeg,
                     hir::UnaryOp::Deref => mir::UnaryOp::Deref,
-                    hir::UnaryOp::Ref => {
-                        break 'outer RValue::Use(match operand {
-                            Operand::Place(place) => Operand::Ref(place),
-                            _ => todo!(),
-                        });
-                    }
+                    hir::UnaryOp::Ref => unreachable!(),
                 };
                 RValue::UnaryExpr { op, operand }
             }
@@ -144,7 +144,7 @@ impl Lowering<'_, '_> {
                 if self.bodies.len() == 2 && self.try_instrinsic(ident) {
                 } else {
                     for (i, param) in params.iter().enumerate() {
-                        self.current().variables.insert(param.ident, Place::from(i));
+                        self.current().variables.insert(param.ident, Local::from(i));
                     }
                     let mut last = Operand::UNIT;
                     for &expr in body {
@@ -157,7 +157,7 @@ impl Lowering<'_, '_> {
             }
             ExprKind::Let { ident, expr } => {
                 let rvalue = self.lower_inner(expr);
-                let place = self.mir.bodies[self.bodies.last().unwrap().body].new_place();
+                let place = self.mir.bodies[self.bodies.last().unwrap().body].new_local();
                 self.current().variables.insert(ident, place);
                 self.current().stmts.push(Statement::assign(place, rvalue));
                 RValue::Use(Operand::UNIT)
@@ -188,7 +188,7 @@ impl Lowering<'_, '_> {
             }
             ExprKind::If { ref arms, ref els } => {
                 let mut jump_to_ends = Vec::with_capacity(arms.len());
-                let out_place = self.new_place();
+                let out_local = self.new_local();
                 for arm in arms {
                     let condition = self.lower(arm.condition);
                     let to_fix = self.finish_with(Terminator::Branch {
@@ -201,7 +201,7 @@ impl Lowering<'_, '_> {
                         if is_unit {
                             self.process(block_out);
                         } else {
-                            self.current().stmts.push(Statement::assign(out_place, block_out));
+                            self.current().stmts.push(Statement::assign(out_local, block_out));
                         }
                         jump_to_ends.push(self.finish_with(Terminator::Goto(BlockId::PLACEHOLDER)));
                     }
@@ -216,7 +216,7 @@ impl Lowering<'_, '_> {
                     if is_unit {
                         self.process(els_out);
                     } else {
-                        self.current().stmts.push(Statement::assign(out_place, els_out));
+                        self.current().stmts.push(Statement::assign(out_local, els_out));
                     }
                 }
 
@@ -230,13 +230,13 @@ impl Lowering<'_, '_> {
                 if is_unit {
                     RValue::Use(Operand::Constant(Constant::Unit))
                 } else {
-                    RValue::Use(Operand::Place(out_place))
+                    RValue::local(out_local)
                 }
             }
-            ExprKind::Assignment { ref lhs, expr } => {
+            ExprKind::Assignment { lhs, expr } => {
                 let rvalue = self.lower_inner(expr);
-                let (place, deref) = self.get_lvalue_place(lhs, true);
-                let stmt = Statement::Assign { place, deref, rvalue };
+                let place = self.lower_place(lhs);
+                let stmt = Statement::Assign { place, rvalue };
                 self.current().stmts.push(stmt);
                 RValue::Use(Operand::Constant(Constant::Unit))
             }
@@ -307,64 +307,38 @@ impl Lowering<'_, '_> {
         }
     }
 
-    fn get_lvalue_place(&mut self, lvalue: &LValue, want_ref: bool) -> (Place, bool) {
-        match lvalue {
-            hir::LValue::Deref { expr } => {
-                let lhs = Operand::Place(self.get_lvalue_place(expr, false).0);
-                let place = self.new_place();
+    fn lower_place(&mut self, expr: hir::ExprId) -> Place {
+        let mut projections = vec![];
+        let local = self.lower_place_inner(expr, &mut projections);
+        Place { local, projections }
+    }
 
-                if want_ref {
-                    self.current().stmts.push(Statement::assign(place, RValue::Use(lhs)));
-                    (place, true)
-                } else {
-                    self.current().stmts.push(Statement::assign(
-                        place,
-                        RValue::UnaryExpr { op: UnaryOp::Deref, operand: lhs },
-                    ));
-                    (place, false)
-                }
+    fn lower_place_inner(&mut self, expr: hir::ExprId, proj: &mut Vec<Projection>) -> Local {
+        match self.hir.exprs[expr].kind {
+            ExprKind::Ident(ident) => self.current().variables[&ident],
+            ExprKind::Index { expr, index } => {
+                let index_local = self.new_local();
+                let assign = Statement::Assign {
+                    place: Place::local(index_local),
+                    rvalue: self.lower_inner(index),
+                };
+                self.current().stmts.push(assign);
+                let local = self.lower_place_inner(expr, proj);
+                proj.push(Projection::Index(index_local));
+                local
             }
-            hir::LValue::Name(name) => (self.bodies.last().unwrap().variables[name], false),
-            hir::LValue::Field { expr, field } => {
-                let lhs = Operand::Place(self.get_lvalue_place(expr, false).0);
-                let place = self.new_place();
-
-                if want_ref {
-                    let field = (*field).try_into().unwrap();
-                    let Operand::Place(strct) = lhs else { panic!() };
-                    self.current().stmts.push(Statement::assign(
-                        place,
-                        RValue::Use(Operand::FieldRef { strct, field }),
-                    ));
-                    (place, true)
-                } else {
-                    let rhs = Operand::Constant(Constant::Int((*field).try_into().unwrap()));
-                    self.current().stmts.push(Statement::assign(
-                        place,
-                        RValue::BinaryExpr { lhs, op: mir::BinaryOp::StructField, rhs },
-                    ));
-                    (place, false)
-                }
+            ExprKind::Unary { op: hir::UnaryOp::Deref, expr } => {
+                let local = self.lower_place_inner(expr, proj);
+                proj.push(Projection::Deref);
+                local
             }
-            hir::LValue::Index { indexee, index } => {
-                let rhs = self.lower(*index);
-                let lhs = Operand::Place(self.get_lvalue_place(indexee, false).0);
-                let place = self.new_place();
-
-                if want_ref {
-                    self.current().stmts.push(Statement::assign(
-                        place,
-                        RValue::BinaryExpr { lhs, op: mir::BinaryOp::ArrayIndexRef, rhs },
-                    ));
-                    (place, true)
-                } else {
-                    self.current().stmts.push(Statement::assign(
-                        place,
-                        RValue::BinaryExpr { lhs, op: mir::BinaryOp::ArrayIndex, rhs },
-                    ));
-                    (place, false)
-                }
+            ExprKind::Field { expr, field } => {
+                let field = field.try_into().unwrap();
+                let local = self.lower_place_inner(expr, proj);
+                proj.push(Projection::Field(field));
+                local
             }
+            _ => todo!(),
         }
     }
 
@@ -382,7 +356,7 @@ impl Lowering<'_, '_> {
 
     fn load_ident(&self, ident: Symbol) -> RValue {
         if let Some(place) = self.bodies.last().unwrap().variables.get(&ident) {
-            return RValue::Use(Operand::Place(*place));
+            return RValue::Use(Operand::local(*place));
         }
         let Some(location) = self.bodies.iter().rev().find_map(|body| body.functions.get(&ident))
         else {
@@ -406,8 +380,8 @@ impl Lowering<'_, '_> {
         if segments.is_empty() {
             return RValue::Use(Operand::Constant(Constant::EmptyArray));
         }
-        let array = self.new_place();
-        let throwaway = self.new_place();
+        let array = self.new_local();
+        let throwaway = self.new_local();
         self.current()
             .stmts
             .push(Statement::assign(array, RValue::Use(Operand::Constant(Constant::EmptyArray))));
@@ -421,6 +395,6 @@ impl Lowering<'_, '_> {
                 .stmts
                 .push(Statement::assign(throwaway, RValue::Extend { array, value, repeat }));
         }
-        RValue::Use(Operand::Place(array))
+        RValue::local(array)
     }
 }

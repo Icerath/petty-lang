@@ -76,45 +76,41 @@ impl Value {
     pub fn unwrap_ref(&self) -> &Allocation {
         value!(Ref, self)
     }
-    pub fn unwrap_bool(&mut self) -> bool {
+    pub fn unwrap_bool(&self) -> bool {
         *value!(Bool, self)
     }
-    pub fn unwrap_int(&mut self) -> i64 {
+    #[track_caller]
+    pub fn unwrap_int(&self) -> i64 {
         *value!(Int, self)
     }
-    pub fn unwrap_int_usize(&mut self) -> usize {
+    pub fn unwrap_int_usize(&self) -> usize {
         let int = self.unwrap_int();
         int.try_into().unwrap_or_else(|_| panic!("{int}"))
     }
-    pub fn unwrap_char(&mut self) -> char {
+    pub fn unwrap_char(&self) -> char {
         *value!(Char, self)
     }
-    pub fn unwrap_str(&mut self) -> ArcStr {
+    pub fn unwrap_str(&self) -> ArcStr {
         value!(Str, self).clone()
     }
-    pub fn unwrap_range(&mut self) -> Range<i64> {
+    pub fn unwrap_range(&self) -> Range<i64> {
         match self {
             Value::Range(out) => Range::clone(out),
             other => unreachable!("expected {}, found {other:?}", stringify!($ty)),
         }
     }
-    pub fn unwrap_range_usize(&mut self) -> Range<usize> {
+    pub fn unwrap_range_usize(&self) -> Range<usize> {
         let range = self.unwrap_range();
         usize::try_from(range.start).unwrap()..usize::try_from(range.end).unwrap()
     }
-    pub fn unwrap_fn(&mut self) -> BodyId {
+    pub fn unwrap_fn(&self) -> BodyId {
         *value!(Fn, self)
     }
-    pub fn unwrap_array(&mut self) -> Array {
+    #[track_caller]
+    pub fn unwrap_array(&self) -> Array {
         value!(Array, self).clone()
     }
-    pub fn unwrap_struct(&mut self) -> &ThinVec<Allocation> {
+    pub fn unwrap_struct(&self) -> &ThinVec<Allocation> {
         value!(Struct, self)
-    }
-}
-
-impl Allocation {
-    pub fn unwrap_array(&mut self) -> Array {
-        self.borrow().unwrap_array()
     }
 }

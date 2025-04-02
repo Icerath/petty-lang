@@ -3,7 +3,7 @@ use std::{
     mem,
 };
 
-use super::{ExprKind, FnDecl, LValue, Param};
+use super::{ExprKind, FnDecl, Param};
 use crate::{
     hir::{BinaryOp, ExprId, Hir, Lit, Ty, UnaryOp},
     ty::TyKind,
@@ -92,8 +92,8 @@ impl Writer<'_, '_> {
                     self.f.push(')');
                 }
             }
-            ExprKind::Assignment { ref lhs, expr } => {
-                self.display_lvalue(lhs);
+            ExprKind::Assignment { lhs, expr } => {
+                self.display_expr(lhs);
                 self.f.push_str(" = ");
                 self.display_expr(expr);
             }
@@ -171,26 +171,6 @@ impl Writer<'_, '_> {
             self.f.push_str(&param.ident);
             self.f.push_str(": ");
             self.display_ty(param.ty);
-        }
-    }
-
-    fn display_lvalue(&mut self, lvalue: &LValue) {
-        match lvalue {
-            LValue::Name(name) => self.f.push_str(name),
-            LValue::Field { expr, field } => {
-                self.display_lvalue(expr);
-                _ = write!(self.f, ".{field}");
-            }
-            LValue::Index { indexee, index } => {
-                self.display_lvalue(indexee);
-                self.f.push('[');
-                self.display_expr(*index);
-                self.f.push(']');
-            }
-            LValue::Deref { expr } => {
-                self.f.push('*');
-                self.display_lvalue(expr);
-            }
         }
     }
 

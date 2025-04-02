@@ -1,6 +1,6 @@
-use std::fmt;
+use std::{fmt, fmt::Write};
 
-use super::{Constant, Mir, Operand, RValue, Statement, Terminator};
+use super::{Constant, Mir, Operand, Place, Projection, RValue, Statement, Terminator};
 
 impl fmt::Display for Mir {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -11,11 +11,8 @@ impl fmt::Display for Mir {
                 for statement in &block.statements {
                     write!(f, "{}", Indent(2))?;
                     match statement {
-                        Statement::Assign { place, deref, rvalue } => {
-                            if *deref {
-                                write!(f, "deref ")?;
-                            }
-                            write!(f, "_{place:?} = ")?;
+                        Statement::Assign { place, rvalue } => {
+                            write!(f, "{place} = ")?;
                             match rvalue {
                                 RValue::BinaryExpr { lhs, op, rhs } => {
                                     write!(f, "{op:?}({lhs}, {rhs})")
@@ -71,12 +68,28 @@ impl fmt::Display for Indent {
 impl fmt::Display for Operand {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::FieldRef { strct, field } => write!(f, "ref _{strct:?}.{field:?}"),
-            Self::Ref(place) => write!(f, "ref _{place:?}"),
-            Self::Place(place) => write!(f, "_{place:?}"),
+            Self::Ref(place) => write!(f, "&{place}"),
+            Self::Place(place) => write!(f, "{place}"),
             Self::Constant(constant) => write!(f, "{constant}"),
             Self::Unreachable => write!(f, "unreachable"),
         }
+    }
+}
+
+impl fmt::Display for Place {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut end = String::new();
+
+        for projection in &self.projections {
+            match projection {
+                Projection::Deref => write!(f, "*")?,
+                Projection::Field(field) => write!(end, ".{field}")?,
+                Projection::Index(index) => write!(end, "[_{index:?}]")?,
+            }
+        }
+
+        write!(f, "_{:?}", self.local)?;
+        f.write_str(&end)
     }
 }
 
