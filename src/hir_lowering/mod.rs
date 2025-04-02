@@ -84,7 +84,12 @@ impl Lowering<'_, '_> {
     }
 
     fn lower_local(&mut self, id: ExprId) -> Local {
-        match self.lower_inner(id) {
+        let rvalue = self.lower_inner(id);
+        self.process_to_local(rvalue)
+    }
+
+    fn process_to_local(&mut self, rvalue: RValue) -> Local {
+        match rvalue {
             RValue::Use(Operand::Place(Place { local, projections })) if projections.is_empty() => {
                 local
             }
@@ -303,7 +308,6 @@ impl Lowering<'_, '_> {
                 RValue::Use(Operand::Unreachable)
             }
             ExprKind::Index { expr, index } => {
-                let lhs = self.lower(expr);
                 let rhs = self.lower(index);
                 let op = if self.hir.exprs[expr].ty.is_str() {
                     if self.hir.exprs[index].ty.is_range() {
@@ -314,8 +318,12 @@ impl Lowering<'_, '_> {
                 } else if self.hir.exprs[index].ty.is_range() {
                     mir::BinaryOp::ArrayIndexRange
                 } else {
-                    mir::BinaryOp::ArrayIndex
+                    let local = self.lower_local(expr);
+                    let index_local = self.process_to_local(RValue::Use(rhs));
+                    let place = Place { local, projections: vec![Projection::Index(index_local)] };
+                    return RValue::Use(Operand::Place(place));
                 };
+                let lhs = self.lower(expr);
                 RValue::BinaryExpr { lhs, op, rhs }
             }
             ExprKind::Block(ref exprs) => self.block_expr(exprs),

@@ -122,13 +122,6 @@ impl Interpreter<'_> {
                             .unwrap(),
                     ),
                     BinaryOp::ArrayIndexRange => todo!(),
-                    BinaryOp::ArrayIndex => {
-                        let index = rhs.unwrap_int_usize();
-                        lhs.unwrap_array().get(index).unwrap().clone_raw()
-                    }
-                    BinaryOp::ArrayIndexRef => {
-                        Value::Ref(lhs.unwrap_array().get(rhs.unwrap_int_usize()).unwrap())
-                    }
                 }
             }
             RValue::UnaryExpr { op, operand } => {
