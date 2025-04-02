@@ -1,72 +1,11 @@
 mod array;
+mod value;
 
-use std::{
-    io::{self, Write},
-    ops::Range,
-};
+use std::io::{self, Write};
 
-use arcstr::ArcStr;
 use array::Array;
 use index_vec::IndexSlice;
-
-macro_rules! value {
-    ($ty:ident, $value: expr) => {{
-        match $value {
-            Value::$ty(out) => out,
-            other => unreachable!("expected {}, found {other:?}", stringify!($ty)),
-        }
-    }};
-}
-
-impl Value {
-    fn unwrap_bool(&mut self) -> bool {
-        *value!(Bool, self)
-    }
-    fn unwrap_int(&mut self) -> i64 {
-        *value!(Int, self)
-    }
-    fn unwrap_int_usize(&mut self) -> usize {
-        let int = self.unwrap_int();
-        int.try_into().unwrap_or_else(|_| panic!("{int}"))
-    }
-    fn unwrap_char(&mut self) -> char {
-        *value!(Char, self)
-    }
-    fn unwrap_str(&mut self) -> &ArcStr {
-        value!(Str, self)
-    }
-    fn unwrap_range(&mut self) -> Range<i64> {
-        match self {
-            Value::Range(out) => Range::clone(out),
-            other => unreachable!("expected {}, found {other:?}", stringify!($ty)),
-        }
-    }
-    fn unwrap_range_usize(&mut self) -> Range<usize> {
-        let range = self.unwrap_range();
-        usize::try_from(range.start).unwrap()..usize::try_from(range.end).unwrap()
-    }
-    fn unwrap_fn(&mut self) -> BodyId {
-        *value!(Fn, self)
-    }
-    fn unwrap_array(&mut self) -> &Array {
-        value!(Array, self)
-    }
-    fn unwrap_arrayref(&self) -> (Array, u32) {
-        match self {
-            Value::ArrayRef { array, index } => (array.clone(), *index),
-            _ => unreachable!(),
-        }
-    }
-    fn unwrap_struct(&mut self) -> &Array {
-        value!(Struct, self)
-    }
-    fn unwrap_fieldref(&self) -> (&Array, u32) {
-        match self {
-            Value::FieldRef { fields, field } => (fields, *field),
-            _ => unreachable!(),
-        }
-    }
-}
+use value::Value;
 
 use crate::mir::{
     BinaryOp, BlockId, BodyId, Constant, Deref, Mir, Operand, Place, RValue, Statement, Terminator,
@@ -81,21 +20,6 @@ pub fn interpret(mir: &Mir) {
 
 struct Interpreter<'mir> {
     mir: &'mir Mir,
-}
-
-#[derive(Debug, Clone)]
-enum Value {
-    Unit,
-    Array(Array),
-    Bool(bool),
-    Int(i64),
-    Range(Box<Range<i64>>),
-    Char(char),
-    Str(ArcStr),
-    Fn(BodyId),
-    Struct(Array),
-    ArrayRef { array: Array, index: u32 },
-    FieldRef { fields: Array, field: u32 },
 }
 
 impl Interpreter<'_> {
