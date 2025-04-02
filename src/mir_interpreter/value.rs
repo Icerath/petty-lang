@@ -1,9 +1,33 @@
-use std::ops::Range;
+use std::{
+    cell::{RefCell, RefMut},
+    ops::Range,
+    rc::Rc,
+};
 
 use arcstr::ArcStr;
 
 use super::array::Array;
 use crate::mir::BodyId;
+
+#[derive(Debug, Clone)]
+pub struct Allocation {
+    inner: Rc<RefCell<Value>>,
+}
+
+impl Allocation {
+    pub fn borrow(&self) -> RefMut<Value> {
+        self.inner.borrow_mut()
+    }
+    pub fn clone_raw(&self) -> Value {
+        self.inner.borrow().clone()
+    }
+}
+
+impl From<Value> for Allocation {
+    fn from(value: Value) -> Self {
+        Self { inner: Rc::new(RefCell::new(value)) }
+    }
+}
 
 #[derive(Debug, Clone)]
 pub enum Value {
@@ -16,8 +40,7 @@ pub enum Value {
     Str(ArcStr),
     Fn(BodyId),
     Struct(Array),
-    ArrayRef { array: Array, index: u32 },
-    FieldRef { fields: Array, field: u32 },
+    Ref(Allocation),
 }
 
 macro_rules! value {
@@ -43,8 +66,8 @@ impl Value {
     pub fn unwrap_char(&mut self) -> char {
         *value!(Char, self)
     }
-    pub fn unwrap_str(&mut self) -> &ArcStr {
-        value!(Str, self)
+    pub fn unwrap_str(&mut self) -> ArcStr {
+        value!(Str, self).clone()
     }
     pub fn unwrap_range(&mut self) -> Range<i64> {
         match self {
@@ -59,22 +82,16 @@ impl Value {
     pub fn unwrap_fn(&mut self) -> BodyId {
         *value!(Fn, self)
     }
-    pub fn unwrap_array(&mut self) -> &Array {
-        value!(Array, self)
+    pub fn unwrap_array(&mut self) -> Array {
+        value!(Array, self).clone()
     }
-    pub fn unwrap_arrayref(&self) -> (Array, u32) {
-        match self {
-            Value::ArrayRef { array, index } => (array.clone(), *index),
-            _ => unreachable!(),
-        }
+    pub fn unwrap_struct(&mut self) -> Array {
+        value!(Struct, self).clone()
     }
-    pub fn unwrap_struct(&mut self) -> &Array {
-        value!(Struct, self)
-    }
-    pub fn unwrap_fieldref(&self) -> (&Array, u32) {
-        match self {
-            Value::FieldRef { fields, field } => (fields, *field),
-            _ => unreachable!(),
-        }
+}
+
+impl Allocation {
+    pub fn unwrap_array(&mut self) -> Array {
+        self.borrow().unwrap_array()
     }
 }

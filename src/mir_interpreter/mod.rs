@@ -5,7 +5,7 @@ use std::io::{self, Write};
 
 use array::Array;
 use index_vec::IndexSlice;
-use value::Value;
+use value::{Allocation, Value};
 
 use crate::mir::{
     BinaryOp, BlockId, BodyId, Constant, Deref, Mir, Operand, Place, RValue, Statement, Terminator,
@@ -14,21 +14,25 @@ use crate::mir::{
 
 pub fn interpret(mir: &Mir) {
     let Some(main) = mir.main_body else { return };
-    let mut interpreter = Interpreter { mir };
+    let mut interpreter = Interpreter { mir, unit: Value::Unit.into() };
     interpreter.run(main, vec![]);
 }
 
 struct Interpreter<'mir> {
     mir: &'mir Mir,
+    unit: Allocation,
 }
 
 impl Interpreter<'_> {
+    fn unit(&self) -> Allocation {
+        self.unit.clone()
+    }
     fn run(&mut self, body_id: BodyId, args: Vec<Value>) -> Value {
         let body = &self.mir.bodies[body_id];
         let mut block_id = BlockId::from(0);
-        let mut places = index_vec::index_vec![Value::Unit; body.places.index()];
+        let mut places = index_vec::index_vec![self.unit(); body.places.index()];
         for (i, arg) in args.into_iter().enumerate() {
-            places[i] = arg;
+            places[i] = arg.into();
         }
         loop {
             let block = &body.blocks[block_id];
@@ -37,15 +41,11 @@ impl Interpreter<'_> {
                     Statement::Assign { place, deref, ref rvalue } => {
                         let rvalue = self.rvalue(rvalue, &mut places);
                         match deref {
-                            None => places[place] = rvalue,
-                            Some(Deref::Array) => {
-                                let (array, index) = places[place].unwrap_arrayref();
-                                array.set(index as _, rvalue);
-                            }
-                            Some(Deref::Field) => {
-                                let (fields, field) = places[place].unwrap_fieldref();
-                                fields.set(field as _, rvalue);
-                            }
+                            None => places[place] = rvalue.into(),
+                            Some(Deref::Array | Deref::Field) => match &*places[place].borrow() {
+                                Value::Ref(value) => *value.borrow() = rvalue,
+                                _ => unreachable!(),
+                            },
                         }
                     }
                 }
@@ -65,7 +65,7 @@ impl Interpreter<'_> {
         }
     }
     #[allow(clippy::too_many_lines)]
-    fn rvalue(&mut self, rvalue: &RValue, places: &mut IndexSlice<Place, [Value]>) -> Value {
+    fn rvalue(&mut self, rvalue: &RValue, places: &mut IndexSlice<Place, [Allocation]>) -> Value {
         match rvalue {
             RValue::Use(operand) => Self::operand(operand, places),
             RValue::Extend { array, value, repeat } => {
@@ -131,20 +131,18 @@ impl Interpreter<'_> {
                     BinaryOp::ArrayIndexRange => todo!(),
                     BinaryOp::ArrayIndex => {
                         let index = rhs.unwrap_int_usize();
-                        lhs.unwrap_array().get(index).unwrap()
+                        lhs.unwrap_array().get(index).unwrap().clone_raw()
                     }
                     BinaryOp::ArrayIndexRef => {
-                        let index = rhs.unwrap_int_usize().try_into().unwrap();
-                        Value::ArrayRef { array: lhs.unwrap_array().clone(), index }
+                        Value::Ref(lhs.unwrap_array().get(rhs.unwrap_int_usize()).unwrap())
                     }
                     BinaryOp::StructField => {
                         let index = rhs.unwrap_int_usize();
-                        lhs.unwrap_struct().get(index).unwrap()
+                        lhs.unwrap_struct().get(index).unwrap().clone_raw()
                     }
                     BinaryOp::StructFieldRef => {
                         let fields = lhs.unwrap_struct().clone();
-                        let field = rhs.unwrap_int_usize().try_into().unwrap();
-                        Value::FieldRef { fields, field }
+                        Value::Ref(fields.get(rhs.unwrap_int_usize()).unwrap())
                     }
                 }
             }
@@ -176,7 +174,7 @@ impl Interpreter<'_> {
         }
     }
 
-    fn operand(operand: &Operand, places: &IndexSlice<Place, [Value]>) -> Value {
+    fn operand(operand: &Operand, places: &IndexSlice<Place, [Allocation]>) -> Value {
         match *operand {
             Operand::Constant(ref constant) => match *constant {
                 Constant::Unit => Value::Unit,
@@ -188,7 +186,7 @@ impl Interpreter<'_> {
                 Constant::Func(body) => Value::Fn(body),
                 Constant::StructInit => Value::Struct(places.iter().cloned().collect()),
             },
-            Operand::Place(place) => places[place].clone(),
+            Operand::Place(place) => places[place].clone_raw(),
             Operand::Unreachable => unreachable!(),
         }
     }

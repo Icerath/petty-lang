@@ -1,27 +1,27 @@
 use std::{cell::Cell, fmt, rc::Rc};
 
-use super::Value;
+use super::{Allocation, Value};
 
 #[derive(Clone, Default)]
 pub struct Array {
-    inner: Rc<Cell<Vec<Value>>>,
+    inner: Rc<Cell<Vec<Allocation>>>,
 }
 
 impl Array {
-    fn with<T>(&self, f: impl FnOnce(&mut Vec<Value>) -> T) -> T {
+    fn with<T>(&self, f: impl FnOnce(&mut Vec<Allocation>) -> T) -> T {
         let mut inner = self.inner.take();
         let out = f(&mut inner);
         self.inner.set(inner);
         out
     }
-    pub fn get(&self, index: usize) -> Option<Value> {
+    pub fn get(&self, index: usize) -> Option<Allocation> {
         self.with(|array| array.get(index).cloned())
     }
-    pub fn set(&self, index: usize, value: Value) {
-        self.with(|array| array[index] = value);
-    }
+    #[expect(clippy::needless_pass_by_value)]
     pub fn extend(&self, value: Value, count: usize) {
-        self.with(|array| array.extend(std::iter::repeat_n(value, count)));
+        self.with(|array| {
+            array.extend(std::iter::repeat_with(|| value.clone().into()).take(count));
+        });
     }
 }
 
@@ -31,8 +31,8 @@ impl fmt::Debug for Array {
     }
 }
 
-impl FromIterator<Value> for Array {
-    fn from_iter<I: IntoIterator<Item = Value>>(iter: I) -> Self {
+impl FromIterator<Allocation> for Array {
+    fn from_iter<I: IntoIterator<Item = Allocation>>(iter: I) -> Self {
         Self { inner: Rc::new(Cell::new(iter.into_iter().collect())) }
     }
 }
