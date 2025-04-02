@@ -304,8 +304,20 @@ impl Lowering<'_, '_> {
 
     fn get_lvalue_place(&mut self, lvalue: &LValue, want_ref: bool) -> (Place, bool) {
         match lvalue {
-            hir::LValue::Deref { .. } => {
-                todo!()
+            hir::LValue::Deref { expr } => {
+                let lhs = Operand::Place(self.get_lvalue_place(expr, false).0);
+                let place = self.new_place();
+
+                if want_ref {
+                    self.current().stmts.push(Statement::assign(place, RValue::Use(lhs)));
+                    (place, true)
+                } else {
+                    self.current().stmts.push(Statement::assign(
+                        place,
+                        RValue::UnaryExpr { op: UnaryOp::Deref, operand: lhs },
+                    ));
+                    (place, false)
+                }
             }
             hir::LValue::Name(name) => (self.bodies.last().unwrap().variables[name], false),
             hir::LValue::Field { expr, field } => {
