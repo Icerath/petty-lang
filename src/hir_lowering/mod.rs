@@ -83,6 +83,19 @@ impl Lowering<'_, '_> {
         self.process(rvalue)
     }
 
+    fn lower_local(&mut self, id: ExprId) -> Local {
+        match self.lower_inner(id) {
+            RValue::Use(Operand::Place(Place { local, projections })) if projections.is_empty() => {
+                local
+            }
+            rvalue => {
+                let local = self.new_local();
+                self.current().stmts.push(Statement::Assign { place: Place::local(local), rvalue });
+                local
+            }
+        }
+    }
+
     fn process(&mut self, rvalue: RValue) -> Operand {
         match rvalue {
             RValue::Use(operand) => operand,
@@ -317,12 +330,7 @@ impl Lowering<'_, '_> {
         match self.hir.exprs[expr].kind {
             ExprKind::Ident(ident) => self.current().variables[&ident],
             ExprKind::Index { expr, index } => {
-                let index_local = self.new_local();
-                let assign = Statement::Assign {
-                    place: Place::local(index_local),
-                    rvalue: self.lower_inner(index),
-                };
-                self.current().stmts.push(assign);
+                let index_local = self.lower_local(index);
                 let local = self.lower_place_inner(expr, proj);
                 proj.push(Projection::Index(index_local));
                 local
