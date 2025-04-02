@@ -115,13 +115,18 @@ impl Lowering<'_, '_> {
                 operand: Operand::Constant(Constant::Str(str)),
             },
             ExprKind::Literal(ref lit) => self.lit_rvalue(lit),
-            ExprKind::Unary { op, expr } => {
+            ExprKind::Unary { op, expr } => 'outer: {
                 let operand = self.lower(expr);
                 let op = match op {
                     hir::UnaryOp::Not => mir::UnaryOp::BoolNot,
                     hir::UnaryOp::Neg => mir::UnaryOp::IntNeg,
                     hir::UnaryOp::Deref => mir::UnaryOp::Deref,
-                    hir::UnaryOp::Ref => mir::UnaryOp::Ref,
+                    hir::UnaryOp::Ref => {
+                        break 'outer RValue::Use(match operand {
+                            Operand::Place(place) => Operand::Ref(place),
+                            _ => todo!(),
+                        });
+                    }
                 };
                 RValue::UnaryExpr { op, operand }
             }

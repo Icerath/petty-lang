@@ -109,6 +109,7 @@ impl RValue {
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Operand {
     Constant(Constant),
+    Ref(Place),
     Place(Place),
     Unreachable,
 }
@@ -182,7 +183,6 @@ pub enum UnaryOp {
     StrLen,
     StrPrint,
 
-    Ref,
     Deref,
 }
 
