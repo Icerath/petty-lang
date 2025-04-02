@@ -187,6 +187,10 @@ impl Writer<'_, '_> {
                 self.display_expr(*index);
                 self.f.push(']');
             }
+            LValue::Deref { expr } => {
+                self.f.push('*');
+                self.display_lvalue(expr);
+            }
         }
     }
 

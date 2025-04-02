@@ -64,6 +64,9 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
 
                 hir::LValue::Field { expr, field }
             }
+            ast::ExprKind::Unary { op: ast::UnaryOp::Deref, expr } => {
+                hir::LValue::Deref { expr: Box::new(self.lower_lvalue(expr)) }
+            }
             _ => panic!("Invalid lhs of assignment"),
         }
     }

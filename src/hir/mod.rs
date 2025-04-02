@@ -113,4 +113,5 @@ pub enum LValue {
     Name(Symbol),
     Index { indexee: Box<LValue>, index: ExprId },
     Field { expr: Box<LValue>, field: usize },
+    Deref { expr: Box<LValue> },
 }
