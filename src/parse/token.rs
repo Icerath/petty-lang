@@ -11,6 +11,7 @@ pub enum TokenKind {
     Semicolon,
     Colon,
     ThinArrow,
+    Ampersand,
 
     LBrace,
     RBrace,
@@ -71,6 +72,7 @@ pub struct Token {
 impl TokenKind {
     pub const fn repr(self) -> &'static str {
         match self {
+            Self::Ampersand => "&",
             Self::Unreachable => "unreachable",
             Self::Assert => "assert",
             Self::Break => "break",

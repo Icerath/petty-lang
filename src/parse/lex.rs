@@ -76,6 +76,8 @@ impl Iterator for Lexer<'_> {
             '>' if self.try_next('=') => TokenKind::GreaterEq,
             '<' if self.try_next('=') => TokenKind::LessEq,
             // Symbols
+            '&' => TokenKind::Ampersand,
+
             '.' => TokenKind::Dot,
             ',' => TokenKind::Comma,
             ';' => TokenKind::Semicolon,

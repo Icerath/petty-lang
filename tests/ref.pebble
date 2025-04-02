@@ -1,0 +1,9 @@
+fn main() {
+    let x = 1;
+    add_one(&x);
+    assert x == 2;
+}
+
+fn add_one(x: &int) {
+    *x += 1;
+}
