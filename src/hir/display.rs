@@ -189,6 +189,8 @@ impl Writer<'_, '_> {
         let str = match op {
             UnaryOp::Not => "!",
             UnaryOp::Neg => "-",
+            UnaryOp::Ref => "&",
+            UnaryOp::Deref => "*",
         };
         self.f.push_str(str);
     }

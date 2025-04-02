@@ -105,8 +105,14 @@ fn parse_unary_expr(stream: &mut Stream) -> Result<ExprId> {
     let token = stream.next()?;
     let start = token.span.start();
     let expr = match token.kind {
-        kind @ (TokenKind::Minus | TokenKind::Not) => {
-            let op = if kind == TokenKind::Minus { UnaryOp::Neg } else { UnaryOp::Not };
+        kind @ (TokenKind::Minus | TokenKind::Not | TokenKind::Ampersand | TokenKind::Star) => {
+            let op = match kind {
+                TokenKind::Minus => UnaryOp::Neg,
+                TokenKind::Not => UnaryOp::Not,
+                TokenKind::Ampersand => UnaryOp::Ref,
+                TokenKind::Star => UnaryOp::Deref,
+                _ => unreachable!(),
+            };
             let next = stream.next()?;
             (ExprKind::Unary { op, expr: parse_paren_expr(stream, next)? }).todo_span()
         }

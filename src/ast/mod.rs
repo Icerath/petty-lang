@@ -145,6 +145,8 @@ pub enum BinOpKind {
 pub enum UnaryOp {
     Neg,
     Not,
+    Ref,
+    Deref,
 }
 
 impl fmt::Debug for Block {

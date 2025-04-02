@@ -223,6 +223,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 let ty = match op {
                     UnaryOp::Neg => &TyKind::Int,
                     UnaryOp::Not => &TyKind::Bool,
+                    _ => todo!(),
                 };
                 self.subtype(operand, ty, id)?;
                 ty

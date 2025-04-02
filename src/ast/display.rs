@@ -219,6 +219,8 @@ impl Dump for UnaryOp {
         w.f.push_str(match self {
             UnaryOp::Not => "!",
             UnaryOp::Neg => "-",
+            UnaryOp::Ref => "&",
+            UnaryOp::Deref => "*",
         });
     }
 }
