@@ -307,6 +307,11 @@ impl Lowering<'_, '_> {
     fn get_lvalue_place(&mut self, lvalue: &LValue, want_ref: bool) -> (Place, bool) {
         match lvalue {
             hir::LValue::Name(name) => (self.bodies.last().unwrap().variables[name], false),
+            hir::LValue::Field { expr, field } => {
+                _ = expr;
+                _ = field;
+                todo!()
+            }
             hir::LValue::Index { indexee, index } => {
                 let rhs = self.lower(*index);
                 let lhs = Operand::Place(self.get_lvalue_place(indexee, false).0);

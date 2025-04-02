@@ -56,6 +56,14 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
                 let indexee = Box::new(self.lower_lvalue(*expr));
                 hir::LValue::Index { indexee, index: self.lower(*index) }
             }
+            ast::ExprKind::FieldAccess { expr, field } => {
+                let TyKind::Struct { symbols, .. } = self.get_ty(*expr) else { panic!() };
+                let field = symbols.iter().position(|s| s == field).unwrap();
+
+                let expr = Box::new(self.lower_lvalue(*expr));
+
+                hir::LValue::Field { expr, field }
+            }
             _ => panic!("Invalid lhs of assignment"),
         }
     }

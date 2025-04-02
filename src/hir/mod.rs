@@ -112,4 +112,5 @@ pub struct IfStmt {
 pub enum LValue {
     Name(Symbol),
     Index { indexee: Box<LValue>, index: ExprId },
+    Field { expr: Box<LValue>, field: usize },
 }

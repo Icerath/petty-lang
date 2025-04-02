@@ -172,6 +172,10 @@ impl Writer<'_, '_> {
     fn display_lvalue(&mut self, lvalue: &LValue) {
         match lvalue {
             LValue::Name(name) => self.f.push_str(name),
+            LValue::Field { expr, field } => {
+                self.display_lvalue(expr);
+                _ = write!(self.f, ".{field}");
+            }
             LValue::Index { indexee, index } => {
                 self.display_lvalue(indexee);
                 self.f.push('[');
