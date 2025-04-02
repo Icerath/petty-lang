@@ -30,6 +30,7 @@ impl Expr<'_> {
 
 #[derive(Debug)]
 pub enum ExprKind<'tcx> {
+    Unreachable,
     Abort,
     StructInit,
     Field { expr: ExprId, field: usize },

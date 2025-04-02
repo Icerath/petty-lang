@@ -55,6 +55,7 @@ pub enum Ty {
 
 #[derive(Debug)]
 pub enum ExprKind {
+    Unreachable,
     Binary { lhs: ExprId, op: BinaryOp, rhs: ExprId },
     Unary { op: UnaryOp, expr: ExprId },
     FnCall { function: ExprId, args: ThinVec<ExprId> },

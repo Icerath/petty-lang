@@ -167,6 +167,7 @@ impl Lexer<'_> {
 
 fn ident_kind(str: &str) -> TokenKind {
     match str {
+        "unreachable" => TokenKind::Unreachable,
         "in" => TokenKind::In,
         "for" => TokenKind::For,
         "assert" => TokenKind::Assert,

@@ -57,6 +57,7 @@ impl Writer<'_, '_> {
         // FIXME: take precedence into account to use minimum parens needed
         let inside_expr = mem::replace(&mut self.inside_expr, true);
         match &self.hir.exprs[expr].kind {
+            ExprKind::Unreachable => self.f.push_str("unreachable"),
             ExprKind::Abort => self.f.push_str("abort"),
             &ExprKind::Field { expr, field } => {
                 self.display_expr(expr);

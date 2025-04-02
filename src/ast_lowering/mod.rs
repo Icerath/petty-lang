@@ -63,6 +63,9 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
     #[allow(clippy::too_many_lines)]
     fn lower_inner(&mut self, expr_id: ast::ExprId) -> hir::Expr<'tcx> {
         match self.ast.exprs[expr_id].kind {
+            ast::ExprKind::Unreachable => {
+                hir::Expr { ty: &TyKind::Never, kind: ExprKind::Unreachable }
+            }
             ast::ExprKind::Binary {
                 lhs,
                 op:
