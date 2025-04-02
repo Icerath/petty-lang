@@ -191,8 +191,6 @@ pub enum BinaryOp {
     ArrayIndexRange,
     ArrayIndex,
     ArrayIndexRef,
-
-    StructField,
 }
 
 #[derive(Debug, Clone, Copy)]

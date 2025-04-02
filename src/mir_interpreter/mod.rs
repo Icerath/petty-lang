@@ -129,10 +129,6 @@ impl Interpreter<'_> {
                     BinaryOp::ArrayIndexRef => {
                         Value::Ref(lhs.unwrap_array().get(rhs.unwrap_int_usize()).unwrap())
                     }
-                    BinaryOp::StructField => {
-                        let index = rhs.unwrap_int_usize();
-                        lhs.unwrap_struct().get(index).unwrap().clone_raw()
-                    }
                 }
             }
             RValue::UnaryExpr { op, operand } => {
