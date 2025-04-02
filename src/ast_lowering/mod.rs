@@ -50,17 +50,17 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
     }
 
     fn lower_lvalue(&mut self, expr_id: ast::ExprId) -> hir::LValue {
-        match &self.ast.exprs[expr_id].kind {
-            &ast::ExprKind::Ident(name) => hir::LValue::Name(name),
+        match self.ast.exprs[expr_id].kind {
+            ast::ExprKind::Ident(name) => hir::LValue::Name(name),
             ast::ExprKind::Index { expr, index } => {
-                let indexee = Box::new(self.lower_lvalue(*expr));
-                hir::LValue::Index { indexee, index: self.lower(*index) }
+                let indexee = Box::new(self.lower_lvalue(expr));
+                hir::LValue::Index { indexee, index: self.lower(index) }
             }
             ast::ExprKind::FieldAccess { expr, field } => {
-                let TyKind::Struct { symbols, .. } = self.get_ty(*expr) else { panic!() };
-                let field = symbols.iter().position(|s| s == field).unwrap();
+                let TyKind::Struct { symbols, .. } = self.get_ty(expr) else { panic!() };
+                let field = symbols.iter().position(|&s| s == field).unwrap();
 
-                let expr = Box::new(self.lower_lvalue(*expr));
+                let expr = Box::new(self.lower_lvalue(expr));
 
                 hir::LValue::Field { expr, field }
             }
