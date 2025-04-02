@@ -4,7 +4,10 @@ use super::{
     Parse, Stream, parse_atom_with,
     token::{Token, TokenKind},
 };
-use crate::ast::{BinOpKind, BinaryOp, ExprId, ExprKind, Lit, UnaryOp};
+use crate::{
+    ast::{BinOpKind, BinaryOp, ExprId, ExprKind, Lit, UnaryOp},
+    source::span::Span,
+};
 
 impl Parse for ExprId {
     fn parse(stream: &mut Stream) -> Result<Self> {
@@ -38,7 +41,7 @@ fn parse_expr(stream: &mut Stream, precedence: u8) -> Result<ExprId> {
     ];
 
     let Some(&ops) = OPS.get(precedence as usize) else {
-        return parse_leaf_expr(stream);
+        return parse_unary_expr(stream);
     };
     let mut root = parse_expr(stream, precedence + 1)?;
     loop {
@@ -56,8 +59,8 @@ fn parse_expr(stream: &mut Stream, precedence: u8) -> Result<ExprId> {
     Ok(root)
 }
 
-fn parse_leaf_expr(stream: &mut Stream) -> Result<ExprId> {
-    let mut expr = parse_unary_expr(stream)?;
+fn parse_leaf_expr(stream: &mut Stream, next: Token) -> Result<ExprId> {
+    let mut expr = parse_paren_expr(stream, next)?;
 
     loop {
         let Some(token) = stream.lexer.clone().next().transpose()? else { break };
@@ -113,14 +116,15 @@ fn parse_unary_expr(stream: &mut Stream) -> Result<ExprId> {
                 TokenKind::Star => UnaryOp::Deref,
                 _ => unreachable!(),
             };
-            let next = stream.next()?;
-            (ExprKind::Unary { op, expr: parse_paren_expr(stream, next)? }).todo_span()
+            let expr = parse_unary_expr(stream)?;
+            (ExprKind::Unary { op, expr })
+                .with_span(Span::join([token.span, stream.ast.exprs[expr].span]))
         }
         TokenKind::LBracket => ExprKind::Lit(Lit::Array {
             segments: stream.parse_separated(TokenKind::Comma, TokenKind::RBracket)?,
         })
         .with_span(start..stream.lexer.current_pos()),
-        _ => return parse_paren_expr(stream, token),
+        _ => return parse_leaf_expr(stream, token),
     };
     Ok(stream.ast.exprs.push(expr))
 }

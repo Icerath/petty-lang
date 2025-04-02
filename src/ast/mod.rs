@@ -157,14 +157,7 @@ impl fmt::Debug for Block {
 
 impl Ast {
     pub fn spans(&self, exprs: impl IntoIterator<Item = ExprId>) -> Span {
-        let mut start = u32::MAX;
-        let mut end = 0;
-        exprs.into_iter().for_each(|expr| {
-            let range = self.exprs[expr].span;
-            start = start.min(range.start());
-            end = start.max(range.end());
-        });
-        Span::from(start..end)
+        Span::join(exprs.into_iter().map(|expr| self.exprs[expr].span))
     }
 }
 

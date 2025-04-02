@@ -12,6 +12,18 @@ pub struct Span {
     source: SourceId,
 }
 
+impl Span {
+    pub fn join(spans: impl IntoIterator<Item = Span>) -> Span {
+        let mut start = u32::MAX;
+        let mut end = 0;
+        spans.into_iter().for_each(|span| {
+            start = start.min(span.start());
+            end = start.max(span.end());
+        });
+        Span::from(start..end)
+    }
+}
+
 const _: () = assert!(size_of::<Span>() == size_of::<usize>());
 
 impl fmt::Debug for Span {

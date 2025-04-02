@@ -1,0 +1,8 @@
+fn one() -> int { 1 }
+
+fn main() {
+    assert -one() == -1;
+    assert 1 + 2 * 3 == 7;
+    assert --one() == 1;
+}
+
