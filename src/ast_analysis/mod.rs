@@ -215,12 +215,17 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
             }
             ExprKind::Lit(ref lit) => self.analyze_lit(lit)?,
             ExprKind::Ident(ident) => self.read_ident(ident)?,
-            ExprKind::Unary { expr, op } => {
+            ExprKind::Unary { expr, op } => 'outer: {
                 let operand = self.analyze_expr(expr)?;
                 let ty = match op {
                     UnaryOp::Neg => &TyKind::Int,
                     UnaryOp::Not => &TyKind::Bool,
-                    _ => todo!(),
+                    UnaryOp::Ref => break 'outer self.tcx.intern(TyKind::Ref(operand)),
+                    UnaryOp::Deref => {
+                        let operand = self.tcx.infer_shallow(operand);
+                        let TyKind::Ref(inner) = operand else { panic!() };
+                        break 'outer inner;
+                    }
                 };
                 self.subtype(operand, ty, id)?;
                 ty
