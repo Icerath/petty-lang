@@ -161,10 +161,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
     #[track_caller]
     fn read_ast_ty_with(&mut self, id: ast::TypeId, generics: GenericRange) -> Ty<'tcx> {
         let ty = match self.ast.types[id] {
-            ast::Ty::Ref(inner) => {
-                _ = inner;
-                todo!()
-            }
+            ast::Ty::Ref(of) => self.tcx.intern(TyKind::Ref(self.read_ast_ty_with(of, generics))),
             ast::Ty::Func { ref params, ret } => {
                 let ret = ret.map_or(&TyKind::Unit, |ty| self.read_ast_ty_with(ty, generics));
                 let params =

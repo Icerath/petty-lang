@@ -39,6 +39,11 @@ impl Writer<'_, '_> {
             TyKind::Char => "char",
             TyKind::Str => "str",
             TyKind::Infer(..) => panic!(),
+            TyKind::Ref(of) => {
+                self.f.push('&');
+                self.display_ty(of);
+                return;
+            }
             TyKind::Array(of) => {
                 self.f.push('[');
                 self.display_ty(of);

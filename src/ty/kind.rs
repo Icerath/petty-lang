@@ -20,13 +20,14 @@ pub enum TyKind<'tcx> {
     Struct { id: StructId, symbols: ThinVec<Symbol>, fields: ThinVec<Ty<'tcx>> },
     Generic(GenericId),
     Infer(TyVid),
+    Ref(Ty<'tcx>),
 }
 
 impl<'tcx> TyKind<'tcx> {
     pub fn generics(&self, f: &mut impl FnMut(GenericId)) {
         match *self {
             Self::Generic(id) => f(id),
-            Self::Array(ty) => ty.generics(f),
+            Self::Array(ty) | Self::Ref(ty) => ty.generics(f),
             Self::Function(ref func) => func.generics(f),
             Self::Struct { ref fields, .. } => {
                 // this seems wrong.
@@ -51,6 +52,7 @@ impl<'tcx> TyKind<'tcx> {
     ) -> Ty<'tcx> {
         match *self {
             Self::Generic(id) => tcx.intern(TyKind::Infer(f(id))),
+            Self::Ref(ty) => tcx.intern(TyKind::Ref(ty.replace_generics(tcx, f))),
             Self::Array(ty) => tcx.intern(TyKind::Array(ty.replace_generics(tcx, f))),
             Self::Function(Function { ref params, ret, .. }) => {
                 let params = params.iter().map(|param| param.replace_generics(tcx, f)).collect();
@@ -115,6 +117,7 @@ impl fmt::Display for TyKind<'_> {
             Self::Range => write!(f, "Range"),
             Self::RangeInclusive => write!(f, "RangeInclusive"),
             Self::Array(of) => write!(f, "[{of}]"),
+            Self::Ref(of) => write!(f, "&{of}"),
             Self::Function(Function { params, ret }) => {
                 write!(f, "fn")?;
                 let mut debug_tuple = f.debug_tuple("");

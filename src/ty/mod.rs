@@ -129,16 +129,19 @@ impl<'tcx> TyCtxInner<'tcx> {
     fn infer_deep(&self, ty: Ty<'tcx>, intern: &'tcx TyInterner) -> Ty<'tcx> {
         match self.infer_shallow(ty) {
             TyKind::Array(of) => intern.intern(TyKind::Array(self.infer_deep(of, intern))),
+            TyKind::Ref(of) => intern.intern(TyKind::Ref(self.infer_deep(of, intern))),
             ty => ty,
         }
     }
 
+    #[expect(clippy::match_same_arms)]
     fn eq(&mut self, lhs: Ty<'tcx>, rhs: Ty<'tcx>) -> Result<(), [Ty<'tcx>; 2]> {
         match (lhs, rhs) {
             (TyKind::Infer(l), TyKind::Infer(r)) if l == r => Ok(()),
             (TyKind::Infer(var), _) => self.insertl(*var, rhs),
             (_, TyKind::Infer(var)) => self.insertr(lhs, *var),
             (TyKind::Array(lhs), TyKind::Array(rhs)) => self.eq(lhs, rhs),
+            (TyKind::Ref(lhs), TyKind::Ref(rhs)) => self.eq(lhs, rhs),
             (TyKind::Function(lhs), TyKind::Function(rhs)) => {
                 assert_eq!(lhs.params.len(), rhs.params.len());
                 lhs.params.iter().zip(&rhs.params).try_for_each(|(l, r)| self.eq(l, r))?;
