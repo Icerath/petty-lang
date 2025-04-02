@@ -51,6 +51,7 @@ pub enum Ty {
     Name(Symbol),
     Array(TypeId),
     Func { params: ThinVec<TypeId>, ret: Option<TypeId> },
+    Ref(TypeId),
 }
 
 #[derive(Debug)]

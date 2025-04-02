@@ -191,6 +191,7 @@ impl Parse for Ty {
             TokenKind::LBracket,
             TokenKind::LParen,
             TokenKind::Not,
+            TokenKind::Ampersand,
         ])?;
         Ok(match any.kind {
             TokenKind::Fn => {
@@ -215,6 +216,7 @@ impl Parse for Ty {
                 stream.expect(TokenKind::RParen)?;
                 Self::Unit
             }
+            TokenKind::Ampersand => Self::Ref(stream.parse()?),
             _ => unreachable!(),
         })
     }

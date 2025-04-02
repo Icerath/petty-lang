@@ -169,6 +169,7 @@ impl Dump for Param {
 impl Dump for TypeId {
     fn write(&self, w: &mut Writer) {
         match w.ast.types[*self] {
+            Ty::Ref(inner) => ("&", inner).write(w),
             Ty::Func { ref params, ret } => {
                 ("fn(", Sep(params, ", "), ")", ret.map(|ret| (" -> ", ret))).write(w);
             }
