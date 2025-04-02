@@ -425,7 +425,6 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
 
     fn analyze_lit(&mut self, lit: &Lit) -> Result<Ty<'tcx>> {
         Ok(match lit {
-            Lit::Abort => &TyKind::Never,
             Lit::Unit => &TyKind::Unit,
             Lit::Bool(..) => &TyKind::Bool,
             Lit::Int(..) => &TyKind::Int,

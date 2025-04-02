@@ -150,7 +150,6 @@ impl Dump for Generics<'_> {
 impl Dump for Lit {
     fn write(&self, w: &mut Writer) {
         match self {
-            Lit::Abort => w.f.push_str("abort"),
             Lit::Unit => w.f.push_str("()"),
             Lit::Bool(bool) => _ = write!(w.f, "{bool}"),
             Lit::Int(int) => _ = write!(w.f, "{int}"),

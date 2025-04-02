@@ -1,7 +1,7 @@
 fn never() {
-    let x: int = abort;
-    let y: ! = abort;
+    let x: int = unreachable;
+    let y: ! = unreachable;
 
-    let z: int = abort;
+    let z: int = unreachable;
     z = 1;
 }

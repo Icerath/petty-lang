@@ -171,7 +171,6 @@ fn ident_kind(str: &str) -> TokenKind {
         "in" => TokenKind::In,
         "for" => TokenKind::For,
         "assert" => TokenKind::Assert,
-        "abort" => TokenKind::Abort,
         "break" => TokenKind::Break,
         "else" => TokenKind::Else,
         "false" => TokenKind::False,

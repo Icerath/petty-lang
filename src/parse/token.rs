@@ -42,7 +42,6 @@ pub enum TokenKind {
     Less,
     // Keywords
     Assert,
-    Abort,
     Break,
     Else,
     False,
@@ -74,7 +73,6 @@ impl TokenKind {
         match self {
             Self::Unreachable => "unreachable",
             Self::Assert => "assert",
-            Self::Abort => "abort",
             Self::Break => "break",
             Self::Let => "let",
             Self::While => "while",
