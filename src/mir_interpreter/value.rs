@@ -53,6 +53,9 @@ macro_rules! value {
 }
 
 impl Value {
+    pub fn unwrap_ref(&self) -> &Allocation {
+        value!(Ref, self)
+    }
     pub fn unwrap_bool(&mut self) -> bool {
         *value!(Bool, self)
     }

@@ -181,6 +181,9 @@ pub enum UnaryOp {
 
     StrLen,
     StrPrint,
+
+    Ref,
+    Deref,
 }
 
 impl Statement {

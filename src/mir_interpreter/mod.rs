@@ -150,6 +150,8 @@ impl Interpreter<'_> {
             RValue::UnaryExpr { op, operand } => {
                 let mut operand = Self::operand(operand, places);
                 match op {
+                    UnaryOp::Ref => Value::Ref(operand.into()),
+                    UnaryOp::Deref => operand.unwrap_ref().clone_raw(),
                     UnaryOp::BoolNot => Value::Bool(!operand.unwrap_bool()),
 
                     UnaryOp::IntNeg => Value::Int(-operand.unwrap_int()),

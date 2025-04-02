@@ -120,7 +120,8 @@ impl Lowering<'_, '_> {
                 let op = match op {
                     hir::UnaryOp::Not => mir::UnaryOp::BoolNot,
                     hir::UnaryOp::Neg => mir::UnaryOp::IntNeg,
-                    _ => todo!(),
+                    hir::UnaryOp::Deref => mir::UnaryOp::Deref,
+                    hir::UnaryOp::Ref => mir::UnaryOp::Ref,
                 };
                 RValue::UnaryExpr { op, operand }
             }
