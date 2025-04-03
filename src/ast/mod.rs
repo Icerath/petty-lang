@@ -46,7 +46,6 @@ pub struct Param {
 
 pub struct Ty {
     pub kind: TyKind,
-    #[expect(dead_code)]
     pub span: Span,
 }
 

@@ -101,7 +101,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
             };
             let symbols: ThinVec<_> = fields.iter().map(|field| field.ident).collect();
             let fields: ThinVec<_> =
-                fields.iter().map(|field| self.read_ast_ty(field.ty)).collect();
+                fields.iter().map(|field| self.read_ast_ty(field.ty)).collect::<Result<_>>()?;
             let params = fields.clone();
             let struct_ty = self.tcx.new_struct(*ident, symbols, fields);
             self.bodies.last_mut().unwrap().ty_names.insert(*ident, struct_ty);
@@ -121,11 +121,13 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
             };
             let generics = self.tcx.new_generics(generics);
             let ret = match ret {
-                Some(ret) => self.read_ast_ty_with(*ret, generics),
+                Some(ret) => self.read_ast_ty_with(*ret, generics)?,
                 None => &TyKind::Unit,
             };
-            let params =
-                params.iter().map(|param| self.read_ast_ty_with(param.ty, generics)).collect();
+            let params = params
+                .iter()
+                .map(|param| self.read_ast_ty_with(param.ty, generics))
+                .collect::<Result<_>>()?;
             body.variables
                 .insert(*ident, self.tcx.intern(TyKind::Function(Function { params, ret })));
         }
@@ -153,42 +155,48 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         })
     }
 
-    #[track_caller]
-    fn read_ast_ty(&mut self, id: ast::TypeId) -> Ty<'tcx> {
+    fn read_ast_ty(&mut self, id: ast::TypeId) -> Result<Ty<'tcx>> {
         self.read_ast_ty_with(id, GenericRange::EMPTY)
     }
 
-    #[track_caller]
-    fn read_ast_ty_with(&mut self, id: ast::TypeId, generics: GenericRange) -> Ty<'tcx> {
-        let ty = match self.ast.types[id].kind {
+    fn read_ast_ty_with(&mut self, id: ast::TypeId, generics: GenericRange) -> Result<Ty<'tcx>> {
+        let ast_ty = &self.ast.types[id];
+        let ty = match ast_ty.kind {
             ast::TyKind::Ref(of) => {
-                self.tcx.intern(TyKind::Ref(self.read_ast_ty_with(of, generics)))
+                self.tcx.intern(TyKind::Ref(self.read_ast_ty_with(of, generics)?))
             }
             ast::TyKind::Func { ref params, ret } => {
-                let ret = ret.map_or(&TyKind::Unit, |ty| self.read_ast_ty_with(ty, generics));
-                let params =
-                    params.iter().map(|param| self.read_ast_ty_with(*param, generics)).collect();
+                let ret = match ret {
+                    Some(ty) => self.read_ast_ty_with(ty, generics)?,
+                    None => &TyKind::Unit,
+                };
+                let params = params
+                    .iter()
+                    .map(|param| self.read_ast_ty_with(*param, generics))
+                    .collect::<Result<_>>()?;
                 self.tcx.intern(TyKind::Function(Function { params, ret }))
             }
             ast::TyKind::Never => &TyKind::Never,
             ast::TyKind::Unit => &TyKind::Unit,
             ast::TyKind::Array(of) => {
-                self.tcx.intern(TyKind::Array(self.read_ast_ty_with(of, generics)))
+                self.tcx.intern(TyKind::Array(self.read_ast_ty_with(of, generics)?))
             }
             ast::TyKind::Name(name) => {
                 match generics.iter().find(|&g| self.tcx.generic_symbol(g) == name) {
                     Some(id) => self.tcx.intern(TyKind::Generic(id)),
-                    None => self.read_named_ty(name),
+                    None => self.read_named_ty(name, ast_ty.span)?,
                 }
             }
         };
         self.ty_info.type_ids[id] = ty;
-        ty
+        Ok(ty)
     }
 
-    #[track_caller]
-    fn read_named_ty(&self, name: Symbol) -> Ty<'tcx> {
-        self.bodies.iter().rev().find_map(|body| body.ty_names.get(&name)).unwrap()
+    fn read_named_ty(&self, name: Symbol, span: Span) -> Result<Ty<'tcx>> {
+        if let Some(&ty) = self.bodies.iter().rev().find_map(|body| body.ty_names.get(&name)) {
+            return Ok(ty);
+        }
+        Err(self.unknown_type_err(span))
     }
 
     fn eq(&self, lhs: Ty<'tcx>, rhs: Ty<'tcx>, expr: ExprId) -> Result<()> {
@@ -340,7 +348,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
             ExprKind::Let { ident, ty, expr } => {
                 let expr_ty = self.analyze_expr(expr)?;
                 let ty = if let Some(ty) = ty {
-                    let ty = self.read_ast_ty(ty);
+                    let ty = self.read_ast_ty(ty)?;
                     self.subtype(expr_ty, ty, expr)?;
                     ty
                 } else {

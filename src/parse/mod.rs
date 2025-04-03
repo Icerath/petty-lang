@@ -114,12 +114,6 @@ impl Stream<'_, '_> {
     fn parse<T: Parse>(&mut self) -> Result<T> {
         T::parse(self)
     }
-    fn parse_spanned<T: Parse>(&mut self) -> Result<(T, Span)> {
-        let start = self.lexer.current_pos();
-        let t = T::parse(self)?;
-        let end = self.lexer.current_pos();
-        Ok((t, Span::from(start..end)))
-    }
     fn parse_separated<T: Parse>(&mut self, sep: TokenKind, term: TokenKind) -> Result<ThinVec<T>> {
         let mut args = thin_vec![];
         loop {
@@ -191,13 +185,6 @@ impl Parse for TypeId {
 
 impl Parse for Ty {
     fn parse(stream: &mut Stream) -> Result<Self> {
-        let (kind, span) = stream.parse_spanned()?;
-        Ok(Ty { kind, span })
-    }
-}
-
-impl Parse for TyKind {
-    fn parse(stream: &mut Stream) -> Result<Self> {
         let any = stream.any(&[
             TokenKind::Fn,
             TokenKind::Ident,
@@ -206,7 +193,8 @@ impl Parse for TyKind {
             TokenKind::Not,
             TokenKind::Ampersand,
         ])?;
-        Ok(match any.kind {
+        let start = any.span.start();
+        let kind = match any.kind {
             TokenKind::Fn => {
                 stream.expect(TokenKind::LParen)?;
                 let params = stream.parse_separated(TokenKind::Comma, TokenKind::RParen)?;
@@ -216,22 +204,24 @@ impl Parse for TyKind {
                 } else {
                     None
                 };
-                Self::Func { params, ret }
+                TyKind::Func { params, ret }
             }
-            TokenKind::Not => Self::Never,
-            TokenKind::Ident => Self::Name(Symbol::from(&stream.lexer.src()[any.span])),
+            TokenKind::Not => TyKind::Never,
+            TokenKind::Ident => TyKind::Name(Symbol::from(&stream.lexer.src()[any.span])),
             TokenKind::LBracket => {
                 let of = stream.parse()?;
                 stream.expect(TokenKind::RBracket)?;
-                Self::Array(of)
+                TyKind::Array(of)
             }
             TokenKind::LParen => {
                 stream.expect(TokenKind::RParen)?;
-                Self::Unit
+                TyKind::Unit
             }
-            TokenKind::Ampersand => Self::Ref(stream.parse()?),
+            TokenKind::Ampersand => TyKind::Ref(stream.parse()?),
             _ => unreachable!(),
-        })
+        };
+        let end = stream.lexer.current_pos();
+        Ok(Ty { kind, span: Span::from(start..end) })
     }
 }
 

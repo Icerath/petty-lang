@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use super::Collector;
 use crate::{
     ast::{BlockId, ExprId, ExprKind},
@@ -7,6 +9,9 @@ use crate::{
 };
 
 impl<'tcx> Collector<'_, '_, 'tcx> {
+    pub fn unknown_type_err(&self, span: Span) -> miette::Error {
+        errors::error("unknown type", self.file, self.src, &[(span, Cow::Borrowed("here"))])
+    }
     #[cold]
     #[inline(never)]
     pub fn subtype_err(&self, lhs: Ty<'tcx>, rhs: Ty<'tcx>, expr: ExprId) -> miette::Error {
