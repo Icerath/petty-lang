@@ -160,20 +160,22 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
 
     #[track_caller]
     fn read_ast_ty_with(&mut self, id: ast::TypeId, generics: GenericRange) -> Ty<'tcx> {
-        let ty = match self.ast.types[id] {
-            ast::Ty::Ref(of) => self.tcx.intern(TyKind::Ref(self.read_ast_ty_with(of, generics))),
-            ast::Ty::Func { ref params, ret } => {
+        let ty = match self.ast.types[id].kind {
+            ast::TyKind::Ref(of) => {
+                self.tcx.intern(TyKind::Ref(self.read_ast_ty_with(of, generics)))
+            }
+            ast::TyKind::Func { ref params, ret } => {
                 let ret = ret.map_or(&TyKind::Unit, |ty| self.read_ast_ty_with(ty, generics));
                 let params =
                     params.iter().map(|param| self.read_ast_ty_with(*param, generics)).collect();
                 self.tcx.intern(TyKind::Function(Function { params, ret }))
             }
-            ast::Ty::Never => &TyKind::Never,
-            ast::Ty::Unit => &TyKind::Unit,
-            ast::Ty::Array(of) => {
+            ast::TyKind::Never => &TyKind::Never,
+            ast::TyKind::Unit => &TyKind::Unit,
+            ast::TyKind::Array(of) => {
                 self.tcx.intern(TyKind::Array(self.read_ast_ty_with(of, generics)))
             }
-            ast::Ty::Name(name) => {
+            ast::TyKind::Name(name) => {
                 match generics.iter().find(|&g| self.tcx.generic_symbol(g) == name) {
                     Some(id) => self.tcx.intern(TyKind::Generic(id)),
                     None => self.read_named_ty(name),

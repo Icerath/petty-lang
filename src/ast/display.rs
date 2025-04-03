@@ -5,9 +5,9 @@ use std::{
 
 use thin_vec::ThinVec;
 
-use super::{ArraySeg, ExprKind, FnDecl, Param, TypeId};
+use super::{ArraySeg, ExprKind, FnDecl, Param, TyKind, TypeId};
 use crate::{
-    ast::{Ast, BinOpKind, BinaryOp, BlockId, ExprId, Lit, Ty, UnaryOp},
+    ast::{Ast, BinOpKind, BinaryOp, BlockId, ExprId, Lit, UnaryOp},
     symbol::Symbol,
 };
 
@@ -168,15 +168,15 @@ impl Dump for Param {
 
 impl Dump for TypeId {
     fn write(&self, w: &mut Writer) {
-        match w.ast.types[*self] {
-            Ty::Ref(inner) => ("&", inner).write(w),
-            Ty::Func { ref params, ret } => {
+        match w.ast.types[*self].kind {
+            TyKind::Ref(inner) => ("&", inner).write(w),
+            TyKind::Func { ref params, ret } => {
                 ("fn(", Sep(params, ", "), ")", ret.map(|ret| (" -> ", ret))).write(w);
             }
-            Ty::Never => w.f.push('!'),
-            Ty::Unit => w.f.push_str("()"),
-            Ty::Array(of) => ("[", of, "]").write(w),
-            Ty::Name(name) => w.f.push_str(&name),
+            TyKind::Never => w.f.push('!'),
+            TyKind::Unit => w.f.push_str("()"),
+            TyKind::Array(of) => ("[", of, "]").write(w),
+            TyKind::Name(name) => w.f.push_str(&name),
         }
     }
 }

@@ -44,8 +44,14 @@ pub struct Param {
     pub ty: TypeId,
 }
 
+pub struct Ty {
+    pub kind: TyKind,
+    #[expect(dead_code)]
+    pub span: Span,
+}
+
 #[derive(Debug)]
-pub enum Ty {
+pub enum TyKind {
     Never,
     Unit,
     Name(Symbol),
