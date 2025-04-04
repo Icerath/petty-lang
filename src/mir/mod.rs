@@ -232,12 +232,52 @@ impl RValue {
             }
         }
     }
+    // could this rvalue potentially mutate local
+    pub fn mutates_local(&self, local: Local) -> bool {
+        match self {
+            Self::BinaryExpr { lhs, rhs, .. } => {
+                lhs.mutates_local(local) || rhs.mutates_local(local)
+            }
+            Self::UnaryExpr { operand, .. } | Self::Use(operand) => operand.mutates_local(local),
+            Self::Extend { array, value, repeat } => {
+                *array == local || value.mutates_local(local) || repeat.mutates_local(local)
+            }
+            Self::Call { function, args } => {
+                function.mutates_local(local) || args.iter().any(|arg| arg.mutates_local(local))
+            }
+        }
+    }
+
+    pub fn with_operands_mut(&mut self, f: &mut impl FnMut(&mut Operand)) {
+        match self {
+            Self::UnaryExpr { operand, .. } | Self::Use(operand) => f(operand),
+            Self::Extend { value, repeat, .. } => {
+                f(value);
+                f(repeat);
+            }
+            Self::BinaryExpr { lhs, rhs, .. } => {
+                f(lhs);
+                f(rhs);
+            }
+            Self::Call { function, args } => {
+                f(function);
+                args.iter_mut().for_each(f);
+            }
+        }
+    }
 }
 
 impl Operand {
     pub fn mentions_place(&self, target: &Place) -> bool {
+        // FIXME: This seems iffy.
         match self {
-            Self::Place(place) => target == place,
+            Self::Ref(place) | Self::Place(place) => target == place,
+            _ => false,
+        }
+    }
+    pub fn mutates_local(&self, local: Local) -> bool {
+        match self {
+            Self::Ref(place) => place.local == local,
             _ => false,
         }
     }
