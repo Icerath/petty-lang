@@ -1,5 +1,6 @@
 use index_vec::IndexVec;
 
+use super::utils::{blocks, blocks_mut};
 use crate::mir::{self, Local, Mir, Operand, RValue, Statement};
 
 pub fn optimize(mir: &mut Mir, body_id: mir::BodyId) {
@@ -9,7 +10,7 @@ pub fn optimize(mir: &mut Mir, body_id: mir::BodyId) {
     let mut local_rvalues: IndexVec<Local, Option<Operand>> =
         vec![None; body.locals.index()].into();
 
-    for (_, block) in body.blocks.iter_enumerated() {
+    for block in blocks(body) {
         for statement in &block.statements {
             let Statement::Assign { place, rvalue } = statement;
             mutated_locals[place.local] += 1;
@@ -22,7 +23,7 @@ pub fn optimize(mir: &mut Mir, body_id: mir::BodyId) {
         }
     }
 
-    for (_, block) in body.blocks.iter_mut_enumerated() {
+    for block in blocks_mut(body) {
         for statement in &mut block.statements {
             let Statement::Assign { place: _, rvalue } = statement;
 

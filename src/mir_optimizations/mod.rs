@@ -5,6 +5,7 @@ mod not_branch;
 mod redundant_blocks;
 mod redundant_branch;
 mod remove_dead_blocks;
+mod utils;
 
 pub fn optimize(mir: &mut Mir) {
     for body in 0..mir.bodies.len() {
