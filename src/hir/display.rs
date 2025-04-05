@@ -3,14 +3,15 @@ use std::{
     mem,
 };
 
-use super::{ExprKind, FnDecl, Param};
+use super::{ArraySeg, ExprKind, FnDecl, Param};
 use crate::{
-    hir::{BinaryOp, ExprId, Hir, Lit, Ty, UnaryOp},
-    ty::TyKind,
+    hir::{BinaryOp, ExprId, Hir, Lit, UnaryOp},
+    symbol::Symbol,
+    ty::Ty,
 };
 
-struct Writer<'hir, 'tcx> {
-    hir: &'hir Hir<'tcx>,
+struct Writer<'a> {
+    hir: &'a Hir<'a>,
     f: String,
     indent: usize,
     inside_expr: bool,
@@ -19,213 +20,67 @@ struct Writer<'hir, 'tcx> {
 impl fmt::Display for Hir<'_> {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         let f = String::new();
-        let mut writer = Writer { hir: self, f, indent: 0, inside_expr: false };
-        for &expr in &self.root {
-            writer.display_expr(expr);
-            writer.ln();
-        }
-        fmt.write_str(&writer.f)
+        let mut w = Writer { hir: self, f, indent: 0, inside_expr: false };
+        self.root.iter().for_each(|expr| (expr, Line).write(&mut w));
+        fmt.write_str(&w.f)
     }
 }
 
-impl Writer<'_, '_> {
-    fn display_ty(&mut self, ty: Ty) {
-        // FIXME: we'll need tcx to read the names of structs/generics, etc..
-        let str = match *ty {
-            TyKind::Never => "!",
-            TyKind::Unit => "()",
-            TyKind::Bool => "bool",
-            TyKind::Int => "int",
-            TyKind::Char => "char",
-            TyKind::Str => "str",
-            TyKind::Infer(..) => panic!(),
-            TyKind::Ref(of) => {
-                self.f.push('&');
-                self.display_ty(of);
-                return;
-            }
-            TyKind::Array(of) => {
-                self.f.push('[');
-                self.display_ty(of);
-                self.f.push(']');
-                return;
-            }
-            TyKind::Generic(..) => "<generic>",
-            TyKind::Range => "<range>",
-            TyKind::RangeInclusive => "<range_inclusive>",
-            TyKind::Struct { .. } | TyKind::Function { .. } => "<unnamable>",
-        };
-        self.f.push_str(str);
-    }
-    #[allow(clippy::too_many_lines)]
+impl Writer<'_> {
     fn display_expr(&mut self, expr: ExprId) {
-        // FIXME: take precedence into account to use minimum parens needed
         let inside_expr = mem::replace(&mut self.inside_expr, true);
         match self.hir.exprs[expr].kind {
-            ExprKind::Unreachable => self.f.push_str("unreachable"),
-            ExprKind::Abort => self.f.push_str("abort"),
-            ExprKind::Field { expr, field } => {
-                self.display_expr(expr);
-                _ = write!(self.f, ".{field}");
-            }
-            ExprKind::StructInit => self.f.push_str("<struct init>"),
-            ExprKind::PrintStr(s) => {
-                self.f.push_str("print ");
-                _ = write!(self.f, "{s:?}");
-            }
-            ExprKind::Return(expr) => {
-                self.f.push_str("return");
-                self.display_expr(expr);
-            }
-            ExprKind::Break => self.f.push_str("break"),
-            ExprKind::Literal(ref lit) => self.display_lit(lit),
+            ExprKind::Loop(ref block) => ("loop ", block.as_slice()).write(self),
+            ExprKind::StructInit => "<struct init>".write(self),
+            ExprKind::PrintStr(str) => ("print ", str).write(self),
+            ExprKind::Assignment { lhs, expr } => (lhs, " = ", expr).write(self),
+            ExprKind::Abort => "abort".write(self),
+            ExprKind::Unreachable => "unreachable".write(self),
+            ExprKind::Break => "break".write(self),
+            ExprKind::Return(expr) => ("return ", expr).write(self),
+            ExprKind::Literal(ref lit) => lit.write(self),
             ExprKind::Binary { lhs, op, rhs } => {
-                if inside_expr {
-                    self.f.push('(');
-                }
-                self.display_expr(lhs);
-                self.f.push(' ');
-                self.display_binary_op(op);
-                self.f.push(' ');
-                self.display_expr(rhs);
-                if inside_expr {
-                    self.f.push(')');
-                }
+                (inside_expr.then_some("("), lhs, " ", op, " ", rhs, inside_expr.then_some(")"))
+                    .write(self);
             }
-            ExprKind::Assignment { lhs, expr } => {
-                self.display_expr(lhs);
-                self.f.push_str(" = ");
-                self.display_expr(expr);
-            }
-            ExprKind::Ident(ident) => self.f.push_str(&ident),
+            ExprKind::Ident(ident) => ident.write(self),
             ExprKind::FnCall { function, ref args } => {
-                self.display_expr(function);
-                self.f.push('(');
-                for (i, arg) in args.iter().enumerate() {
-                    self.f.push_str(if i == 0 { "" } else { ", " });
-                    self.display_expr(*arg);
-                }
-                self.f.push(')');
+                (function, "(", Sep(args, ", "), ")").write(self);
             }
-            ExprKind::Index { expr, index } => {
-                self.display_expr(expr);
-                self.f.push('[');
-                self.display_expr(index);
-                self.f.push(']');
-            }
+            ExprKind::Index { expr, index } => (expr, "[", index, "]").write(self),
             ExprKind::Unary { op, expr } => {
-                if inside_expr {
-                    self.f.push('(');
-                }
-                self.display_unary_op(op);
-                self.display_expr(expr);
-                if inside_expr {
-                    self.f.push(')');
-                }
+                (inside_expr.then_some("("), op, expr, inside_expr.then_some(")")).write(self);
             }
+            ExprKind::Field { expr, field } => (expr, ".", field.to_string().as_str()).write(self),
             ExprKind::Block(ref block) => self.display_block(block),
-            ExprKind::FnDecl(ref decl) => {
-                let FnDecl { ident, params, ret, body } = &**decl;
+            ExprKind::FnDecl(ref func) => {
+                let FnDecl { ident, ref params, ret, ref body } = **func;
                 self.inside_expr = inside_expr;
-                _ = write!(self.f, "fn {ident}(");
-                self.display_params(params);
-                self.f.push_str(") -> ");
-                self.display_ty(ret);
-                self.display_block(body);
+                ("fn ", ident, params.as_slice(), " -> ", ret, body.as_slice()).write(self);
             }
             ExprKind::Let { ident, expr } => {
                 self.inside_expr = inside_expr;
-                _ = write!(self.f, "let {ident}: ");
-                self.display_ty(self.hir.exprs[expr].ty);
-                self.f.push_str(" = ");
-
+                let ty = self.hir.exprs[expr].ty;
+                ("let ", ident, (": ", ty), " = ").write(self);
                 self.inside_expr = false;
-                self.display_expr(expr);
-            }
-            ExprKind::Loop(ref block) => {
-                self.f.push_str("loop");
-                self.display_block(block);
+                expr.write(self);
             }
             ExprKind::If { ref arms, ref els } => {
                 self.inside_expr = inside_expr;
                 for (i, arm) in arms.iter().enumerate() {
-                    if i != 0 {
-                        self.f.push_str("else ");
-                    }
-                    self.f.push_str("if ");
-                    self.display_expr(arm.condition);
-                    self.display_block(&arm.body);
-                    self.ln();
+                    (
+                        (i != 0).then_some("else "),
+                        "if ",
+                        arm.condition,
+                        arm.body.as_slice(),
+                        (i + 1 != arms.len()).then_some(Line),
+                    )
+                        .write(self);
                 }
-                if !els.is_empty() {
-                    self.f.push_str("else ");
-                    self.display_block(els);
-                }
+                (!els.is_empty()).then_some(("else ", els.as_slice())).write(self);
             }
         }
         self.inside_expr = inside_expr;
-    }
-    fn display_params(&mut self, params: &[Param]) {
-        for (i, param) in params.iter().enumerate() {
-            self.f.push_str(if i == 0 { "" } else { ", " });
-            self.f.push_str(&param.ident);
-            self.f.push_str(": ");
-            self.display_ty(param.ty);
-        }
-    }
-
-    fn display_unary_op(&mut self, op: UnaryOp) {
-        let str = match op {
-            UnaryOp::Not => "!",
-            UnaryOp::Neg => "-",
-            UnaryOp::Ref => "&",
-            UnaryOp::Deref => "*",
-        };
-        self.f.push_str(str);
-    }
-
-    fn display_binary_op(&mut self, op: BinaryOp) {
-        use BinaryOp as B;
-        let str = match op {
-            B::Add => "+",
-            B::Sub => "-",
-            B::Mul => "*",
-            B::Div => "/",
-            B::Mod => "%",
-
-            B::Range => "..",
-            B::RangeInclusive => "..=",
-
-            B::Eq => "==",
-            B::Greater => ">",
-            B::GreaterEq => ">=",
-            B::Less => "<",
-            B::LessEq => "<=",
-            B::Neq => "!=",
-        };
-        self.f.push_str(str);
-    }
-
-    fn display_lit(&mut self, lit: &Lit) {
-        match lit {
-            Lit::Unit => self.f.push_str("()"),
-            Lit::Bool(bool) => _ = write!(self.f, "{bool}"),
-            Lit::Int(int) => _ = write!(self.f, "{int}"),
-            Lit::String(str) => _ = write!(self.f, "{:?}", &**str),
-            Lit::Char(char) => _ = write!(self.f, "{char:?}"),
-            Lit::Array { segments } => {
-                self.f.push('[');
-                for (i, segment) in segments.iter().enumerate() {
-                    self.f.push_str(if i == 0 { "" } else { ", " });
-                    self.display_expr(segment.expr);
-                    if let Some(repeated) = segment.repeated {
-                        self.f.push_str("; ");
-                        self.display_expr(repeated);
-                    }
-                }
-                self.f.push(']');
-            }
-        }
     }
 
     fn display_block(&mut self, block: &[ExprId]) {
@@ -238,25 +93,166 @@ impl Writer<'_, '_> {
             return;
         }
         self.indent += 1;
-        self.f.push('{');
-        self.ln();
+        ("{", Line).write(self);
         for (index, &expr) in block.iter().enumerate() {
             self.inside_expr = false;
             self.display_expr(expr);
             if index + 1 < block.len() {
                 self.f.push(';');
+            } else {
+                self.indent -= 1;
             }
-            self.ln();
-        }
-        self.indent -= 1;
-        for _ in 0..4 {
-            self.f.pop().unwrap();
+            (Line).write(self);
         }
         self.f.push('}');
     }
+}
 
-    fn ln(&mut self) {
-        self.f.push('\n');
-        self.f.extend(std::iter::repeat_n(' ', self.indent * 4));
+trait Dump {
+    fn write(&self, w: &mut Writer);
+}
+
+struct Sep<'a, T, S>(&'a [T], S);
+
+impl<T: Dump, S: Dump> Dump for Sep<'_, T, S> {
+    fn write(&self, w: &mut Writer) {
+        for (i, arg) in self.0.iter().enumerate() {
+            ((i != 0).then_some(&self.1), arg).write(w);
+        }
     }
 }
+
+impl Dump for [Param<'_>] {
+    fn write(&self, w: &mut Writer) {
+        ("(", Sep(self, ", "), ")").write(w);
+    }
+}
+
+impl Dump for Lit {
+    fn write(&self, w: &mut Writer) {
+        match self {
+            Lit::Unit => w.f.push_str("()"),
+            Lit::Bool(bool) => _ = write!(w.f, "{bool}"),
+            Lit::Int(int) => _ = write!(w.f, "{int}"),
+            Lit::String(str) => _ = write!(w.f, "{:?}", &**str),
+            Lit::Char(char) => _ = write!(w.f, "{char:?}"),
+            Lit::Array { segments } => ("[", Sep(segments, ", "), "]").write(w),
+        }
+    }
+}
+
+impl Dump for Param<'_> {
+    fn write(&self, w: &mut Writer) {
+        (self.ident, ": ", self.ty).write(w);
+    }
+}
+
+impl Dump for Ty<'_> {
+    fn write(&self, w: &mut Writer) {
+        format!("{self}").as_str().write(w);
+    }
+}
+
+impl Dump for ArraySeg {
+    fn write(&self, w: &mut Writer) {
+        (self.expr, self.repeated.map(|repeated| ("; ", repeated))).write(w);
+    }
+}
+
+impl Dump for BinaryOp {
+    fn write(&self, w: &mut Writer) {
+        use BinaryOp as B;
+        w.f.push_str(match self {
+            B::Add => "+",
+            B::Div => "/",
+            B::Eq => "==",
+            B::Greater => ">",
+            B::GreaterEq => ">=",
+            B::Less => "<",
+            B::LessEq => "<=",
+            B::Mod => "%",
+            B::Mul => "*",
+            B::Neq => "!=",
+            B::Range => "..",
+            B::RangeInclusive => "..=",
+            B::Sub => "-",
+        });
+    }
+}
+
+impl Dump for UnaryOp {
+    fn write(&self, w: &mut Writer) {
+        w.f.push_str(match self {
+            UnaryOp::Not => "!",
+            UnaryOp::Neg => "-",
+            UnaryOp::Ref => "&",
+            UnaryOp::Deref => "*",
+        });
+    }
+}
+
+impl Dump for ExprId {
+    fn write(&self, w: &mut Writer) {
+        w.display_expr(*self);
+    }
+}
+
+impl Dump for [ExprId] {
+    fn write(&self, w: &mut Writer) {
+        w.display_block(self);
+    }
+}
+
+struct Line;
+impl Dump for Line {
+    fn write(&self, w: &mut Writer) {
+        w.f.push('\n');
+        w.f.extend(std::iter::repeat_n(' ', w.indent * 4));
+    }
+}
+
+impl Dump for &'_ str {
+    fn write(&self, w: &mut Writer) {
+        w.f.push_str(self);
+    }
+}
+
+impl Dump for Symbol {
+    fn write(&self, w: &mut Writer) {
+        w.f.push_str(self.as_str());
+    }
+}
+
+impl<T: Dump> Dump for Option<T> {
+    fn write(&self, w: &mut Writer) {
+        if let Some(t) = self {
+            t.write(w);
+        }
+    }
+}
+
+impl<T: Dump + ?Sized> Dump for &T {
+    fn write(&self, w: &mut Writer) {
+        T::write(self, w);
+    }
+}
+
+macro_rules! impl_tuples {
+    ($($t:ident),+) => {
+        impl<$($t: Dump),+> Dump for ($($t),+,) {
+            fn write(&self, w: &mut Writer) {
+                #[allow(non_snake_case)]
+                let ($($t),+,) = self;
+                $($t.write(w));+
+            }
+        }
+    };
+}
+
+impl_tuples!(A);
+impl_tuples!(A, B);
+impl_tuples!(A, B, C);
+impl_tuples!(A, B, C, D);
+impl_tuples!(A, B, C, D, E);
+impl_tuples!(A, B, C, D, E, F);
+impl_tuples!(A, B, C, D, E, F, G);

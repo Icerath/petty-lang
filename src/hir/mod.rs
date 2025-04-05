@@ -16,7 +16,6 @@ pub struct Hir<'tcx> {
 }
 
 define_id!(pub ExprId);
-define_id!(pub BlockId);
 
 #[derive(Debug)]
 pub struct Expr<'tcx> {
