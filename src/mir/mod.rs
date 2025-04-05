@@ -1,4 +1,5 @@
 mod display;
+mod with_places;
 
 use index_vec::IndexVec;
 use thin_vec::ThinVec;
@@ -42,12 +43,13 @@ pub struct Mir {
 #[derive(Debug)]
 pub struct Body {
     pub blocks: IndexVec<BlockId, Block>,
+    pub params: usize,
     pub locals: Local,
 }
 
 impl Body {
-    pub fn new(num_params: usize) -> Self {
-        Self { blocks: IndexVec::default(), locals: num_params.into() }
+    pub fn new(params: usize) -> Self {
+        Self { blocks: IndexVec::default(), params, locals: params.into() }
     }
     pub fn new_local(&mut self) -> Local {
         self.locals += 1;

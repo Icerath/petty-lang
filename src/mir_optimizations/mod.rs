@@ -5,6 +5,7 @@ mod not_branch;
 mod redundant_blocks;
 mod redundant_branch;
 mod remove_dead_blocks;
+mod remove_dead_places;
 mod utils;
 
 pub fn optimize(mir: &mut Mir) {
@@ -19,4 +20,5 @@ pub fn optimize_body(mir: &mut Mir, body: BodyId) {
     redundant_branch::optimize(mir, body);
     redundant_blocks::optimize(mir, body);
     remove_dead_blocks::optimize(mir, body);
+    remove_dead_places::optimize(mir, body);
 }

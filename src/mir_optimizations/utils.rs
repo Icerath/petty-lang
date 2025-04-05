@@ -2,7 +2,7 @@ use std::mem;
 
 use index_vec::IndexVec;
 
-use crate::mir::{Block, BlockId, Body};
+use crate::mir::{Block, BlockId, Body, Local};
 
 pub fn block_ids(body: &Body) -> impl IntoIterator<Item = BlockId> {
     visited(body).into_iter_enumerated().filter_map(|(id, visited)| visited.then_some(id))
@@ -33,4 +33,13 @@ pub fn visited(body: &Body) -> IndexVec<BlockId, bool> {
         });
     }
     visited
+}
+
+pub fn visited_locals(body: &Body) -> IndexVec<Local, bool> {
+    let mut visited = vec![false; body.locals.index()];
+    visited.iter_mut().take(body.params).for_each(|v| *v = true);
+    for block in &body.blocks {
+        block.with_locals(|local| visited[local.index()] = true);
+    }
+    visited.into()
 }
