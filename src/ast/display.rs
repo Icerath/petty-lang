@@ -265,7 +265,7 @@ impl<T: Dump> Dump for Option<T> {
     }
 }
 
-impl<T: Dump> Dump for &T {
+impl<T: Dump + ?Sized> Dump for &T {
     fn write(&self, w: &mut Writer) {
         T::write(self, w);
     }
