@@ -13,7 +13,7 @@ pub fn optimize(mir: &mut Mir, body_id: BodyId) {
         let Some(Statement::Assign { place, rvalue }) = block.statements.last() else {
             continue;
         };
-        if cplace != place {
+        if cplace.local != place.local {
             continue;
         }
         let RValue::UnaryExpr { op: UnaryOp::BoolNot, operand } = rvalue else { continue };

@@ -10,7 +10,7 @@ define_id!(pub BodyId);
 define_id!(pub BlockId = u16);
 define_id!(pub Local = u16);
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, Clone)]
 pub struct Place {
     pub local: Local,
     pub projections: Vec<Projection>,
@@ -62,7 +62,7 @@ pub struct Block {
     pub terminator: Terminator,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug)]
 pub enum Terminator {
     Goto(BlockId),
     Branch { condition: Operand, fals: BlockId, tru: BlockId },
@@ -130,7 +130,7 @@ impl RValue {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, Clone)]
 pub enum Operand {
     Constant(Constant),
     Ref(Place),
@@ -233,9 +233,7 @@ impl RValue {
             }
             Self::Use(operand) | Self::UnaryExpr { operand, .. } => operand.mentions_place(place),
             Self::Extend { array, value, repeat } => {
-                Place::local(*array) == *place
-                    || value.mentions_place(place)
-                    || repeat.mentions_place(place)
+                *array == place.local || value.mentions_place(place) || repeat.mentions_place(place)
             }
         }
     }
@@ -278,7 +276,7 @@ impl Operand {
     pub fn mentions_place(&self, target: &Place) -> bool {
         // FIXME: This seems iffy.
         match self {
-            Self::Ref(place) | Self::Place(place) => target == place,
+            Self::Ref(place) | Self::Place(place) => target.local == place.local,
             _ => false,
         }
     }
