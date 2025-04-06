@@ -130,7 +130,24 @@ impl Lowering<'_, '_> {
                     projections: vec![Projection::Field(field.try_into().unwrap())],
                 }))
             }
-            ExprKind::StructInit => RValue::Use(Operand::Constant(Constant::StructInit)),
+            ExprKind::StructInit => {
+                let body = self.current().body;
+                let nparams = self.mir.bodies[body].params;
+                let local = self.new_local();
+                self.current().stmts.push(Statement::Assign {
+                    place: Place::local(local),
+                    rvalue: RValue::Use(Operand::Constant(Constant::UninitStruct {
+                        size: nparams.try_into().unwrap(),
+                    })),
+                });
+                for param in (0..nparams).map(Local::from) {
+                    let field = Projection::Field(param.raw().into());
+                    let place = Place { local, projections: vec![field] };
+                    let rvalue = RValue::local(param);
+                    self.current().stmts.push(Statement::Assign { place, rvalue });
+                }
+                RValue::local(local)
+            }
             ExprKind::PrintStr(str) => RValue::UnaryExpr {
                 op: UnaryOp::StrPrint,
                 operand: Operand::Constant(Constant::Str(str)),

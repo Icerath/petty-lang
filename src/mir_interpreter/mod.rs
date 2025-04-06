@@ -110,7 +110,7 @@ impl Interpreter<'_> {
     fn operand(&mut self, operand: &Operand, locals: &Places) -> Value {
         match *operand {
             Operand::Ref(ref place) => Value::Ref(self.load_place(place, locals)),
-            Operand::Constant(ref constant) => const_value(constant, locals),
+            Operand::Constant(ref constant) => const_value(constant),
             Operand::Place(ref place) => self.load_place(place, locals).clone_raw(),
             Operand::Unreachable => unreachable!(),
         }
@@ -173,8 +173,11 @@ pub fn binary_op(lhs: Value, op: BinaryOp, rhs: Value) -> Value {
     }
 }
 
-pub fn const_value(constant: &Constant, locals: &Places) -> Value {
+pub fn const_value(constant: &Constant) -> Value {
     match *constant {
+        Constant::UninitStruct { size } => Value::Struct(
+            std::iter::repeat_with(|| Allocation::from(Value::Unit)).take(size as _).collect(),
+        ),
         Constant::Unit => Value::Unit,
         Constant::EmptyArray => Value::Array(Array::default()),
         Constant::Bool(bool) => Value::Bool(bool),
@@ -182,6 +185,5 @@ pub fn const_value(constant: &Constant, locals: &Places) -> Value {
         Constant::Char(char) => Value::Char(char),
         Constant::Str(str) => Value::Str(str.as_str().into()),
         Constant::Func(body) => Value::Fn(body),
-        Constant::StructInit => Value::Struct(locals.iter().cloned().collect()),
     }
 }

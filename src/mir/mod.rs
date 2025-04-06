@@ -155,12 +155,12 @@ impl Operand {
 pub enum Constant {
     Unit,
     EmptyArray,
+    UninitStruct { size: u32 },
     Bool(bool),
     Int(i64),
     Char(char),
     Str(Symbol),
     Func(BodyId),
-    StructInit,
 }
 
 #[expect(dead_code)]

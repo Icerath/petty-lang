@@ -1,5 +1,3 @@
-use index_vec::IndexSlice;
-
 use super::utils::blocks_mut;
 use crate::{
     mir::{self, Constant, Mir, Operand, RValue},
@@ -28,10 +26,7 @@ pub fn optimize(mir: &mut Mir, body_id: mir::BodyId) {
 
 pub fn value_of(operand: &Operand) -> Option<Value> {
     match operand {
-        Operand::Constant(Constant::StructInit) => None,
-        Operand::Constant(constant) => {
-            Some(mir_interpreter::const_value(constant, IndexSlice::new(&[])))
-        }
+        Operand::Constant(constant) => Some(mir_interpreter::const_value(constant)),
         _ => None,
     }
 }

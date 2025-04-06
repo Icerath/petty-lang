@@ -99,6 +99,7 @@ impl fmt::Display for Constant {
             write!(f, "const ")?;
         }
         match self {
+            Self::UninitStruct { size } => write!(f, "struct {{ {size:?} }}"),
             Self::EmptyArray => write!(f, "[]"),
             Self::Unit => write!(f, "()"),
             Self::Bool(bool) => write!(f, "{bool}"),
@@ -106,7 +107,6 @@ impl fmt::Display for Constant {
             Self::Char(char) => write!(f, "{char:?}"),
             Self::Str(str) => write!(f, "{str:?}"),
             Self::Func(id) => write!(f, "fn{id:?}"),
-            Self::StructInit => write!(f, "<struct init>"),
         }
     }
 }
