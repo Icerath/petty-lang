@@ -10,7 +10,7 @@ define_id!(pub BodyId);
 define_id!(pub BlockId = u16);
 define_id!(pub Local = u16);
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Hash)]
 pub struct Place {
     pub local: Local,
     pub projections: Vec<Projection>,
@@ -22,7 +22,7 @@ impl Place {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub enum Projection {
     Deref,
     Field(u32),
@@ -40,7 +40,7 @@ pub struct Mir {
     pub num_intrinsics: usize,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Hash)]
 pub struct Body {
     pub blocks: IndexVec<BlockId, Block>,
     pub params: usize,
@@ -56,13 +56,13 @@ impl Body {
         self.locals - 1
     }
 }
-#[derive(Debug)]
+#[derive(Debug, Hash)]
 pub struct Block {
     pub statements: Vec<Statement>,
     pub terminator: Terminator,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Hash)]
 pub enum Terminator {
     Goto(BlockId),
     Branch { condition: Operand, fals: BlockId, tru: BlockId },
@@ -100,7 +100,7 @@ impl Terminator {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Hash)]
 pub enum Statement {
     Assign { place: Place, rvalue: RValue },
 }
@@ -112,7 +112,7 @@ impl Statement {
 }
 
 #[must_use]
-#[derive(Debug)]
+#[derive(Debug, Hash)]
 pub enum RValue {
     Extend { array: Local, value: Operand, repeat: Operand },
     Use(Operand),
@@ -130,7 +130,7 @@ impl RValue {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Hash)]
 pub enum Operand {
     Constant(Constant),
     Ref(Place),
@@ -151,7 +151,7 @@ impl Operand {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub enum Constant {
     Unit,
     EmptyArray,
@@ -164,7 +164,7 @@ pub enum Constant {
 }
 
 #[expect(dead_code)]
-#[derive(Debug, PartialEq, PartialOrd, Clone, Copy)]
+#[derive(Debug, PartialEq, PartialOrd, Hash, Clone, Copy)]
 pub enum BinaryOp {
     IntAdd,
     IntSub,
@@ -193,7 +193,7 @@ pub enum BinaryOp {
     ArrayIndexRange,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Hash)]
 pub enum UnaryOp {
     BoolNot,
 
