@@ -81,6 +81,10 @@ impl Interpreter<'_> {
             RValue::UnaryExpr { op, operand } => {
                 let operand = self.operand(operand, locals);
                 match op {
+                    UnaryOp::ArrayLen => {
+                        let array = &operand.unwrap_ref().clone_raw().unwrap_array();
+                        Value::Int(array.len().try_into().unwrap())
+                    }
                     UnaryOp::Deref => operand.unwrap_ref().clone_raw(),
                     UnaryOp::BoolNot => Value::Bool(!operand.unwrap_bool()),
 

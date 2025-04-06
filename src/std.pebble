@@ -5,3 +5,4 @@ fn int_to_str(int: int) -> str { unreachable }
 fn print(str: str) { unreachable }
 fn print_char(char: char) { unreachable }
 fn chr(int: int) -> char { unreachable }
+fn len<T>(arr: &[T]) -> int { unreachable }

@@ -30,6 +30,7 @@ impl Lowering<'_, '_> {
             "print" => unary!(StrPrint),
             "chr" => unary!(Chr),
             "print_char" => unary!(PrintChar),
+            "len" => unary!(ArrayLen),
             _ => return false,
         };
         self.mir.num_intrinsics += 1;

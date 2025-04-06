@@ -206,6 +206,8 @@ pub enum UnaryOp {
     StrLen,
     StrPrint,
 
+    ArrayLen,
+
     Deref,
 }
 

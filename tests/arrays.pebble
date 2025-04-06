@@ -1,5 +1,6 @@
 fn main() {
     let array = [0; 8]
+    assert len(&array) == 8;
     let i = 0
     while i < 8 {
         let j = 0
