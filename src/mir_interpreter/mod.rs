@@ -5,7 +5,8 @@ use std::io::{self, Write};
 
 use array::Array;
 use index_vec::{IndexSlice, IndexVec};
-use value::{Allocation, Value};
+use value::Allocation;
+pub use value::Value;
 
 use crate::mir::{
     BinaryOp, BlockId, BodyId, Constant, Local, Mir, Operand, Place, Projection, RValue, Statement,
@@ -75,54 +76,7 @@ impl Interpreter<'_> {
             RValue::BinaryExpr { lhs, op, rhs } => {
                 let lhs = self.operand(lhs, locals);
                 let rhs = self.operand(rhs, locals);
-                match op {
-                    BinaryOp::IntAdd => Value::Int(lhs.unwrap_int() + rhs.unwrap_int()),
-                    BinaryOp::IntSub => Value::Int(lhs.unwrap_int() - rhs.unwrap_int()),
-                    BinaryOp::IntMul => Value::Int(lhs.unwrap_int() * rhs.unwrap_int()),
-                    BinaryOp::IntDiv => Value::Int(lhs.unwrap_int() / rhs.unwrap_int()),
-                    BinaryOp::IntMod => Value::Int(lhs.unwrap_int() % rhs.unwrap_int()),
-                    BinaryOp::IntLess => Value::Bool(lhs.unwrap_int() < rhs.unwrap_int()),
-                    BinaryOp::IntGreater => Value::Bool(lhs.unwrap_int() > rhs.unwrap_int()),
-                    BinaryOp::IntLessEq => Value::Bool(lhs.unwrap_int() <= rhs.unwrap_int()),
-                    BinaryOp::IntGreaterEq => Value::Bool(lhs.unwrap_int() >= rhs.unwrap_int()),
-                    BinaryOp::IntEq => Value::Bool(lhs.unwrap_int() == rhs.unwrap_int()),
-                    BinaryOp::IntNeq => Value::Bool(lhs.unwrap_int() != rhs.unwrap_int()),
-                    BinaryOp::IntRange => {
-                        Value::Range(Box::new(lhs.unwrap_int()..rhs.unwrap_int()))
-                    }
-                    BinaryOp::IntRangeInclusive =>
-                    {
-                        #[expect(clippy::range_plus_one)]
-                        Value::Range(Box::new(lhs.unwrap_int()..rhs.unwrap_int() + 1))
-                    }
-
-                    BinaryOp::CharEq => Value::Bool(lhs.unwrap_char() == rhs.unwrap_char()),
-                    BinaryOp::CharNeq => Value::Bool(lhs.unwrap_char() != rhs.unwrap_char()),
-
-                    BinaryOp::StrEq => Value::Bool(lhs.unwrap_str() == rhs.unwrap_str()),
-                    BinaryOp::StrNeq => Value::Bool(lhs.unwrap_str() != rhs.unwrap_str()),
-                    BinaryOp::StrIndex => {
-                        Value::Char(lhs.unwrap_str().as_bytes()[rhs.unwrap_int_usize()] as char)
-                    }
-                    BinaryOp::StrIndexSlice => {
-                        Value::Str(lhs.unwrap_str()[rhs.unwrap_range_usize()].into())
-                    }
-                    BinaryOp::StrFind => Value::Int(
-                        lhs.unwrap_str()
-                            .find(rhs.unwrap_str().as_str())
-                            .unwrap()
-                            .try_into()
-                            .unwrap(),
-                    ),
-                    BinaryOp::StrRFind => Value::Int(
-                        lhs.unwrap_str()
-                            .rfind(rhs.unwrap_str().as_str())
-                            .unwrap()
-                            .try_into()
-                            .unwrap(),
-                    ),
-                    BinaryOp::ArrayIndexRange => todo!(),
-                }
+                binary_op(lhs, *op, rhs)
             }
             RValue::UnaryExpr { op, operand } => {
                 let operand = self.operand(operand, locals);
@@ -156,16 +110,7 @@ impl Interpreter<'_> {
     fn operand(&mut self, operand: &Operand, locals: &Places) -> Value {
         match *operand {
             Operand::Ref(ref place) => Value::Ref(self.load_place(place, locals)),
-            Operand::Constant(ref constant) => match *constant {
-                Constant::Unit => Value::Unit,
-                Constant::EmptyArray => Value::Array(Array::default()),
-                Constant::Bool(bool) => Value::Bool(bool),
-                Constant::Int(int) => Value::Int(int),
-                Constant::Char(char) => Value::Char(char),
-                Constant::Str(str) => Value::Str(str.as_str().into()),
-                Constant::Func(body) => Value::Fn(body),
-                Constant::StructInit => Value::Struct(locals.iter().cloned().collect()),
-            },
+            Operand::Constant(ref constant) => const_value(constant, locals),
             Operand::Place(ref place) => self.load_place(place, locals).clone_raw(),
             Operand::Unreachable => unreachable!(),
         }
@@ -185,5 +130,58 @@ impl Interpreter<'_> {
             };
         }
         alloc
+    }
+}
+
+#[expect(clippy::needless_pass_by_value)]
+pub fn binary_op(lhs: Value, op: BinaryOp, rhs: Value) -> Value {
+    match op {
+        BinaryOp::IntAdd => Value::Int(lhs.unwrap_int() + rhs.unwrap_int()),
+        BinaryOp::IntSub => Value::Int(lhs.unwrap_int() - rhs.unwrap_int()),
+        BinaryOp::IntMul => Value::Int(lhs.unwrap_int() * rhs.unwrap_int()),
+        BinaryOp::IntDiv => Value::Int(lhs.unwrap_int() / rhs.unwrap_int()),
+        BinaryOp::IntMod => Value::Int(lhs.unwrap_int() % rhs.unwrap_int()),
+        BinaryOp::IntLess => Value::Bool(lhs.unwrap_int() < rhs.unwrap_int()),
+        BinaryOp::IntGreater => Value::Bool(lhs.unwrap_int() > rhs.unwrap_int()),
+        BinaryOp::IntLessEq => Value::Bool(lhs.unwrap_int() <= rhs.unwrap_int()),
+        BinaryOp::IntGreaterEq => Value::Bool(lhs.unwrap_int() >= rhs.unwrap_int()),
+        BinaryOp::IntEq => Value::Bool(lhs.unwrap_int() == rhs.unwrap_int()),
+        BinaryOp::IntNeq => Value::Bool(lhs.unwrap_int() != rhs.unwrap_int()),
+        BinaryOp::IntRange => Value::Range(Box::new(lhs.unwrap_int()..rhs.unwrap_int())),
+        BinaryOp::IntRangeInclusive =>
+        {
+            #[expect(clippy::range_plus_one)]
+            Value::Range(Box::new(lhs.unwrap_int()..rhs.unwrap_int() + 1))
+        }
+
+        BinaryOp::CharEq => Value::Bool(lhs.unwrap_char() == rhs.unwrap_char()),
+        BinaryOp::CharNeq => Value::Bool(lhs.unwrap_char() != rhs.unwrap_char()),
+
+        BinaryOp::StrEq => Value::Bool(lhs.unwrap_str() == rhs.unwrap_str()),
+        BinaryOp::StrNeq => Value::Bool(lhs.unwrap_str() != rhs.unwrap_str()),
+        BinaryOp::StrIndex => {
+            Value::Char(lhs.unwrap_str().as_bytes()[rhs.unwrap_int_usize()] as char)
+        }
+        BinaryOp::StrIndexSlice => Value::Str(lhs.unwrap_str()[rhs.unwrap_range_usize()].into()),
+        BinaryOp::StrFind => Value::Int(
+            lhs.unwrap_str().find(rhs.unwrap_str().as_str()).unwrap().try_into().unwrap(),
+        ),
+        BinaryOp::StrRFind => Value::Int(
+            lhs.unwrap_str().rfind(rhs.unwrap_str().as_str()).unwrap().try_into().unwrap(),
+        ),
+        BinaryOp::ArrayIndexRange => todo!(),
+    }
+}
+
+pub fn const_value(constant: &Constant, locals: &Places) -> Value {
+    match *constant {
+        Constant::Unit => Value::Unit,
+        Constant::EmptyArray => Value::Array(Array::default()),
+        Constant::Bool(bool) => Value::Bool(bool),
+        Constant::Int(int) => Value::Int(int),
+        Constant::Char(char) => Value::Char(char),
+        Constant::Str(str) => Value::Str(str.as_str().into()),
+        Constant::Func(body) => Value::Fn(body),
+        Constant::StructInit => Value::Struct(locals.iter().cloned().collect()),
     }
 }

@@ -215,6 +215,11 @@ impl Statement {
             Self::Assign { rvalue, .. } => rvalue,
         }
     }
+    pub fn rvalue_mut(&mut self) -> &mut RValue {
+        match self {
+            Self::Assign { rvalue, .. } => rvalue,
+        }
+    }
 }
 
 impl RValue {

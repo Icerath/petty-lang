@@ -23,6 +23,12 @@ impl Array {
             array.extend(std::iter::repeat_with(|| value.clone().into()).take(count));
         });
     }
+    pub fn len(&self) -> usize {
+        self.with(|vec| vec.len())
+    }
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
 }
 
 impl fmt::Debug for Array {
