@@ -114,9 +114,7 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
             }
             ast::ExprKind::Block(block) => self.lower_block(block),
             ast::ExprKind::Lit(ref lit) => self.lower_literal(lit, expr_id),
-            ast::ExprKind::FnDecl(ast::FnDecl { ident, ref params, ret, block, .. }) => {
-                self.lower_fn_decl(ident, params, ret, block, expr_id)
-            }
+            ast::ExprKind::FnDecl(ref decl) => self.lower_fn_decl(decl, expr_id),
             ast::ExprKind::Let { ident, expr, .. } => self.lower_let_stmt(ident, expr),
             ast::ExprKind::If { ref arms, els } => self.lower_if_stmt(arms, els, expr_id),
             ast::ExprKind::While { condition, block } => self.lower_while_loop(condition, block),
@@ -265,18 +263,13 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
         hir::Expr { ty: &TyKind::Unit, kind: hir::ExprKind::Let { ident, expr: self.lower(expr) } }
     }
 
-    fn lower_fn_decl(
-        &mut self,
-        ident: Symbol,
-        params: &[ast::Param],
-        ret: Option<ast::TypeId>,
-        block: ast::BlockId,
-        expr_id: ast::ExprId,
-    ) -> hir::Expr<'tcx> {
+    fn lower_fn_decl(&mut self, decl: &ast::FnDecl, expr_id: ast::ExprId) -> hir::Expr<'tcx> {
+        let ast::FnDecl { ident, ref params, ret, block, .. } = *decl;
         let ret = match ret {
             Some(ret) => self.ty_info.type_ids[ret],
             None => &TyKind::Unit,
         };
+
         let params = params
             .iter()
             .map(|param| hir::Param { ident: param.ident, ty: self.ty_info.type_ids[param.ty] })
