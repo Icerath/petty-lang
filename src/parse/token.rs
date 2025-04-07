@@ -56,6 +56,8 @@ pub enum TokenKind {
     For,
     In,
     Unreachable,
+    Trait,
+    Impl,
     // Literals
     Char,
     Int,
@@ -72,6 +74,8 @@ pub struct Token {
 impl TokenKind {
     pub const fn repr(self) -> &'static str {
         match self {
+            Self::Trait => "trait",
+            Self::Impl => "impl",
             Self::Ampersand => "&",
             Self::Unreachable => "unreachable",
             Self::Assert => "assert",
