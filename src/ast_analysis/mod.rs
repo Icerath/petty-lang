@@ -9,8 +9,8 @@ use thin_vec::ThinVec;
 use crate::{
     HashMap,
     ast::{
-        self, Ast, BinOpKind, BinaryOp, Block, BlockId, ExprId, ExprKind, FnDecl, Lit, TypeId,
-        UnaryOp,
+        self, Ast, BinOpKind, BinaryOp, Block, BlockId, ExprId, ExprKind, FnDecl, Lit, Trait,
+        TypeId, UnaryOp,
     },
     span::Span,
     symbol::Symbol,
@@ -218,6 +218,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
     #[expect(clippy::too_many_lines)]
     fn analyze_expr(&mut self, id: ExprId) -> Result<Ty<'tcx>> {
         let ty = match self.ast.exprs[id].kind {
+            ExprKind::Trait(ref trait_) => self.analyze_trait(trait_, id)?,
             ExprKind::Assert(expr) => {
                 let ty = self.analyze_expr(expr)?;
                 self.subtype(ty, &TyKind::Bool, expr)?;
@@ -330,21 +331,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 }
                 ret
             }
-            ExprKind::FnDecl(FnDecl { ident, ref params, block, .. }) => {
-                let block = block.unwrap();
-                let fn_ty = self.bodies.last().unwrap().variables[&ident];
-                let TyKind::Function(Function { params: param_tys, ret, .. }) = fn_ty else {
-                    unreachable!()
-                };
-                let mut body = Body::new(ret);
-                for (param, ty) in std::iter::zip(params, param_tys) {
-                    body.variables.insert(param.ident, *ty);
-                }
-                let block = &self.ast.blocks[block];
-                let body_ret = self.analyze_body_with(block, body)?.0;
-                self.subtype(body_ret, ret, id)?;
-                &TyKind::Unit
-            }
+            ExprKind::FnDecl(ref decl) => self.analyze_fndecl(decl)?,
             ExprKind::Struct { .. } => &TyKind::Unit,
             ExprKind::Let { ident, ty, expr } => {
                 let expr_ty = self.analyze_expr(expr)?;
@@ -430,6 +417,35 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         };
         self.ty_info.expr_tys[id] = ty;
         Ok(ty)
+    }
+
+    fn analyze_fndecl(&mut self, decl: &FnDecl) -> Result<Ty<'tcx>> {
+        let &FnDecl { ident, ref generics, ref params, ret, block } = decl;
+        _ = generics;
+        _ = ret;
+        let block_id = block.unwrap();
+        let fn_ty = self.bodies.last().unwrap().variables[&ident];
+        let TyKind::Function(Function { params: param_tys, ret, .. }) = fn_ty else {
+            unreachable!()
+        };
+        let mut body = Body::new(ret);
+        for (param, ty) in std::iter::zip(params, param_tys) {
+            body.variables.insert(param.ident, *ty);
+        }
+        let block = &self.ast.blocks[block_id];
+        let body_ret = self.analyze_body_with(block, body)?.0;
+        self.subtype_block(body_ret, ret, block_id)?;
+        Ok(&TyKind::Unit)
+    }
+
+    fn analyze_trait(&mut self, trait_: &Trait, id: ExprId) -> Result<Ty<'tcx>> {
+        _ = id;
+        let &Trait { ident, ref methods } = trait_;
+        _ = ident;
+        for func in methods {
+            self.analyze_fndecl(func)?;
+        }
+        Ok(&TyKind::Unit)
     }
 
     fn read_ident(&self, ident: Symbol) -> Result<Ty<'tcx>> {

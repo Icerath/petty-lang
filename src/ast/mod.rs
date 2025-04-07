@@ -78,6 +78,7 @@ pub enum ExprKind {
     Return(Option<ExprId>),
     Assert(ExprId),
     Break,
+    Trait(Trait),
     FnDecl(FnDecl),
     Struct { ident: Symbol, span: Span, fields: ThinVec<Param> },
 }
@@ -89,6 +90,12 @@ pub struct FnDecl {
     pub params: ThinVec<Param>,
     pub ret: Option<TypeId>,
     pub block: Option<BlockId>,
+}
+
+#[derive(Debug)]
+pub struct Trait {
+    pub ident: Symbol,
+    pub methods: ThinVec<FnDecl>,
 }
 
 #[derive(Debug)]

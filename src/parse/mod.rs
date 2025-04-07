@@ -12,7 +12,7 @@ use token::{Token, TokenKind};
 use crate::{
     ast::{
         ArraySeg, Ast, BinOpKind, BinaryOp, Block, BlockId, Expr, ExprId, ExprKind, FnDecl, IfStmt,
-        Lit, Param, Ty, TyKind, TypeId,
+        Lit, Param, Trait, Ty, TyKind, TypeId,
     },
     errors,
     span::Span,
@@ -225,27 +225,49 @@ impl Parse for Ty {
     }
 }
 
-fn parse_fn(stream: &mut Stream) -> Result<Expr> {
-    let ident = stream.expect_ident()?;
-    let peek = stream.clone().any(&[TokenKind::Less, TokenKind::LParen])?;
-    let mut generics = ThinVec::new();
-    if peek.kind == TokenKind::Less {
-        _ = stream.next();
-        generics = stream.parse_separated(TokenKind::Comma, TokenKind::Greater)?;
-    }
+impl Parse for Trait {
+    fn parse(stream: &mut Stream) -> Result<Self> {
+        let ident = stream.expect_ident()?;
+        stream.expect(TokenKind::LBrace)?;
 
-    stream.expect(TokenKind::LParen)?;
-    let params = stream.parse_separated(TokenKind::Comma, TokenKind::RParen)?;
+        let mut methods = ThinVec::<FnDecl>::new();
 
-    let mut chosen =
-        stream.any(&[TokenKind::LBrace, TokenKind::ThinArrow, TokenKind::Semicolon])?;
-    let mut ret = None;
-    if chosen.kind == TokenKind::ThinArrow {
-        ret = Some(stream.parse()?);
-        chosen = stream.any(&[TokenKind::Semicolon, TokenKind::LBrace])?;
+        loop {
+            let next = stream.any(&[TokenKind::Fn, TokenKind::RBrace])?;
+            match next.kind {
+                TokenKind::Fn => methods.push(stream.parse()?),
+                TokenKind::RBrace => break,
+                _ => unreachable!(),
+            }
+        }
+
+        Ok(Self { ident, methods })
     }
-    let block = if chosen.kind == TokenKind::Semicolon { None } else { Some(stream.parse()?) };
-    Ok((ExprKind::FnDecl(FnDecl { ident, generics, params, ret, block })).todo_span())
+}
+
+impl Parse for FnDecl {
+    fn parse(stream: &mut Stream) -> Result<Self> {
+        let ident = stream.expect_ident()?;
+        let peek = stream.clone().any(&[TokenKind::Less, TokenKind::LParen])?;
+        let mut generics = ThinVec::new();
+        if peek.kind == TokenKind::Less {
+            _ = stream.next();
+            generics = stream.parse_separated(TokenKind::Comma, TokenKind::Greater)?;
+        }
+
+        stream.expect(TokenKind::LParen)?;
+        let params = stream.parse_separated(TokenKind::Comma, TokenKind::RParen)?;
+
+        let mut chosen =
+            stream.any(&[TokenKind::LBrace, TokenKind::ThinArrow, TokenKind::Semicolon])?;
+        let mut ret = None;
+        if chosen.kind == TokenKind::ThinArrow {
+            ret = Some(stream.parse()?);
+            chosen = stream.any(&[TokenKind::Semicolon, TokenKind::LBrace])?;
+        }
+        let block = if chosen.kind == TokenKind::Semicolon { None } else { Some(stream.parse()?) };
+        Ok(Self { ident, generics, params, ret, block })
+    }
 }
 
 fn parse_struct(stream: &mut Stream) -> Result<Expr> {
@@ -399,7 +421,8 @@ fn parse_atom_with(stream: &mut Stream, tok: Token) -> Result<ExprId> {
                 Ok(ExprKind::Return(Some(expr)).with_span(span))
             }
         }
-        TokenKind::Fn => parse_fn(stream),
+        TokenKind::Trait => Ok(ExprKind::Trait(stream.parse()?).todo_span()),
+        TokenKind::Fn => Ok(ExprKind::FnDecl(stream.parse()?).todo_span()),
         TokenKind::Struct => parse_struct(stream),
         TokenKind::Let => parse_let(stream),
         TokenKind::While => parse_while(stream),

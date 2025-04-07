@@ -5,7 +5,7 @@ use std::{
 
 use thin_vec::ThinVec;
 
-use super::{ArraySeg, ExprKind, FnDecl, Param, TyKind, TypeId};
+use super::{ArraySeg, ExprKind, FnDecl, Param, Trait, TyKind, TypeId};
 use crate::{
     ast::{Ast, BinOpKind, BinaryOp, BlockId, ExprId, Lit, UnaryOp},
     symbol::Symbol,
@@ -64,6 +64,10 @@ impl Writer<'_> {
                     Some(block) => block.write(self),
                     None => ";".write(self),
                 }
+            }
+            ExprKind::Trait(Trait { ident, ref methods }) => {
+                _ = methods;
+                ("trait ", ident, " {}").write(self);
             }
             ExprKind::Let { ident, ty, expr } => {
                 self.inside_expr = inside_expr;
