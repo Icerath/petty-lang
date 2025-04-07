@@ -44,6 +44,12 @@ pub enum Value {
     Ref(Allocation),
 }
 
+impl From<()> for Value {
+    fn from((): ()) -> Self {
+        Self::Unit
+    }
+}
+
 impl Clone for Value {
     fn clone(&self) -> Self {
         match *self {
@@ -112,5 +118,8 @@ impl Value {
     }
     pub fn unwrap_struct(&self) -> &ThinVec<Allocation> {
         value!(Struct, self)
+    }
+    pub fn unwrap_ref_array(&self) -> Array {
+        self.unwrap_ref().borrow().unwrap_array().clone()
     }
 }

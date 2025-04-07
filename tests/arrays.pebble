@@ -20,4 +20,12 @@ fn main() {
     assert arr2d[0][0] == 1;
     arr2d[0][0] = 2;
     assert arr2d[0][0] == 2;
+
+    let grow = [];
+    assert len(&grow) == 0;
+    push(&grow, 1);
+    assert len(&grow) == 1;
+    assert grow[0] == 1;
+    assert pop(&grow) == 1;
+    assert len(&grow) == 0;
 }

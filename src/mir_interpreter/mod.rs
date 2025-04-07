@@ -140,6 +140,8 @@ impl Interpreter<'_> {
 #[expect(clippy::needless_pass_by_value)]
 pub fn binary_op(lhs: Value, op: BinaryOp, rhs: Value) -> Value {
     match op {
+        BinaryOp::ArrayPush => lhs.unwrap_ref_array().push(rhs).into(),
+        BinaryOp::ArrayPop => lhs.unwrap_ref_array().pop(),
         BinaryOp::IntAdd => Value::Int(lhs.unwrap_int() + rhs.unwrap_int()),
         BinaryOp::IntSub => Value::Int(lhs.unwrap_int() - rhs.unwrap_int()),
         BinaryOp::IntMul => Value::Int(lhs.unwrap_int() * rhs.unwrap_int()),

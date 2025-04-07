@@ -23,6 +23,12 @@ impl Array {
             array.extend(std::iter::repeat_with(|| value.clone().into()).take(count));
         });
     }
+    pub fn push(&self, value: Value) {
+        self.with(|vec| vec.push(value.into()));
+    }
+    pub fn pop(&self) -> Value {
+        self.with(|vec| vec.pop().unwrap().clone_raw())
+    }
     pub fn len(&self) -> usize {
         self.with(|vec| vec.len())
     }

@@ -191,6 +191,8 @@ pub enum BinaryOp {
     StrIndexSlice,
 
     ArrayIndexRange,
+    ArrayPush,
+    ArrayPop,
 }
 
 #[derive(Debug, Clone, Copy, Hash)]
