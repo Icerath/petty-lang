@@ -25,5 +25,5 @@ fn offset_span(span: Span) -> Span {
         return span;
     }
     let offset: u32 = crate::STD.len().try_into().unwrap();
-    Span::from(span.start() - offset..span.end() - offset)
+    Span::from(span.start().saturating_sub(offset)..span.end().saturating_sub(offset))
 }

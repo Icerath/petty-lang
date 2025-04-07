@@ -237,13 +237,14 @@ fn parse_fn(stream: &mut Stream) -> Result<Expr> {
     stream.expect(TokenKind::LParen)?;
     let params = stream.parse_separated(TokenKind::Comma, TokenKind::RParen)?;
 
-    let chosen = stream.any(&[TokenKind::LBrace, TokenKind::ThinArrow])?;
+    let mut chosen =
+        stream.any(&[TokenKind::LBrace, TokenKind::ThinArrow, TokenKind::Semicolon])?;
     let mut ret = None;
     if chosen.kind == TokenKind::ThinArrow {
         ret = Some(stream.parse()?);
-        stream.expect(TokenKind::LBrace)?;
+        chosen = stream.any(&[TokenKind::Semicolon, TokenKind::LBrace])?;
     }
-    let block = stream.parse()?;
+    let block = if chosen.kind == TokenKind::Semicolon { None } else { Some(stream.parse()?) };
     Ok((ExprKind::FnDecl(FnDecl { ident, generics, params, ret, block })).todo_span())
 }
 

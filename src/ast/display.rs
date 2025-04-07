@@ -58,8 +58,12 @@ impl Writer<'_> {
             ExprKind::Block(block) => self.display_block(block),
             ExprKind::FnDecl(FnDecl { ident, ref generics, ref params, ret, block }) => {
                 self.inside_expr = inside_expr;
-                ("fn ", ident, Generics(generics), params, ret.map(|ret| (" -> ", ret)), block)
+                ("fn ", ident, Generics(generics), params, ret.map(|ret| (" -> ", ret)))
                     .write(self);
+                match block {
+                    Some(block) => block.write(self),
+                    None => ";".write(self),
+                }
             }
             ExprKind::Let { ident, ty, expr } => {
                 self.inside_expr = inside_expr;

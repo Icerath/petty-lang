@@ -265,6 +265,9 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
 
     fn lower_fn_decl(&mut self, decl: &ast::FnDecl, expr_id: ast::ExprId) -> hir::Expr<'tcx> {
         let ast::FnDecl { ident, ref params, ret, block, .. } = *decl;
+
+        let block = block.unwrap();
+
         let ret = match ret {
             Some(ret) => self.ty_info.type_ids[ret],
             None => &TyKind::Unit,

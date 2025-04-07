@@ -88,7 +88,7 @@ pub struct FnDecl {
     pub generics: ThinVec<Symbol>,
     pub params: ThinVec<Param>,
     pub ret: Option<TypeId>,
-    pub block: BlockId,
+    pub block: Option<BlockId>,
 }
 
 #[derive(Debug)]

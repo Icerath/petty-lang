@@ -331,6 +331,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 ret
             }
             ExprKind::FnDecl(FnDecl { ident, ref params, block, .. }) => {
+                let block = block.unwrap();
                 let fn_ty = self.bodies.last().unwrap().variables[&ident];
                 let TyKind::Function(Function { params: param_tys, ret, .. }) = fn_ty else {
                     unreachable!()
