@@ -34,8 +34,7 @@ impl Writer<'_> {
         let inside_expr = mem::replace(&mut self.inside_expr, true);
         match self.ast.exprs[expr].kind {
             ExprKind::Impl(Impl { trait_, ty, ref methods }) => {
-                _ = methods;
-                ("impl ", trait_, " for ", ty, " {}").write(self);
+                ("impl ", trait_, " for ", ty, methods).write(self);
             }
             ExprKind::Unreachable => "unreachable".write(self),
             ExprKind::Assert(expr) => ("assert ", expr).write(self),
@@ -60,18 +59,9 @@ impl Writer<'_> {
             }
             ExprKind::FieldAccess { expr, field } => (expr, ".", field).write(self),
             ExprKind::Block(block) => self.display_block(block),
-            ExprKind::FnDecl(FnDecl { ident, ref generics, ref params, ret, block }) => {
-                self.inside_expr = inside_expr;
-                ("fn ", ident, Generics(generics), params, ret.map(|ret| (" -> ", ret)))
-                    .write(self);
-                match block {
-                    Some(block) => block.write(self),
-                    None => ";".write(self),
-                }
-            }
+            ExprKind::FnDecl(ref decl) => decl.write(self),
             ExprKind::Trait(Trait { ident, ref methods }) => {
-                _ = methods;
-                ("trait ", ident, " {}").write(self);
+                ("trait ", ident, methods).write(self);
             }
             ExprKind::Let { ident, ty, expr } => {
                 self.inside_expr = inside_expr;
@@ -101,7 +91,6 @@ impl Writer<'_> {
                 els.map(|els| ("else ", els)).write(self);
             }
         }
-        self.inside_expr = inside_expr;
     }
 
     fn display_block(&mut self, block: BlockId) {
@@ -130,7 +119,6 @@ impl Writer<'_> {
         self.f.push('}');
     }
 }
-
 trait Dump {
     fn write(&self, w: &mut Writer);
 }
@@ -169,6 +157,40 @@ impl Dump for Lit {
             Lit::Char(char) => _ = write!(w.f, "{char:?}"),
             Lit::Array { segments } => ("[", Sep(segments, ", "), "]").write(w),
         }
+    }
+}
+
+impl Dump for FnDecl {
+    fn write(&self, w: &mut Writer) {
+        let current = w.inside_expr;
+        let FnDecl { ident, ref generics, ref params, ret, block } = *self;
+        ("fn ", ident, Generics(generics), params, ret.map(|ret| (" -> ", ret))).write(w);
+        match block {
+            Some(block) => block.write(w),
+            None => ";".write(w),
+        }
+        w.inside_expr = current;
+    }
+}
+
+impl Dump for ThinVec<FnDecl> {
+    fn write(&self, w: &mut Writer) {
+        w.f.push(' ');
+        w.inside_expr = false;
+        if self.is_empty() {
+            w.f.push_str("{}");
+            return;
+        }
+        w.indent += 1;
+        ("{", Line).write(w);
+        for (index, decl) in self.iter().enumerate() {
+            decl.write(w);
+            if index + 1 == self.len() {
+                w.indent -= 1;
+            }
+            (Line).write(w);
+        }
+        w.f.push('}');
     }
 }
 
