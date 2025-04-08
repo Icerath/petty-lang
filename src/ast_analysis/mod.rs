@@ -9,7 +9,7 @@ use thin_vec::ThinVec;
 use crate::{
     HashMap,
     ast::{
-        self, Ast, BinOpKind, BinaryOp, Block, BlockId, ExprId, ExprKind, FnDecl, Lit, Trait,
+        self, Ast, BinOpKind, BinaryOp, Block, BlockId, ExprId, ExprKind, FnDecl, Impl, Lit, Trait,
         TypeId, UnaryOp,
     },
     span::Span,
@@ -219,6 +219,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
     fn analyze_expr(&mut self, id: ExprId) -> Result<Ty<'tcx>> {
         let ty = match self.ast.exprs[id].kind {
             ExprKind::Trait(ref trait_) => self.analyze_trait(trait_, id)?,
+            ExprKind::Impl(ref impl_) => self.analyze_impl(impl_, id)?,
             ExprKind::Assert(expr) => {
                 let ty = self.analyze_expr(expr)?;
                 self.subtype(ty, &TyKind::Bool, expr)?;
@@ -442,6 +443,17 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         _ = id;
         let &Trait { ident, ref methods } = trait_;
         _ = ident;
+        for func in methods {
+            self.analyze_fndecl(func)?;
+        }
+        Ok(&TyKind::Unit)
+    }
+
+    fn analyze_impl(&mut self, impl_: &Impl, id: ExprId) -> Result<Ty<'tcx>> {
+        _ = id;
+        let &Impl { trait_, ty, ref methods } = impl_;
+        _ = trait_;
+        _ = ty;
         for func in methods {
             self.analyze_fndecl(func)?;
         }

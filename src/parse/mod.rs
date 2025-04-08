@@ -12,7 +12,7 @@ use token::{Token, TokenKind};
 use crate::{
     ast::{
         ArraySeg, Ast, BinOpKind, BinaryOp, Block, BlockId, Expr, ExprId, ExprKind, FnDecl, IfStmt,
-        Lit, Param, Trait, Ty, TyKind, TypeId,
+        Impl, Lit, Param, Trait, Ty, TyKind, TypeId,
     },
     errors,
     span::Span,
@@ -225,23 +225,36 @@ impl Parse for Ty {
     }
 }
 
+impl Parse for Impl {
+    fn parse(stream: &mut Stream) -> Result<Self> {
+        let trait_ = stream.expect_ident()?;
+        stream.expect(TokenKind::For)?;
+        let ty = stream.parse()?;
+        stream.expect(TokenKind::LBrace)?;
+        let methods = parse_trait_methods(stream)?;
+        Ok(Self { trait_, ty, methods })
+    }
+}
+
 impl Parse for Trait {
     fn parse(stream: &mut Stream) -> Result<Self> {
         let ident = stream.expect_ident()?;
         stream.expect(TokenKind::LBrace)?;
-
-        let mut methods = ThinVec::<FnDecl>::new();
-
-        loop {
-            let next = stream.any(&[TokenKind::Fn, TokenKind::RBrace])?;
-            match next.kind {
-                TokenKind::Fn => methods.push(stream.parse()?),
-                TokenKind::RBrace => break,
-                _ => unreachable!(),
-            }
-        }
-
+        let methods = parse_trait_methods(stream)?;
         Ok(Self { ident, methods })
+    }
+}
+
+fn parse_trait_methods(stream: &mut Stream) -> Result<ThinVec<FnDecl>> {
+    let mut methods = ThinVec::<FnDecl>::new();
+
+    loop {
+        let next = stream.any(&[TokenKind::Fn, TokenKind::RBrace])?;
+        match next.kind {
+            TokenKind::Fn => methods.push(stream.parse()?),
+            TokenKind::RBrace => break Ok(methods),
+            _ => unreachable!(),
+        }
     }
 }
 
@@ -421,6 +434,7 @@ fn parse_atom_with(stream: &mut Stream, tok: Token) -> Result<ExprId> {
                 Ok(ExprKind::Return(Some(expr)).with_span(span))
             }
         }
+        TokenKind::Impl => Ok(ExprKind::Impl(stream.parse()?).todo_span()),
         TokenKind::Trait => Ok(ExprKind::Trait(stream.parse()?).todo_span()),
         TokenKind::Fn => Ok(ExprKind::FnDecl(stream.parse()?).todo_span()),
         TokenKind::Struct => parse_struct(stream),

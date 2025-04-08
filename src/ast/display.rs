@@ -5,7 +5,7 @@ use std::{
 
 use thin_vec::ThinVec;
 
-use super::{ArraySeg, ExprKind, FnDecl, Param, Trait, TyKind, TypeId};
+use super::{ArraySeg, ExprKind, FnDecl, Impl, Param, Trait, TyKind, TypeId};
 use crate::{
     ast::{Ast, BinOpKind, BinaryOp, BlockId, ExprId, Lit, UnaryOp},
     symbol::Symbol,
@@ -33,6 +33,10 @@ impl Writer<'_> {
     fn display_expr(&mut self, expr: ExprId) {
         let inside_expr = mem::replace(&mut self.inside_expr, true);
         match self.ast.exprs[expr].kind {
+            ExprKind::Impl(Impl { trait_, ty, ref methods }) => {
+                _ = methods;
+                ("impl ", trait_, " for ", ty, " {}").write(self);
+            }
             ExprKind::Unreachable => "unreachable".write(self),
             ExprKind::Assert(expr) => ("assert ", expr).write(self),
             ExprKind::Struct { ident, ref fields, .. } => ("struct ", ident, fields).write(self),
