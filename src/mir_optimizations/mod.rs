@@ -21,8 +21,8 @@ pub fn optimize(mir: &mut Mir) {
 }
 
 pub fn optimize_body(mir: &mut Mir, body: BodyId) {
-    not_branch::optimize(mir, body);
     const_prop_fold(mir, body);
+    not_branch::optimize(mir, body);
     redundant_branch::optimize(mir, body);
     redundant_blocks::optimize(mir, body);
     remove_goto_terminator::optimize(mir, body);
