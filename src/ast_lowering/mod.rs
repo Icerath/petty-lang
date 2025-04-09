@@ -287,14 +287,14 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
     }
 
     fn lower_literal(&mut self, lit: &ast::Lit, expr_id: ast::ExprId) -> hir::Expr<'tcx> {
-        let lit = match lit {
+        let lit = match *lit {
             ast::Lit::FStr(..) => todo!(),
-            &ast::Lit::Unit => hir::Lit::Unit,
-            &ast::Lit::Bool(bool) => hir::Lit::Bool(bool),
-            &ast::Lit::Int(int) => hir::Lit::Int(int),
-            &ast::Lit::Char(char) => hir::Lit::Char(char),
-            &ast::Lit::Str(str) => hir::Lit::String(str),
-            ast::Lit::Array { segments } => {
+            ast::Lit::Unit => hir::Lit::Unit,
+            ast::Lit::Bool(bool) => hir::Lit::Bool(bool),
+            ast::Lit::Int(int) => hir::Lit::Int(int),
+            ast::Lit::Char(char) => hir::Lit::Char(char),
+            ast::Lit::Str(str) => hir::Lit::String(str),
+            ast::Lit::Array { ref segments } => {
                 let hir_segments = segments.iter().map(|segment| {
                     let expr = self.lower(segment.expr);
                     let repeated = segment.repeated.map(|expr| self.lower(expr));
