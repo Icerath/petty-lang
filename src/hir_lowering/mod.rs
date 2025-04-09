@@ -95,7 +95,7 @@ impl Lowering<'_, '_> {
             }
             rvalue => {
                 let local = self.new_local();
-                self.current().stmts.push(Statement::Assign { place: Place::local(local), rvalue });
+                self.assign(local, rvalue);
                 local
             }
         }
@@ -104,12 +104,20 @@ impl Lowering<'_, '_> {
     fn process(&mut self, rvalue: RValue) -> Operand {
         match rvalue {
             RValue::Use(operand) => operand,
-            rvalue => {
-                let place = Place::local(self.new_local());
-                self.current().stmts.push(Statement::Assign { place: place.clone(), rvalue });
-                Operand::Place(place)
-            }
+            rvalue => Operand::Place(self.assign_new(rvalue).into()),
         }
+    }
+
+    fn assign(&mut self, place: impl Into<Place>, rvalue: impl Into<RValue>) {
+        let rvalue = rvalue.into();
+        let place = place.into();
+        self.current().stmts.push(Statement::Assign { place, rvalue });
+    }
+
+    fn assign_new(&mut self, rvalue: impl Into<RValue>) -> Local {
+        let local = self.new_local();
+        self.assign(local, rvalue);
+        local
     }
 
     #[expect(clippy::too_many_lines)]
@@ -133,18 +141,11 @@ impl Lowering<'_, '_> {
             ExprKind::StructInit => {
                 let body = self.current().body;
                 let nparams = self.mir.bodies[body].params;
-                let local = self.new_local();
-                self.current().stmts.push(Statement::Assign {
-                    place: Place::local(local),
-                    rvalue: RValue::Use(Operand::Constant(Constant::UninitStruct {
-                        size: nparams.try_into().unwrap(),
-                    })),
-                });
+                let local =
+                    self.assign_new(Constant::UninitStruct { size: nparams.try_into().unwrap() });
                 for param in (0..nparams).map(Local::from) {
                     let field = Projection::Field(param.raw().into());
-                    let place = Place { local, projections: vec![field] };
-                    let rvalue = RValue::local(param);
-                    self.current().stmts.push(Statement::Assign { place, rvalue });
+                    self.assign(Place { local, projections: vec![field] }, RValue::local(param));
                 }
                 RValue::local(local)
             }
@@ -194,9 +195,8 @@ impl Lowering<'_, '_> {
             }
             ExprKind::Let { ident, expr } => {
                 let rvalue = self.lower_inner(expr);
-                let place = self.mir.bodies[self.bodies.last().unwrap().body].new_local();
-                self.current().variables.insert(ident, place);
-                self.current().stmts.push(Statement::assign(place, rvalue));
+                let local = self.assign_new(rvalue);
+                self.current().variables.insert(ident, local);
                 RValue::Use(Operand::UNIT)
             }
             ExprKind::Return(expr) => {
@@ -238,7 +238,7 @@ impl Lowering<'_, '_> {
                         if is_unit {
                             self.process(block_out);
                         } else {
-                            self.current().stmts.push(Statement::assign(out_local, block_out));
+                            self.assign(out_local, block_out);
                         }
                         jump_to_ends.push(self.finish_with(Terminator::Goto(BlockId::PLACEHOLDER)));
                     }
@@ -253,7 +253,7 @@ impl Lowering<'_, '_> {
                     if is_unit {
                         self.process(els_out);
                     } else {
-                        self.current().stmts.push(Statement::assign(out_local, els_out));
+                        self.assign(out_local, els_out);
                     }
                 }
 
@@ -273,8 +273,7 @@ impl Lowering<'_, '_> {
             ExprKind::Assignment { lhs, expr } => {
                 let rvalue = self.lower_inner(expr);
                 let place = self.lower_place(lhs);
-                let stmt = Statement::Assign { place, rvalue };
-                self.current().stmts.push(stmt);
+                self.assign(place, rvalue);
                 RValue::Use(Operand::Constant(Constant::Unit))
             }
             ExprKind::Binary { lhs, op, rhs } => {
@@ -421,20 +420,15 @@ impl Lowering<'_, '_> {
         if segments.is_empty() {
             return RValue::Use(Operand::Constant(Constant::EmptyArray));
         }
-        let array = self.new_local();
         let throwaway = self.new_local();
-        self.current()
-            .stmts
-            .push(Statement::assign(array, RValue::Use(Operand::Constant(Constant::EmptyArray))));
+        let array = self.assign_new(Constant::EmptyArray);
         for seg in segments {
             let value = self.lower(seg.expr);
             let repeat = match seg.repeated {
                 Some(repeated) => self.lower(repeated),
                 None => Operand::Constant(Constant::Int(1)),
             };
-            self.current()
-                .stmts
-                .push(Statement::assign(throwaway, RValue::Extend { array, value, repeat }));
+            self.assign(throwaway, RValue::Extend { array, value, repeat });
         }
         RValue::local(array)
     }
@@ -444,24 +438,16 @@ impl Lowering<'_, '_> {
             return self.format_expr(single);
         }
 
-        let builder = self.new_local();
         // TODO: set capacity or use a string builder type.
-        self.current()
-            .stmts
-            .push(Statement::assign(builder, RValue::Use(Operand::Constant(Constant::EmptyArray))));
-
+        let builder = self.assign_new(Constant::EmptyArray);
         for &segment in segments {
             let segment_str = self.format_expr(segment);
             let rhs = self.process(segment_str);
-            let temp = self.new_local();
-            self.current().stmts.push(Statement::assign(
-                temp,
-                RValue::BinaryExpr {
-                    lhs: Operand::Ref(Place::local(builder)),
-                    op: mir::BinaryOp::ArrayPush,
-                    rhs,
-                },
-            ));
+            self.assign_new(RValue::BinaryExpr {
+                lhs: Operand::Ref(Place::local(builder)),
+                op: mir::BinaryOp::ArrayPush,
+                rhs,
+            });
         }
         RValue::UnaryExpr { op: UnaryOp::StrJoin, operand: Operand::local(builder) }
     }

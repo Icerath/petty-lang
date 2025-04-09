@@ -1,6 +1,6 @@
 use super::Lowering;
 use crate::{
-    mir::{BinaryOp, Operand, Place, RValue, Statement, Terminator, UnaryOp},
+    mir::{BinaryOp, Operand, Place, RValue, Terminator, UnaryOp},
     symbol::Symbol,
 };
 
@@ -36,8 +36,7 @@ impl Lowering<'_, '_> {
             _ => return false,
         };
         self.mir.num_intrinsics += 1;
-        let local = self.new_local();
-        self.current().stmts.push(Statement::assign(local, rvalue));
+        let local = self.assign_new(rvalue);
         self.finish_with(Terminator::Return(Operand::Place(Place::local(local))));
         true
     }

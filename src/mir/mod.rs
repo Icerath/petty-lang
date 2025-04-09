@@ -105,13 +105,6 @@ pub enum Statement {
     Assign { place: Place, rvalue: RValue },
 }
 
-impl Statement {
-    #[must_use]
-    pub fn assign(local: Local, rvalue: RValue) -> Self {
-        Self::Assign { place: Place::local(local), rvalue }
-    }
-}
-
 #[must_use]
 #[derive(Debug, Hash)]
 pub enum RValue {
@@ -296,5 +289,11 @@ impl Operand {
 impl From<Constant> for RValue {
     fn from(value: Constant) -> Self {
         Self::Use(Operand::Constant(value))
+    }
+}
+
+impl From<Local> for Place {
+    fn from(local: Local) -> Self {
+        Self::local(local)
     }
 }
