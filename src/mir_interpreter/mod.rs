@@ -81,7 +81,12 @@ impl Interpreter<'_> {
             RValue::UnaryExpr { op, operand } => {
                 let operand = self.operand(operand, locals);
                 match op {
-                    UnaryOp::StrJoin => todo!(),
+                    UnaryOp::StrJoin => {
+                        let mut string = String::new();
+                        let array = operand.unwrap_array();
+                        array.for_each(|value| string.push_str(&value.clone_raw().unwrap_str()));
+                        Value::Str(string.into())
+                    }
                     UnaryOp::ArrayLen => {
                         Value::Int(operand.unwrap_ref_array().len().try_into().unwrap())
                     }

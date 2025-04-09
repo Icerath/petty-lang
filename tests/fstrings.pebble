@@ -1,5 +1,5 @@
 fn main() {
     let hello = "Hello";
     assert "${hello}, World!" == "Hello, World!";
-    assert "${"Hi"}" == "Hi";
+    assert "${1}" == "1";
 }

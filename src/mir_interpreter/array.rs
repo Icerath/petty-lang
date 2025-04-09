@@ -35,6 +35,9 @@ impl Array {
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
+    pub fn for_each(&self, f: impl FnMut(&mut Allocation)) {
+        self.with(|vec| vec.iter_mut().for_each(f));
+    }
 }
 
 impl fmt::Debug for Array {
