@@ -93,11 +93,7 @@ impl Lowering<'_, '_> {
             RValue::Use(Operand::Place(Place { local, projections })) if projections.is_empty() => {
                 local
             }
-            rvalue => {
-                let local = self.new_local();
-                self.assign(local, rvalue);
-                local
-            }
+            rvalue => self.assign_new(rvalue),
         }
     }
 
@@ -114,6 +110,7 @@ impl Lowering<'_, '_> {
         self.current().stmts.push(Statement::Assign { place, rvalue });
     }
 
+    #[must_use]
     fn assign_new(&mut self, rvalue: impl Into<RValue>) -> Local {
         let local = self.new_local();
         self.assign(local, rvalue);
@@ -443,7 +440,7 @@ impl Lowering<'_, '_> {
         for &segment in segments {
             let segment_str = self.format_expr(segment);
             let rhs = self.process(segment_str);
-            self.assign_new(RValue::BinaryExpr {
+            self.process(RValue::BinaryExpr {
                 lhs: Operand::Ref(Place::local(builder)),
                 op: mir::BinaryOp::ArrayPush,
                 rhs,
