@@ -471,7 +471,12 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
 
     fn analyze_lit(&mut self, lit: &Lit) -> Result<Ty<'tcx>> {
         Ok(match lit {
-            Lit::FStr(..) => todo!(),
+            Lit::FStr(fstr) => {
+                for &segment in fstr {
+                    self.analyze_expr(segment)?;
+                }
+                &TyKind::Str
+            }
             Lit::Unit => &TyKind::Unit,
             Lit::Bool(..) => &TyKind::Bool,
             Lit::Int(..) => &TyKind::Int,
