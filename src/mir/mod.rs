@@ -163,7 +163,6 @@ pub enum Constant {
     Func(BodyId),
 }
 
-#[expect(dead_code)]
 #[derive(Debug, PartialEq, PartialOrd, Hash, Clone, Copy)]
 pub enum BinaryOp {
     IntAdd,

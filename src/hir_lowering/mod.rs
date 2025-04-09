@@ -300,6 +300,11 @@ impl Lowering<'_, '_> {
                         hir::BinaryOp::Neq => mir::BinaryOp::CharNeq,
                         _ => unreachable!("char - {op:?}"),
                     },
+                    (TyKind::Str, op) => match op {
+                        hir::BinaryOp::Eq => mir::BinaryOp::StrEq,
+                        hir::BinaryOp::Neq => mir::BinaryOp::StrNeq,
+                        _ => unreachable!("str - {op:?}"),
+                    },
 
                     (ty, op) => unreachable!("{ty:?} - {op:?}"),
                 };
