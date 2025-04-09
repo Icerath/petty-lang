@@ -21,20 +21,23 @@ pub fn optimize(mir: &mut Mir, body_id: mir::BodyId) {
                 mutated_locals[local] += u32::from(rvalue.mutates_local(local.into()));
             }
         }
+        for local in 0..body.locals.index() {
+            mutated_locals[local] += u32::from(block.terminator.mutates_local(local.into()));
+        }
     }
 
     for block in blocks_mut(body) {
+        let replace = &mut |operand: &mut Operand| {
+            let Operand::Place(place) = operand else { return };
+            let Some(new_operand) = &local_rvalues[place.local] else { return };
+            if mutated_locals[place.local] > 1 || !place.projections.is_empty() {
+                return;
+            }
+            *operand = new_operand.clone();
+        };
         for statement in &mut block.statements {
-            let Statement::Assign { place: _, rvalue } = statement;
-
-            rvalue.with_operands_mut(&mut |operand| {
-                let Operand::Place(place) = operand else { return };
-                let Some(new_operand) = &local_rvalues[place.local] else { return };
-                if mutated_locals[place.local] > 1 || !place.projections.is_empty() {
-                    return;
-                }
-                *operand = new_operand.clone();
-            });
+            statement.rvalue_mut().with_operands_mut(replace);
         }
+        block.terminator.with_operands_mut(replace);
     }
 }

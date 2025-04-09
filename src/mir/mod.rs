@@ -71,6 +71,20 @@ pub enum Terminator {
 }
 
 impl Terminator {
+    pub fn with_operands_mut(&mut self, f: &mut impl FnMut(&mut Operand)) {
+        match self {
+            Self::Branch { condition: operand, .. } | Self::Return(operand) => f(operand),
+            Self::Goto(..) | Self::Abort => {}
+        }
+    }
+    pub fn mutates_local(&self, local: Local) -> bool {
+        match self {
+            Self::Return(operand) | Self::Branch { condition: operand, .. } => {
+                operand.mutates_local(local)
+            }
+            Self::Goto(..) | Self::Abort => false,
+        }
+    }
     pub fn mentions_place(&self, place: &Place) -> bool {
         match self {
             Self::Abort | Self::Goto(..) => false,
