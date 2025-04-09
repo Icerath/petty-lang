@@ -11,6 +11,7 @@ mod redundant_blocks;
 mod redundant_branch;
 mod remove_dead_blocks;
 mod remove_dead_places;
+mod remove_goto_terminator;
 mod utils;
 
 pub fn optimize(mir: &mut Mir) {
@@ -24,6 +25,7 @@ pub fn optimize_body(mir: &mut Mir, body: BodyId) {
     const_prop_fold(mir, body);
     redundant_branch::optimize(mir, body);
     redundant_blocks::optimize(mir, body);
+    remove_goto_terminator::optimize(mir, body);
     remove_dead_blocks::optimize(mir, body);
     remove_dead_places::optimize(mir, body);
 }

@@ -62,7 +62,7 @@ pub struct Block {
     pub terminator: Terminator,
 }
 
-#[derive(Debug, Hash)]
+#[derive(Debug, Clone, Hash)]
 pub enum Terminator {
     Goto(BlockId),
     Branch { condition: Operand, fals: BlockId, tru: BlockId },
