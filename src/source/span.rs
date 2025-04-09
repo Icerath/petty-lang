@@ -35,6 +35,7 @@ impl fmt::Debug for Span {
 impl Span {
     pub const ZERO: Self = Self { start: 0, len: 0, source: SourceId::NULL };
 
+    #[track_caller]
     #[expect(clippy::cast_possible_truncation)]
     pub fn new(range: Range<usize>, source: SourceId) -> Self {
         let len = (range.end - range.start).min(u16::MAX as _) as _;
@@ -64,6 +65,13 @@ impl Span {
 impl From<Range<u32>> for Span {
     fn from(Range { start, end }: Range<u32>) -> Self {
         Self::new(start as usize..end as usize, SourceId::NULL)
+    }
+}
+
+impl From<Range<usize>> for Span {
+    #[track_caller]
+    fn from(range: Range<usize>) -> Self {
+        Self::new(range, SourceId::NULL)
     }
 }
 

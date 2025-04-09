@@ -445,11 +445,7 @@ fn parse_atom_with(stream: &mut Stream, tok: Token) -> Result<ExprId> {
         TokenKind::True => lit!(Lit::Bool(true)),
         TokenKind::False => lit!(Lit::Bool(false)),
         TokenKind::Int => lit!(Lit::Int(stream.lexer.src()[tok.span].parse::<i64>().unwrap())),
-        TokenKind::Str => {
-            // TODO: Escaping
-            let str = &stream.lexer.src()[tok.span.shrink(1)];
-            lit!(Lit::Str(str.into()))
-        }
+        TokenKind::Str => parse_string(stream, tok.span),
         TokenKind::Char => {
             // TODO: Escaping
             let str = &stream.lexer.src()[tok.span.shrink(1)];
@@ -468,4 +464,59 @@ fn parse_atom_with(stream: &mut Stream, tok: Token) -> Result<ExprId> {
         }
     };
     Ok(stream.ast.exprs.push(expr?))
+}
+
+fn parse_string(stream: &mut Stream, span: Span) -> Result<Expr> {
+    // FIXME: Bring a cross.
+    let span = span.shrink(1); // remove double quotes.
+    let raw = &stream.lexer.src()[span];
+    let lexer_offset = stream.lexer.offset();
+    stream.lexer.set_offset(span.start() as usize);
+    let mut current_start = span.start() as usize;
+    let mut current = String::new();
+    let mut segments = thin_vec![];
+
+    let mut chars = raw.char_indices();
+    let mut escaped = false;
+    while let Some((_, char)) = chars.next() {
+        match char {
+            '$' if !escaped && chars.clone().next().is_some_and(|c| c.1 == '{') => {
+                let char_pos = chars.next().unwrap().0 + span.start() as usize;
+                if !current.is_empty() {
+                    let current_span = Span::from(current_start..char_pos);
+                    let expr =
+                        ExprKind::Lit(Lit::Str(current.as_str().into())).with_span(current_span);
+                    segments.push(stream.ast.exprs.push(expr));
+                    current.clear();
+                }
+
+                stream.lexer.bump(char_pos - current_start + 1);
+                let offset = stream.lexer.offset();
+                segments.push(stream.parse()?);
+                let diff = stream.lexer.offset() - offset;
+
+                chars = chars.as_str()[diff..].char_indices();
+                let next = chars.next().unwrap();
+                assert_eq!(next.1, '}');
+                current_start = next.0;
+            }
+            '/' if !escaped => escaped = true,
+            _ if escaped => panic!(),
+            _ => {
+                escaped = false;
+                current.push(char);
+            }
+        }
+    }
+    if segments.is_empty() {
+        stream.lexer.set_offset(lexer_offset);
+        return Ok(ExprKind::Lit(Lit::Str(current.into())).with_span(span));
+    }
+    let current_span = Span::from(current_start..raw.len());
+    if current_span.len() != 0 {
+        let expr = ExprKind::Lit(Lit::Str(current.into())).with_span(current_span);
+        segments.push(stream.ast.exprs.push(expr));
+    }
+    stream.lexer.set_offset(lexer_offset);
+    Ok(ExprKind::Lit(Lit::FStr(segments)).with_span(span))
 }

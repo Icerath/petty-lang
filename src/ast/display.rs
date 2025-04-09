@@ -154,9 +154,29 @@ impl Dump for Lit {
             Lit::Bool(bool) => _ = write!(w.f, "{bool}"),
             Lit::Int(int) => _ = write!(w.f, "{int}"),
             Lit::Str(str) => _ = write!(w.f, "{:?}", &**str),
+            Lit::FStr(segments) => FStr(segments).write(w),
             Lit::Char(char) => _ = write!(w.f, "{char:?}"),
             Lit::Array { segments } => ("[", Sep(segments, ", "), "]").write(w),
         }
+    }
+}
+
+struct FStr<'a>(&'a [ExprId]);
+
+impl Dump for FStr<'_> {
+    fn write(&self, w: &mut Writer) {
+        w.f.push('"');
+        for &seg in self.0 {
+            let expr = &w.ast.exprs[seg];
+            if let ExprKind::Lit(Lit::Str(str)) = &expr.kind {
+                w.f.push_str(str);
+            } else {
+                w.f.push_str("${");
+                seg.write(w);
+                w.f.push('}');
+            }
+        }
+        w.f.push('"');
     }
 }
 

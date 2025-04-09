@@ -17,6 +17,18 @@ impl From<&str> for Symbol {
     }
 }
 
+impl From<String> for Symbol {
+    fn from(value: String) -> Self {
+        Self { inner: value.into() }
+    }
+}
+
+impl From<&String> for Symbol {
+    fn from(value: &String) -> Self {
+        Self { inner: value.into() }
+    }
+}
+
 impl Deref for Symbol {
     type Target = str;
     fn deref(&self) -> &'static str {

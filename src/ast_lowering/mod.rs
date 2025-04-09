@@ -288,6 +288,7 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
 
     fn lower_literal(&mut self, lit: &ast::Lit, expr_id: ast::ExprId) -> hir::Expr<'tcx> {
         let lit = match lit {
+            ast::Lit::FStr(..) => todo!(),
             &ast::Lit::Unit => hir::Lit::Unit,
             &ast::Lit::Bool(bool) => hir::Lit::Bool(bool),
             &ast::Lit::Int(int) => hir::Lit::Int(int),

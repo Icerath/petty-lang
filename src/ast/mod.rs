@@ -124,6 +124,7 @@ pub enum Lit {
     Bool(bool),
     Int(i64),
     Str(Symbol),
+    FStr(ThinVec<ExprId>),
     Char(char),
     Array { segments: ThinVec<ArraySeg> },
 }

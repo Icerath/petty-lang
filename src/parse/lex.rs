@@ -16,6 +16,16 @@ impl<'src> Lexer<'src> {
     pub fn new(src: &'src str) -> Self {
         Self { src, token_start: 0, chars: src.chars() }
     }
+    #[track_caller]
+    pub fn bump(&mut self, bytes: usize) {
+        self.chars = self.chars.as_str()[bytes..].chars();
+    }
+    pub fn offset(&self) -> usize {
+        self.src.len() - self.chars.as_str().len()
+    }
+    pub fn set_offset(&mut self, bytes: usize) {
+        self.chars = self.src[bytes..].chars();
+    }
     pub const fn src(&self) -> &'src str {
         self.src
     }
@@ -144,6 +154,19 @@ impl Lexer<'_> {
         while let Some(next) = self.chars.next() {
             if next == '"' {
                 break;
+            }
+            if next == '$' && self.chars.clone().next().is_some_and(|c| c == '{') {
+                let mut d = 0;
+                for next in self.chars.by_ref() {
+                    match next {
+                        '{' => d += 1,
+                        '}' => d -= 1,
+                        _ => {}
+                    }
+                    if d == 0 {
+                        break;
+                    }
+                }
             }
             if next == '\\' && self.chars.next().is_some_and(|c| c == '\'') {
                 self.chars.next();
