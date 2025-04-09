@@ -106,6 +106,7 @@ pub enum Statement {
 }
 
 impl Statement {
+    #[must_use]
     pub fn assign(local: Local, rvalue: RValue) -> Self {
         Self::Assign { place: Place::local(local), rvalue }
     }
@@ -208,6 +209,7 @@ pub enum UnaryOp {
     StrPrint,
 
     ArrayLen,
+    StrJoin,
 
     Deref,
 }

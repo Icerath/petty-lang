@@ -81,6 +81,7 @@ impl Interpreter<'_> {
             RValue::UnaryExpr { op, operand } => {
                 let operand = self.operand(operand, locals);
                 match op {
+                    UnaryOp::StrJoin => todo!(),
                     UnaryOp::ArrayLen => {
                         Value::Int(operand.unwrap_ref_array().len().try_into().unwrap())
                     }
@@ -92,7 +93,6 @@ impl Interpreter<'_> {
                     UnaryOp::Chr => {
                         Value::Char(u8::try_from(operand.unwrap_int()).unwrap() as char)
                     }
-
                     UnaryOp::PrintChar => {
                         let mut stdout = io::stdout().lock();
                         _ = write!(stdout, "{}", operand.unwrap_char());

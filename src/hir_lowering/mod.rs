@@ -413,7 +413,7 @@ impl Lowering<'_, '_> {
             Lit::Char(char) => RValue::Use(Operand::Constant(Constant::Char(char))),
             Lit::String(str) => RValue::Use(Operand::Constant(Constant::Str(str))),
             Lit::Array { ref segments } => self.lower_array_lit(segments),
-            Lit::FStr { .. } => todo!(),
+            Lit::FStr { ref segments } => self.lower_fstrings(segments),
         }
     }
 
@@ -437,5 +437,46 @@ impl Lowering<'_, '_> {
                 .push(Statement::assign(throwaway, RValue::Extend { array, value, repeat }));
         }
         RValue::local(array)
+    }
+
+    fn lower_fstrings(&mut self, segments: &[ExprId]) -> RValue {
+        if let [single] = *segments {
+            return self.format_expr(single);
+        }
+
+        let builder = self.new_local();
+        // TODO: set capacity or use a string builder type.
+        self.current()
+            .stmts
+            .push(Statement::assign(builder, RValue::Use(Operand::Constant(Constant::EmptyArray))));
+
+        for &segment in segments {
+            let segment_str = self.format_expr(segment);
+            let rhs = self.process(segment_str);
+            let temp = self.new_local();
+            self.current().stmts.push(Statement::assign(
+                temp,
+                RValue::BinaryExpr {
+                    lhs: Operand::Ref(Place::local(builder)),
+                    op: mir::BinaryOp::ArrayPush,
+                    rhs,
+                },
+            ));
+        }
+        RValue::UnaryExpr { op: UnaryOp::StrJoin, operand: Operand::local(builder) }
+    }
+
+    fn format_expr(&mut self, expr_id: ExprId) -> RValue {
+        let expr = &self.hir.exprs[expr_id];
+        macro_rules! operand {
+            () => {
+                self.lower(expr_id)
+            };
+        }
+        match expr.ty {
+            TyKind::Str => self.lower_inner(expr_id),
+            TyKind::Int => RValue::UnaryExpr { op: UnaryOp::IntToStr, operand: operand!() },
+            _ => todo!("{}.to_string()", expr.ty),
+        }
     }
 }
