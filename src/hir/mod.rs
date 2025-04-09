@@ -87,6 +87,7 @@ pub enum Lit {
     Char(char),
     String(Symbol),
     Array { segments: ThinVec<ArraySeg> },
+    FStr { segments: ThinVec<ExprId> },
 }
 
 #[derive(Debug)]

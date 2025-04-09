@@ -408,6 +408,7 @@ impl Lowering<'_, '_> {
             Lit::Char(char) => RValue::Use(Operand::Constant(Constant::Char(char))),
             Lit::String(str) => RValue::Use(Operand::Constant(Constant::Str(str))),
             Lit::Array { ref segments } => self.lower_array_lit(segments),
+            Lit::FStr { .. } => todo!(),
         }
     }
 

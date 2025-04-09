@@ -288,7 +288,6 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
 
     fn lower_literal(&mut self, lit: &ast::Lit, expr_id: ast::ExprId) -> hir::Expr<'tcx> {
         let lit = match *lit {
-            ast::Lit::FStr(..) => todo!(),
             ast::Lit::Unit => hir::Lit::Unit,
             ast::Lit::Bool(bool) => hir::Lit::Bool(bool),
             ast::Lit::Int(int) => hir::Lit::Int(int),
@@ -301,6 +300,10 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
                     hir::ArraySeg { expr, repeated }
                 });
                 hir::Lit::Array { segments: hir_segments.collect() }
+            }
+            ast::Lit::FStr(ref segments) => {
+                let segments = segments.iter().map(|&segment| self.lower(segment)).collect();
+                hir::Lit::FStr { segments }
             }
         };
         hir::Expr { ty: self.get_ty(expr_id), kind: ExprKind::Literal(lit) }
