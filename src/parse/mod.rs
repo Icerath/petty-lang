@@ -512,8 +512,8 @@ fn parse_string(stream: &mut Stream, span: Span) -> Result<Expr> {
         stream.lexer.set_offset(lexer_offset);
         return Ok(ExprKind::Lit(Lit::Str(current.into())).with_span(span));
     }
-    let current_span = Span::from(current_start..raw.len());
-    if current_span.len() != 0 {
+    if !current.is_empty() {
+        let current_span = Span::from(current_start..(current_start + raw.len()));
         let expr = ExprKind::Lit(Lit::Str(current.into())).with_span(current_span);
         segments.push(stream.ast.exprs.push(expr));
     }
