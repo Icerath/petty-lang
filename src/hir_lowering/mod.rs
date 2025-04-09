@@ -466,16 +466,17 @@ impl Lowering<'_, '_> {
         RValue::UnaryExpr { op: UnaryOp::StrJoin, operand: Operand::local(builder) }
     }
 
-    fn format_expr(&mut self, expr_id: ExprId) -> RValue {
-        let expr = &self.hir.exprs[expr_id];
-        macro_rules! operand {
-            () => {
-                self.lower(expr_id)
-            };
+    fn format_expr(&mut self, id: ExprId) -> RValue {
+        let expr = &self.hir.exprs[id];
+        if expr.ty.is_str() {
+            return self.lower_inner(id);
         }
-        match expr.ty {
-            TyKind::Str => self.lower_inner(expr_id),
-            TyKind::Int => RValue::UnaryExpr { op: UnaryOp::IntToStr, operand: operand!() },
+        match (expr.ty, self.lower(id)) {
+            (TyKind::Str, _) => unreachable!(),
+            (TyKind::Int, Operand::Constant(Constant::Int(int))) => {
+                RValue::from(Constant::Str(int.to_string().into()))
+            }
+            (TyKind::Int, operand) => RValue::UnaryExpr { op: UnaryOp::IntToStr, operand },
             _ => todo!("{}.to_string()", expr.ty),
         }
     }
