@@ -8,7 +8,9 @@ macro_rules! opts {
                 long=concat!("O", stringify!($name)),
                 action=clap::ArgAction::Set,
                 default_value="true",
-                default_value_if("no_default_optimizations", "true", "false")
+                default_value_if("no_default_optimizations", "true", "false"),
+                hide_possible_values=true,
+                value_name="true|false",
             )]
             pub $name: bool,
         )*}
