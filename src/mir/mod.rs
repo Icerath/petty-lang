@@ -42,14 +42,14 @@ pub struct Mir {
 
 #[derive(Debug, Hash)]
 pub struct Body {
-    pub name: Symbol,
+    pub name: Option<Symbol>,
     pub blocks: IndexVec<BlockId, Block>,
     pub params: usize,
     pub locals: Local,
 }
 
 impl Body {
-    pub fn new(name: Symbol, params: usize) -> Self {
+    pub fn new(name: Option<Symbol>, params: usize) -> Self {
         Self { name, blocks: IndexVec::default(), params, locals: params.into() }
     }
 

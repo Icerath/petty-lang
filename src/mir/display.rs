@@ -4,8 +4,13 @@ use super::{Constant, Mir, Operand, Place, Projection, RValue, Statement, Termin
 
 impl fmt::Display for Mir {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for body in self.bodies.iter().skip(1 + self.num_intrinsics) {
-            writeln!(f, "fn {}() {{", body.name)?;
+        for (id, body) in self.bodies.iter_enumerated().skip(1 + self.num_intrinsics) {
+            write!(f, "fn ")?;
+            match body.name {
+                Some(name) => write!(f, "{name}"),
+                None => write!(f, "{}", id.raw()),
+            }?;
+            writeln!(f, "() {{")?;
             for (id, block) in body.blocks.iter_enumerated() {
                 writeln!(f, "{}bb{id:?}: {{", Indent(1))?;
                 for statement in &block.statements {
@@ -130,7 +135,10 @@ impl fmt::Display for ConstDisplay<'_, '_> {
             Constant::Int(int) => write!(f, "{int}"),
             Constant::Char(char) => write!(f, "{char:?}"),
             Constant::Str(str) => write!(f, "{str:?}"),
-            Constant::Func(id) => write!(f, "{}", self.0.bodies[*id].name),
+            Constant::Func(id) => match self.0.bodies[*id].name {
+                Some(name) => write!(f, "{name}"),
+                None => write!(f, "fn({})", id.raw()),
+            },
         }
     }
 }

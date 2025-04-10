@@ -15,7 +15,7 @@ use crate::{
 
 pub fn lower(hir: &Hir) -> Mir {
     let mut mir = Mir::default();
-    let root_body = mir.bodies.push(Body::new("root".into(), 0));
+    let root_body = mir.bodies.push(Body::new(None, 0));
     let bodies = vec![BodyInfo::new(root_body)];
 
     let mut lowering = Lowering { hir, mir, bodies };
@@ -169,7 +169,7 @@ impl Lowering<'_, '_> {
                 let hir::FnDecl { ident, ref params, ref body, .. } = **decl;
 
                 assert!(self.current().stmts.is_empty(), "TODO");
-                let body_id = self.mir.bodies.push(Body::new(ident, params.len()));
+                let body_id = self.mir.bodies.push(Body::new(Some(ident), params.len()));
                 self.current().functions.insert(ident, body_id);
                 self.bodies.push(BodyInfo::new(body_id));
                 if self.bodies.len() == 2 && ident.as_str() == "main" {
