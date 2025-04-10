@@ -35,10 +35,10 @@ struct Args {
     verbose: u8,
     #[arg(long, help = "Turns off all optimizations unless overriden")]
     no_default_optimizations: bool,
-    #[command(flatten)]
-    codegen: CodegenOpts,
     #[arg(long, default_value = "true", help = "Dumps the ast/hir/mir to the target directory ")]
     dump: bool,
+    #[command(flatten)]
+    codegen: CodegenOpts,
 }
 
 fn main() {
