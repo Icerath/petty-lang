@@ -48,7 +48,6 @@ impl fmt::Display for Mir {
                                 RValue::UnaryExpr { op, operand } => {
                                     write!(f, "{op:?}({})", operand.display(self))
                                 }
-                                RValue::Unreachable => write!(f, "unreachable"),
                             }?;
                         }
                     }

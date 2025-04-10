@@ -110,7 +110,6 @@ impl Interpreter<'_> {
                     UnaryOp::StrLen => Value::Int(operand.unwrap_str().len().try_into().unwrap()),
                 }
             }
-            RValue::Unreachable => unreachable!(),
         }
     }
 

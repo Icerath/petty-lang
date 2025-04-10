@@ -24,7 +24,6 @@ pub fn recurse(
     let block = &mut body.blocks[block_id];
     let is_unreachable = match block.terminator {
         Terminator::Unreachable => true,
-        _ if block.statements.iter().any(|stmt| stmt.rvalue().is_unreachable()) => true,
         Terminator::Goto(goto) => recurse(body, goto, cache),
         Terminator::Branch { fals, tru, .. } => 'branch: {
             let false_is_unreachable = recurse(body, fals, cache);

@@ -125,11 +125,11 @@ impl Lowering<'_, '_> {
         match expr.kind {
             ExprKind::Unreachable => {
                 let _ = self.finish_with(Terminator::Unreachable);
-                RValue::Unreachable
+                RValue::UNIT
             }
             ExprKind::Abort => {
                 let _ = self.finish_with(Terminator::Abort);
-                RValue::Unreachable
+                RValue::UNIT
             }
             ExprKind::Field { expr, field } => {
                 let local = self.lower_local(expr);
@@ -202,7 +202,7 @@ impl Lowering<'_, '_> {
             ExprKind::Return(expr) => {
                 let place = self.lower(expr);
                 self.finish_with(Terminator::Return(place));
-                RValue::Unreachable
+                RValue::UNIT
             }
             ExprKind::Loop(ref block) => {
                 let loop_block = self.finish_next();
@@ -234,14 +234,12 @@ impl Lowering<'_, '_> {
                         tru: self.body_ref().blocks.next_idx() + 1,
                     });
                     let block_out = self.block_expr(&arm.body);
-                    if !block_out.is_unreachable() {
-                        if is_unit {
-                            self.process(block_out);
-                        } else {
-                            self.assign(out_local, block_out);
-                        }
-                        jump_to_ends.push(self.finish_with(Terminator::Goto(BlockId::PLACEHOLDER)));
+                    if is_unit {
+                        self.process(block_out);
+                    } else {
+                        self.assign(out_local, block_out);
                     }
+                    jump_to_ends.push(self.finish_with(Terminator::Goto(BlockId::PLACEHOLDER)));
                     let current_block = self.body_ref().blocks.next_idx();
                     match &mut self.body_mut().blocks[to_fix].terminator {
                         Terminator::Branch { fals, .. } => *fals = current_block,
@@ -249,12 +247,10 @@ impl Lowering<'_, '_> {
                     }
                 }
                 let els_out = self.block_expr(els);
-                if !els_out.is_unreachable() {
-                    if is_unit {
-                        self.process(els_out);
-                    } else {
-                        self.assign(out_local, els_out);
-                    }
+                if is_unit {
+                    self.process(els_out);
+                } else {
+                    self.assign(out_local, els_out);
                 }
 
                 let current = self.finish_next();
@@ -326,7 +322,7 @@ impl Lowering<'_, '_> {
             ExprKind::Break => {
                 let block = self.finish_with(Terminator::Goto(BlockId::PLACEHOLDER));
                 self.current().breaks.push(block);
-                RValue::Unreachable
+                RValue::UNIT
             }
             ExprKind::Index { expr, index } => {
                 let rhs = self.lower(index);

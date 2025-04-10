@@ -125,7 +125,6 @@ pub enum Statement {
 #[must_use]
 #[derive(Debug, Hash)]
 pub enum RValue {
-    Unreachable,
     Extend { array: Local, value: Operand, repeat: Operand },
     Use(Operand),
     BinaryExpr { lhs: Operand, op: BinaryOp, rhs: Operand },
@@ -134,11 +133,9 @@ pub enum RValue {
 }
 
 impl RValue {
+    pub const UNIT: Self = Self::Use(Operand::UNIT);
     pub fn local(local: Local) -> Self {
         Self::Use(Operand::local(local))
-    }
-    pub fn is_unreachable(&self) -> bool {
-        matches!(self, Self::Unreachable)
     }
 }
 
@@ -241,7 +238,6 @@ impl Statement {
 impl RValue {
     pub fn mentions_place(&self, place: &Place) -> bool {
         match self {
-            Self::Unreachable => false,
             Self::BinaryExpr { lhs, rhs, .. } => {
                 lhs.mentions_place(place) || rhs.mentions_place(place)
             }
@@ -257,7 +253,6 @@ impl RValue {
     // could this rvalue potentially mutate local
     pub fn mutates_local(&self, local: Local) -> bool {
         match self {
-            Self::Unreachable => false,
             Self::BinaryExpr { lhs, rhs, .. } => {
                 lhs.mutates_local(local) || rhs.mutates_local(local)
             }
@@ -273,7 +268,6 @@ impl RValue {
 
     pub fn with_operands_mut(&mut self, f: &mut impl FnMut(&mut Operand)) {
         match self {
-            Self::Unreachable => {}
             Self::UnaryExpr { operand, .. } | Self::Use(operand) => f(operand),
             Self::Extend { value, repeat, .. } => {
                 f(value);
