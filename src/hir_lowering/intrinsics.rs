@@ -26,7 +26,7 @@ impl Lowering<'_, '_> {
             "strlen" => unary!(StrLen),
             "str_find" => binary!(StrFind),
             "str_rfind" => binary!(StrRFind),
-            "print" => unary!(StrPrint),
+            "println" => unary!(StrPrint),
             "chr" => unary!(Chr),
             "print_char" => unary!(PrintChar),
             "len" => unary!(ArrayLen),
