@@ -56,6 +56,7 @@ impl fmt::Display for Mir {
                 }
                 write!(f, "{}", Indent(2))?;
                 match &block.terminator {
+                    Terminator::Unreachable => write!(f, "unreachable"),
                     Terminator::Abort => write!(f, "abort"),
                     Terminator::Goto(to) => write!(f, "goto bb{to:?}"),
                     Terminator::Branch { condition, fals, tru } => {

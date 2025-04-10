@@ -43,6 +43,7 @@ impl Interpreter<'_> {
                 *alloc.borrow() = rvalue;
             }
             match block.terminator {
+                Terminator::Unreachable => unreachable!(),
                 #[cfg(test)]
                 Terminator::Abort => std::panic::panic_any("assertion failed"),
                 #[cfg(not(test))]

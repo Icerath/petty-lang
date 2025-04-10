@@ -13,6 +13,7 @@ mod remove_dead_assignments;
 mod remove_dead_blocks;
 mod remove_dead_places;
 mod remove_goto_terminator;
+mod remove_unreachable;
 mod utils;
 
 pub fn optimize(mir: &mut Mir) {
@@ -22,6 +23,7 @@ pub fn optimize(mir: &mut Mir) {
 }
 
 pub fn optimize_body(mir: &mut Mir, body: BodyId) {
+    remove_unreachable::optimize(mir, body);
     const_prop_fold(mir, body);
     not_branch::optimize(mir, body);
     redundant_branch::optimize(mir, body);

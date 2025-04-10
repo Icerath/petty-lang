@@ -70,13 +70,14 @@ pub enum Terminator {
     Branch { condition: Operand, fals: BlockId, tru: BlockId },
     Return(Operand),
     Abort,
+    Unreachable,
 }
 
 impl Terminator {
     pub fn with_operands_mut(&mut self, f: &mut impl FnMut(&mut Operand)) {
         match self {
             Self::Branch { condition: operand, .. } | Self::Return(operand) => f(operand),
-            Self::Goto(..) | Self::Abort => {}
+            Self::Goto(..) | Self::Abort | Self::Unreachable => {}
         }
     }
     pub fn mutates_local(&self, local: Local) -> bool {
@@ -84,19 +85,19 @@ impl Terminator {
             Self::Return(operand) | Self::Branch { condition: operand, .. } => {
                 operand.mutates_local(local)
             }
-            Self::Goto(..) | Self::Abort => false,
+            Self::Goto(..) | Self::Abort | Self::Unreachable => false,
         }
     }
     pub fn mentions_place(&self, place: &Place) -> bool {
         match self {
-            Self::Abort | Self::Goto(..) => false,
+            Self::Abort | Self::Goto(..) | Self::Unreachable => false,
             Self::Branch { condition, .. } => condition.mentions_place(place),
             Self::Return(operand) => operand.mentions_place(place),
         }
     }
     pub fn with_jumps(&self, mut f: impl FnMut(BlockId)) {
         match *self {
-            Self::Abort | Self::Return(..) => {}
+            Self::Abort | Self::Return(..) | Self::Unreachable => {}
             Self::Goto(jump) => f(jump),
             Self::Branch { fals, tru, .. } => {
                 f(fals);
@@ -106,7 +107,7 @@ impl Terminator {
     }
     pub fn with_jumps_mut(&mut self, mut f: impl FnMut(&mut BlockId)) {
         match self {
-            Self::Abort | Self::Return(..) => {}
+            Self::Abort | Self::Return(..) | Self::Unreachable => {}
             Self::Goto(jump) => f(jump),
             Self::Branch { fals, tru, .. } => {
                 f(fals);
