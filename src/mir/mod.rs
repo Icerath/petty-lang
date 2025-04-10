@@ -42,15 +42,17 @@ pub struct Mir {
 
 #[derive(Debug, Hash)]
 pub struct Body {
+    pub name: Symbol,
     pub blocks: IndexVec<BlockId, Block>,
     pub params: usize,
     pub locals: Local,
 }
 
 impl Body {
-    pub fn new(params: usize) -> Self {
-        Self { blocks: IndexVec::default(), params, locals: params.into() }
+    pub fn new(name: Symbol, params: usize) -> Self {
+        Self { name, blocks: IndexVec::default(), params, locals: params.into() }
     }
+
     pub fn new_local(&mut self) -> Local {
         self.locals += 1;
         self.locals - 1
