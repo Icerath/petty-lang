@@ -109,6 +109,7 @@ impl Interpreter<'_> {
                     UnaryOp::StrLen => Value::Int(operand.unwrap_str().len().try_into().unwrap()),
                 }
             }
+            RValue::Unreachable => unreachable!(),
         }
     }
 
@@ -117,7 +118,6 @@ impl Interpreter<'_> {
             Operand::Ref(ref place) => Value::Ref(self.load_place(place, locals)),
             Operand::Constant(ref constant) => const_value(constant),
             Operand::Place(ref place) => self.load_place(place, locals).clone_raw(),
-            Operand::Unreachable => unreachable!(),
         }
     }
 

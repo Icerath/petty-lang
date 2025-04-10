@@ -123,10 +123,10 @@ impl Lowering<'_, '_> {
         let is_unit = expr.ty.is_unit();
 
         match expr.kind {
-            ExprKind::Unreachable => RValue::Use(Operand::Unreachable),
+            ExprKind::Unreachable => RValue::Unreachable,
             ExprKind::Abort => {
                 let _ = self.finish_with(Terminator::Abort);
-                RValue::Use(Operand::Unreachable)
+                RValue::Unreachable
             }
             ExprKind::Field { expr, field } => {
                 let local = self.lower_local(expr);
@@ -199,7 +199,7 @@ impl Lowering<'_, '_> {
             ExprKind::Return(expr) => {
                 let place = self.lower(expr);
                 self.finish_with(Terminator::Return(place));
-                RValue::Use(Operand::Unreachable)
+                RValue::Unreachable
             }
             ExprKind::Loop(ref block) => {
                 let loop_block = self.finish_next();
@@ -323,7 +323,7 @@ impl Lowering<'_, '_> {
             ExprKind::Break => {
                 let block = self.finish_with(Terminator::Goto(BlockId::PLACEHOLDER));
                 self.current().breaks.push(block);
-                RValue::Use(Operand::Unreachable)
+                RValue::Unreachable
             }
             ExprKind::Index { expr, index } => {
                 let rhs = self.lower(index);
