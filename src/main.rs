@@ -44,7 +44,22 @@ struct Args {
 fn main() {
     let args = Args::parse();
     match compile::compile(&args) {
-        Ok(()) => {}
+        Ok(()) => {
+            if args.verbose > 0 {
+                log!("mir dumped to target/dump-mir.txt");
+            }
+        }
         Err(err) => eprintln!("{err:?}"),
     }
+}
+
+#[macro_export]
+macro_rules! log {
+    () => {
+        eprintln!()
+    };
+    ($($arg:tt)*) => {{
+        use colored::Colorize;
+        eprintln!("{}", format!($($arg)*).as_str().blue())
+    }};
 }

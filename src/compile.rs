@@ -52,17 +52,17 @@ pub fn compile(args: &Args) -> miette::Result<()> {
     mir_optimizations::optimize(&mut mir, &args.codegen);
     dump!(mir);
     if args.verbose > 1 {
-        eprintln!("type interner entries: {}", ty_intern.len());
-        eprintln!("type interner cache hits: {}", ty_intern.cache_hits());
+        crate::log!("type interner entries: {}", ty_intern.len());
+        crate::log!("type interner cache hits: {}", ty_intern.cache_hits());
     }
     if args.verbose > 0 {
-        eprintln!("compile time: {:?}", start.elapsed());
-        eprintln!();
+        crate::log!("compile time: {:?}", start.elapsed());
+        crate::log!();
     }
     mir_interpreter::interpret(&mir);
     if args.verbose > 0 {
-        eprintln!();
-        eprintln!("total time: {:?}", start.elapsed());
+        crate::log!();
+        crate::log!("total time: {:?}", start.elapsed());
     }
     Ok(())
 }
