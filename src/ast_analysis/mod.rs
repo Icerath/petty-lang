@@ -104,7 +104,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 fields.iter().map(|field| self.read_ast_ty(field.ty)).collect::<Result<_>>()?;
             let params = fields.clone();
             let struct_ty = self.tcx.new_struct(*ident, symbols, fields);
-            self.bodies.last_mut().unwrap().ty_names.insert(*ident, struct_ty);
+            self.current().ty_names.insert(*ident, struct_ty);
             self.ty_info.struct_types.insert(*span, struct_ty);
 
             body.variables.insert(
@@ -134,6 +134,10 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         self.bodies.push(body);
         let out = self.analyze_block_inner(block)?;
         Ok((out, self.bodies.pop().unwrap()))
+    }
+
+    fn current(&mut self) -> &mut Body<'tcx> {
+        self.bodies.last_mut().unwrap()
     }
 
     fn analyze_block(&mut self, id: BlockId) -> Result<Ty<'tcx>> {
@@ -343,15 +347,14 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 } else {
                     expr_ty
                 };
-                let body = self.bodies.last_mut().unwrap();
-                body.variables.insert(ident, ty);
+                self.current().variables.insert(ident, ty);
                 &TyKind::Unit
             }
             ExprKind::For { ident, iter, body } => {
                 // for now only allow ranges
                 let iter_ty = self.analyze_expr(iter)?;
                 self.subtype(iter_ty, &TyKind::Range, iter)?;
-                self.bodies.last_mut().unwrap().variables.insert(ident, &TyKind::Int);
+                self.current().variables.insert(ident, &TyKind::Int);
                 let out = self.analyze_block(body)?;
                 self.subtype_block(out, &TyKind::Unit, body)?;
                 &TyKind::Unit
@@ -400,7 +403,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
             }
             ExprKind::Return(expr) => {
                 let ty = expr.map_or(Ok(&TyKind::Unit), |expr| self.analyze_expr(expr))?;
-                let expected = self.bodies.last().unwrap().ret;
+                let expected = self.current().ret;
                 self.subtype(ty, expected, expr.unwrap_or(id))?;
                 &TyKind::Never
             }
@@ -425,7 +428,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         _ = generics;
         _ = ret;
         let block_id = block.unwrap();
-        let fn_ty = self.bodies.last().unwrap().variables[&ident];
+        let fn_ty = self.current().variables[&ident];
         let TyKind::Function(Function { params: param_tys, ret, .. }) = fn_ty else {
             unreachable!()
         };
