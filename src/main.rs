@@ -8,6 +8,7 @@ mod tests;
 mod ast;
 mod ast_analysis;
 mod ast_lowering;
+mod codegen_opts;
 mod compile;
 mod errors;
 mod hir;
@@ -21,22 +22,28 @@ mod source;
 mod symbol;
 mod ty;
 
-pub use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
+use codegen_opts::CodegenOpts;
+use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use source::span;
 
-pub const STD: &str = concat!(include_str!("std.pebble"), "\n\n");
+const STD: &str = concat!(include_str!("std.pebble"), "\n\n");
 
 #[derive(Parser)]
 struct Args {
     path: PathBuf,
     #[arg(short, long, action = clap::ArgAction::Count)]
     verbose: u8,
+    #[arg(long, help = "Turns off all optimizations unless overriden")]
+    no_default_optimizations: bool,
+    #[command(flatten)]
+    codegen: CodegenOpts,
+    #[arg(long, default_value = "true", help = "Dumps the ast/hir/mir to the target directory ")]
+    dump: bool,
 }
 
 fn main() {
     let args = Args::parse();
-    let src = std::fs::read_to_string(&args.path).unwrap();
-    match compile::compile(&src, Some(&*args.path), args.verbose) {
+    match compile::compile(&args) {
         Ok(()) => {}
         Err(err) => eprintln!("{err:?}"),
     }

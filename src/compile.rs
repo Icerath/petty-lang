@@ -1,24 +1,32 @@
-use std::{path::Path, time::Instant};
+use std::time::Instant;
+
+use miette::IntoDiagnostic;
 
 use crate::{
-    ast_analysis, ast_lowering, hir_lowering, mir_interpreter, mir_optimizations,
+    Args, ast_analysis, ast_lowering, hir_lowering, mir_interpreter, mir_optimizations,
     parse::parse,
     ty::{TyCtx, TyInterner},
 };
 
 #[cfg(test)]
-pub fn compile_test(src: &str) -> miette::Result<()> {
-    compile_inner(src, None, false, 0)
+pub fn compile_test(path: impl Into<std::path::PathBuf>) -> miette::Result<()> {
+    use crate::CodegenOpts;
+
+    let args = Args {
+        path: path.into(),
+        codegen: CodegenOpts::default(),
+        verbose: 0,
+        no_default_optimizations: false,
+        dump: false,
+    };
+    compile(&args)
 }
 
-pub fn compile(src: &str, file: Option<&Path>, verbose: u8) -> miette::Result<()> {
-    compile_inner(src, file, true, verbose)
-}
-
-fn compile_inner(src: &str, file: Option<&Path>, dump: bool, verbose: u8) -> miette::Result<()> {
+pub fn compile(args: &Args) -> miette::Result<()> {
+    let src = std::fs::read_to_string(&args.path).into_diagnostic()?;
     macro_rules! dump {
         ($name:ident, $what:ident) => {
-            if dump {
+            if args.dump {
                 _ = std::fs::write(
                     format!("target/dump-{}.txt", stringify!($name)),
                     format!("{}", $what),
@@ -30,29 +38,29 @@ fn compile_inner(src: &str, file: Option<&Path>, dump: bool, verbose: u8) -> mie
         };
     }
     let start = Instant::now();
-    let src = crate::STD.to_string() + src;
-    let ast = parse(&src, file)?;
+    let src = crate::STD.to_string() + &src;
+    let ast = parse(&src, Some(&args.path))?;
     let ty_intern = TyInterner::default();
     dump!(ast);
     let tcx = TyCtx::new(&ty_intern);
-    let analysis = ast_analysis::analyze(file, &src, &ast, &tcx)?;
-    let hir = ast_lowering::lower(&src, file, ast, analysis);
+    let analysis = ast_analysis::analyze(Some(&args.path), &src, &ast, &tcx)?;
+    let hir = ast_lowering::lower(&src, Some(&args.path), ast, analysis);
     dump!(hir);
     let mut mir = hir_lowering::lower(&hir);
     drop(hir);
     dump!(unoptimized_mir, mir);
-    mir_optimizations::optimize(&mut mir);
+    mir_optimizations::optimize(&mut mir, &args.codegen);
     dump!(mir);
-    if verbose > 1 {
+    if args.verbose > 1 {
         eprintln!("type interner entries: {}", ty_intern.len());
         eprintln!("type interner cache hits: {}", ty_intern.cache_hits());
     }
-    if verbose > 0 {
+    if args.verbose > 0 {
         eprintln!("compile time: {:?}", start.elapsed());
         eprintln!();
     }
     mir_interpreter::interpret(&mir);
-    if verbose > 0 {
+    if args.verbose > 0 {
         eprintln!();
         eprintln!("total time: {:?}", start.elapsed());
     }

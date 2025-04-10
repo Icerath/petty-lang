@@ -2,7 +2,10 @@ use std::hash::BuildHasher;
 
 use rustc_hash::FxBuildHasher;
 
-use crate::mir::{BodyId, Mir};
+use crate::{
+    codegen_opts::CodegenOpts,
+    mir::{BodyId, Mir},
+};
 
 mod const_fold;
 mod const_prop;
@@ -16,22 +19,34 @@ mod remove_goto_terminator;
 mod remove_unreachable;
 mod utils;
 
-pub fn optimize(mir: &mut Mir) {
+pub fn optimize(mir: &mut Mir, opts: &CodegenOpts) {
     for body in 0..mir.bodies.len() {
-        optimize_body(mir, body.into());
+        optimize_body(mir, body.into(), opts);
     }
 }
 
-pub fn optimize_body(mir: &mut Mir, body: BodyId) {
-    remove_unreachable::optimize(mir, body);
-    const_prop_fold(mir, body);
-    not_branch::optimize(mir, body);
-    redundant_branch::optimize(mir, body);
-    redundant_blocks::optimize(mir, body);
-    remove_goto_terminator::optimize(mir, body);
-    remove_dead_blocks::optimize(mir, body);
-    remove_dead_assignments::optimize(mir, body);
-    remove_dead_places::optimize(mir, body);
+pub fn optimize_body(mir: &mut Mir, body: BodyId, opts: &CodegenOpts) {
+    macro_rules! optimize {
+        ($($name:ident),* $(,)*) => {
+            $(if opts.$name {
+                $name::optimize(mir, body);
+            })*
+        };
+    }
+
+    optimize!(remove_unreachable);
+    if opts.const_prop {
+        const_prop_fold(mir, body);
+    }
+    optimize!(
+        not_branch,
+        redundant_branch,
+        redundant_blocks,
+        remove_goto_terminator,
+        remove_dead_blocks,
+        remove_dead_assignments,
+        remove_dead_places
+    );
 }
 
 fn const_prop_fold(mir: &mut Mir, body: BodyId) {
