@@ -1,8 +1,8 @@
 fn strlen(str: str) -> int { unreachable }
 fn str_find(haystack: str, needle: str) -> int { unreachable }
 fn str_rfind(haystack: str, needle: str) -> int { unreachable }
+fn print(str: str) { unreachable }
 fn println(str: str) { unreachable }
-fn print_char(char: char) { unreachable }
 fn chr(int: int) -> char { unreachable }
 fn len<T>(arr: &[T]) -> int { unreachable }
 fn push<T>(arr: &[T], value: T) { unreachable }

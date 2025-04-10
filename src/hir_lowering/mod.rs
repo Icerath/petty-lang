@@ -460,6 +460,7 @@ impl Lowering<'_, '_> {
                 RValue::from(Constant::Str(int.to_string().into()))
             }
             (TyKind::Int, operand) => RValue::UnaryExpr { op: UnaryOp::IntToStr, operand },
+            (TyKind::Char, operand) => RValue::UnaryExpr { op: UnaryOp::CharToStr, operand },
             _ => todo!("{}.to_string()", expr.ty),
         }
     }

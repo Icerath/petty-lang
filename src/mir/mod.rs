@@ -210,12 +210,13 @@ pub enum UnaryOp {
 
     IntToStr,
     IntNeg,
-
     Chr,
-    PrintChar,
+
+    CharToStr,
 
     StrLen,
     StrPrint,
+    Print,
 
     ArrayLen,
     StrJoin,

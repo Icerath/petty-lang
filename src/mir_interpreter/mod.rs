@@ -1,8 +1,6 @@
 mod array;
 mod value;
 
-use std::io::{self, Write};
-
 use array::Array;
 use index_vec::{IndexSlice, IndexVec};
 use value::Allocation;
@@ -95,13 +93,12 @@ impl Interpreter<'_> {
 
                     UnaryOp::IntNeg => Value::Int(-operand.unwrap_int()),
                     UnaryOp::IntToStr => Value::Str(operand.unwrap_int().to_string().into()),
+                    UnaryOp::CharToStr => Value::Str(operand.unwrap_char().to_string().into()),
                     UnaryOp::Chr => {
                         Value::Char(u8::try_from(operand.unwrap_int()).unwrap() as char)
                     }
-                    UnaryOp::PrintChar => {
-                        let mut stdout = io::stdout().lock();
-                        _ = write!(stdout, "{}", operand.unwrap_char());
-                        _ = stdout.flush();
+                    UnaryOp::Print => {
+                        print!("{}", operand.unwrap_str());
                         Value::Unit
                     }
 
