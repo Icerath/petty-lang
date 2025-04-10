@@ -102,7 +102,7 @@ impl Interpreter<'_> {
                         Value::Unit
                     }
 
-                    UnaryOp::StrPrint => {
+                    UnaryOp::Println => {
                         println!("{}", operand.unwrap_str());
                         Value::Unit
                     }

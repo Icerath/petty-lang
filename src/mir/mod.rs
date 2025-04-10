@@ -215,8 +215,8 @@ pub enum UnaryOp {
     CharToStr,
 
     StrLen,
-    StrPrint,
     Print,
+    Println,
 
     ArrayLen,
     StrJoin,

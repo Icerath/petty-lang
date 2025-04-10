@@ -147,7 +147,7 @@ impl Lowering<'_, '_> {
                 RValue::local(local)
             }
             ExprKind::PrintStr(str) => RValue::UnaryExpr {
-                op: UnaryOp::StrPrint,
+                op: UnaryOp::Println,
                 operand: Operand::Constant(Constant::Str(str)),
             },
             ExprKind::Literal(ref lit) => self.lit_rvalue(lit),
