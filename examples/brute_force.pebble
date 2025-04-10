@@ -10,5 +10,5 @@ fn main() {
         }
     }
 
-    print(int_to_str(sum));
+    print("${sum}");
 }
