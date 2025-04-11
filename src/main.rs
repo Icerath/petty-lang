@@ -30,6 +30,7 @@ const STD: &str = concat!(include_str!("std.pebble"), "\n\n");
 
 #[derive(Parser)]
 struct Args {
+    command: Command,
     path: PathBuf,
     #[arg(short, long, action = clap::ArgAction::Count)]
     verbose: u8,
@@ -41,6 +42,12 @@ struct Args {
     target: PathBuf,
     #[command(flatten)]
     codegen: CodegenOpts,
+}
+
+#[derive(clap::ValueEnum, Clone, PartialEq, Eq, PartialOrd, Ord)]
+enum Command {
+    Build,
+    Run,
 }
 
 fn main() {

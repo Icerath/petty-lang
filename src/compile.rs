@@ -14,15 +14,14 @@ use crate::{
 
 #[cfg(test)]
 pub fn compile_test(path: impl Into<std::path::PathBuf>) -> miette::Result<()> {
-    use crate::CodegenOpts;
-
     let args = Args {
+        command: crate::Command::Run,
         path: path.into(),
         verbose: 0,
         no_default_optimizations: false,
         dump: false,
         target: "target".into(),
-        codegen: CodegenOpts::default(),
+        codegen: crate::CodegenOpts::default(),
     };
     compile(&args)
 }
@@ -66,12 +65,16 @@ pub fn compile(args: &Args) -> miette::Result<()> {
     }
     if args.verbose > 0 {
         crate::log!("compile time: {:?}", start.elapsed());
-        crate::log!();
     }
-    mir_interpreter::interpret(&mir);
-    if args.verbose > 0 {
-        crate::log!();
-        crate::log!("total time: {:?}", start.elapsed());
+    if args.command == crate::Command::Run {
+        if args.verbose > 0 {
+            crate::log!();
+        }
+        mir_interpreter::interpret(&mir);
+        if args.verbose > 0 {
+            crate::log!();
+            crate::log!("total time: {:?}", start.elapsed());
+        }
     }
     Ok(())
 }
