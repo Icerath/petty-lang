@@ -1,5 +1,5 @@
 use super::utils::{blocks, blocks_mut};
-use crate::mir::{BodyId, Local, Mir, RValue, Statement};
+use crate::mir::{BodyId, Local, Mir, Statement};
 
 pub fn optimize(mir: &mut Mir, body_id: BodyId) {
     let body = &mut mir.bodies[body_id];
@@ -22,9 +22,12 @@ pub fn optimize(mir: &mut Mir, body_id: BodyId) {
     for block in blocks_mut(body) {
         block.statements.retain(|statement| {
             let Statement::Assign { place, rvalue } = statement;
-            let 0 = access_counts[place.local] else { return true };
-            let RValue::Use(..) = rvalue else { return true };
-            let [] = &*place.projections else { return true };
+            if access_counts[place.local] > 0
+                || rvalue.side_effect()
+                || !place.projections.is_empty()
+            {
+                return true;
+            }
             false
         });
     }

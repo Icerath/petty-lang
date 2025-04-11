@@ -141,6 +141,15 @@ impl RValue {
     pub fn local(local: Local) -> Self {
         Self::Use(Operand::local(local))
     }
+
+    pub fn side_effect(&self) -> bool {
+        match self {
+            Self::Use(..) => false,
+            Self::BinaryExpr { op, .. } => op.side_effect(),
+            Self::UnaryExpr { op, .. } => op.side_effect(),
+            Self::Call { .. } | Self::Extend { .. } => true,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Hash)]
@@ -206,6 +215,12 @@ pub enum BinaryOp {
     ArrayPop,
 }
 
+impl BinaryOp {
+    pub fn side_effect(self) -> bool {
+        matches!(self, Self::ArrayPush | Self::ArrayPop)
+    }
+}
+
 #[derive(Debug, Clone, Copy, Hash)]
 pub enum UnaryOp {
     BoolNot,
@@ -224,6 +239,12 @@ pub enum UnaryOp {
     StrJoin,
 
     Deref,
+}
+
+impl UnaryOp {
+    pub fn side_effect(self) -> bool {
+        matches!(self, Self::Print | Self::Println)
+    }
 }
 
 impl Statement {
