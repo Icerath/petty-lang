@@ -1,4 +1,8 @@
-use std::time::Instant;
+use std::{
+    fs, io,
+    path::{Path, PathBuf},
+    time::Instant,
+};
 
 use miette::IntoDiagnostic;
 
@@ -14,23 +18,28 @@ pub fn compile_test(path: impl Into<std::path::PathBuf>) -> miette::Result<()> {
 
     let args = Args {
         path: path.into(),
-        codegen: CodegenOpts::default(),
         verbose: 0,
         no_default_optimizations: false,
         dump: false,
+        target: "target".into(),
+        codegen: CodegenOpts::default(),
     };
     compile(&args)
 }
 
 pub fn compile(args: &Args) -> miette::Result<()> {
-    let src = std::fs::read_to_string(&args.path).into_diagnostic()?;
+    let src = fs::read_to_string(&args.path).into_diagnostic()?;
+    if args.dump {
+        create_new_dir(&args.target).into_diagnostic()?;
+    }
     macro_rules! dump {
         ($name:ident, $what:ident) => {
             if args.dump {
-                _ = std::fs::write(
-                    format!("target/dump-{}.txt", stringify!($name)),
-                    format!("{}", $what),
-                );
+                let filename = concat!("dump-", stringify!($name), ".txt");
+                let content = $what.to_string();
+                let path: PathBuf =
+                    [args.target.as_path(), filename.as_ref()].into_iter().collect();
+                fs::write(path, content).into_diagnostic()?;
             }
         };
         ($what:ident) => {
@@ -65,4 +74,11 @@ pub fn compile(args: &Args) -> miette::Result<()> {
         crate::log!("total time: {:?}", start.elapsed());
     }
     Ok(())
+}
+
+fn create_new_dir<P: AsRef<Path>>(path: P) -> io::Result<()> {
+    match fs::create_dir(path) {
+        Err(err) if err.kind() == io::ErrorKind::AlreadyExists => Ok(()),
+        other => other,
+    }
 }

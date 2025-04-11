@@ -37,6 +37,8 @@ struct Args {
     no_default_optimizations: bool,
     #[arg(long, default_value = "true", help = "Dumps the ast/hir/mir to the target directory ")]
     dump: bool,
+    #[arg(long, default_value = "target", help = "The target directory")]
+    target: PathBuf,
     #[command(flatten)]
     codegen: CodegenOpts,
 }
@@ -46,7 +48,7 @@ fn main() {
     match compile::compile(&args) {
         Ok(()) => {
             if args.verbose > 0 {
-                log!("mir dumped to target/dump-mir.txt");
+                log!("mir dumped to {}/dump-mir.txt", args.target.display());
             }
         }
         Err(err) => eprintln!("{err:?}"),
