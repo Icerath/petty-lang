@@ -15,7 +15,7 @@ use crate::{
 
 pub fn lower(hir: &Hir) -> Mir {
     let mut mir = Mir::default();
-    let root_body = mir.bodies.push(Body::new(None, 0));
+    let root_body = mir.bodies.push(Body::new(None, 0).with_auto(true));
     let bodies = vec![BodyInfo::new(root_body)];
 
     let mut lowering = Lowering { hir, mir, bodies };
@@ -180,6 +180,8 @@ impl Lowering<'_, '_> {
                 }
 
                 if self.bodies.len() == 2 && self.try_instrinsic(ident) {
+                    let current = self.current().body;
+                    self.mir.bodies[current].auto = true;
                 } else {
                     for (i, param) in params.iter().enumerate() {
                         self.current().variables.insert(param.ident, Local::from(i));

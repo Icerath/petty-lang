@@ -4,7 +4,10 @@ use super::{Constant, Mir, Operand, Place, Projection, RValue, Statement, Termin
 
 impl fmt::Display for Mir {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for (id, body) in self.bodies.iter_enumerated().skip(1 + self.num_intrinsics) {
+        for (id, body) in self.bodies.iter_enumerated() {
+            if body.auto {
+                continue;
+            }
             write!(f, "fn ")?;
             match body.name {
                 Some(name) => write!(f, "{name}"),

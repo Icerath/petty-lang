@@ -37,12 +37,12 @@ impl BlockId {
 pub struct Mir {
     pub bodies: IndexVec<BodyId, Body>,
     pub main_body: Option<BodyId>,
-    pub num_intrinsics: usize,
 }
 
 #[derive(Debug, Hash)]
 pub struct Body {
     pub name: Option<Symbol>,
+    pub auto: bool,
     pub blocks: IndexVec<BlockId, Block>,
     pub params: usize,
     pub locals: Local,
@@ -50,7 +50,11 @@ pub struct Body {
 
 impl Body {
     pub fn new(name: Option<Symbol>, params: usize) -> Self {
-        Self { name, blocks: IndexVec::default(), params, locals: params.into() }
+        Self { name, blocks: IndexVec::default(), params, locals: params.into(), auto: false }
+    }
+    pub fn with_auto(mut self, auto: bool) -> Self {
+        self.auto = auto;
+        self
     }
 
     pub fn new_local(&mut self) -> Local {

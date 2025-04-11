@@ -34,7 +34,6 @@ impl Lowering<'_, '_> {
             "pop" => binary!(ArrayPop),
             _ => return false,
         };
-        self.mir.num_intrinsics += 1;
         let local = self.assign_new(rvalue);
         self.finish_with(Terminator::Return(Operand::Place(Place::local(local))));
         true
