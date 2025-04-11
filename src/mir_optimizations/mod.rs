@@ -9,6 +9,7 @@ use crate::{
 
 mod const_fold;
 mod const_prop;
+mod fix_entry_block;
 mod not_branch;
 mod redundant_blocks;
 mod redundant_branch;
@@ -45,7 +46,8 @@ pub fn optimize_body(mir: &mut Mir, body: BodyId, opts: &CodegenOpts) {
         remove_goto_terminator,
         remove_dead_blocks,
         remove_dead_assignments,
-        remove_dead_places
+        remove_dead_places,
+        fix_entry_block,
     );
 }
 

@@ -28,6 +28,7 @@ opts! {
     not_branch,
     redundant_blocks,
     redundant_branch,
+    fix_entry_block,
     remove_dead_assignments,
     remove_dead_places,
     remove_dead_blocks,

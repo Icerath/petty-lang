@@ -12,3 +12,11 @@ fn main() {
 
     println("${sum}");
 }
+
+
+fn foo(x: int)  {
+    if x < 7 {
+        println("hello");
+        unreachable
+    }
+}
