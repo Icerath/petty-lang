@@ -15,7 +15,7 @@ impl fmt::Display for Mir {
             }?;
             writeln!(f, "() {{")?;
             for (id, block) in body.blocks.iter_enumerated() {
-                writeln!(f, "{}bb{id:?}: {{", Indent(1))?;
+                writeln!(f, "{}block {id:?} {{", Indent(1))?;
                 for statement in &block.statements {
                     write!(f, "{}", Indent(2))?;
                     match statement {
@@ -43,7 +43,7 @@ impl fmt::Display for Mir {
                                 RValue::Extend { array, value, repeat } => {
                                     write!(
                                         f,
-                                        "extend _{array:?}[{}; {}]",
+                                        "extend var {array:?}[{}; {}]",
                                         value.display(self),
                                         repeat.display(self)
                                     )
@@ -60,11 +60,11 @@ impl fmt::Display for Mir {
                 match &block.terminator {
                     Terminator::Unreachable => write!(f, "unreachable"),
                     Terminator::Abort => write!(f, "abort"),
-                    Terminator::Goto(to) => write!(f, "goto bb{to:?}"),
+                    Terminator::Goto(to) => write!(f, "goto block {to:?}"),
                     Terminator::Branch { condition, fals, tru } => {
                         write!(
                             f,
-                            "branch {}[false: bb{fals:?}, true: bb{tru:?}]",
+                            "branch {}[false: block {fals:?}, true: block {tru:?}]",
                             condition.display(self)
                         )
                     }
@@ -116,11 +116,11 @@ impl fmt::Display for Place {
             match projection {
                 Projection::Deref => write!(f, "*")?,
                 Projection::Field(field) => write!(end, ".{field}")?,
-                Projection::Index(index) => write!(end, "[_{index:?}]")?,
+                Projection::Index(index) => write!(end, "[var {index:?}]")?,
             }
         }
 
-        write!(f, "_{:?}", self.local)?;
+        write!(f, "var {:?}", self.local)?;
         f.write_str(&end)
     }
 }
