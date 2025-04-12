@@ -1,6 +1,7 @@
 mod array;
 mod value;
 
+use arcstr::ArcStr;
 use array::Array;
 use index_vec::{IndexSlice, IndexVec};
 use value::Allocation;
@@ -119,7 +120,7 @@ pub fn unary_op(op: UnaryOp, operand: Value) -> Value {
         UnaryOp::Deref => operand.unwrap_ref().clone_raw(),
 
         UnaryOp::BoolNot => Value::Bool(!operand.unwrap_bool()),
-        UnaryOp::BoolToStr => Value::Str(operand.unwrap_bool().to_string().into()), // TODO: optimize
+        UnaryOp::BoolToStr => Value::Str(bool_to_str(operand.unwrap_bool())),
 
         UnaryOp::IntNeg => Value::Int(-operand.unwrap_int()),
         UnaryOp::IntToStr => Value::Str(operand.unwrap_int().to_string().into()),
@@ -136,6 +137,10 @@ pub fn unary_op(op: UnaryOp, operand: Value) -> Value {
         }
         UnaryOp::StrLen => Value::Int(operand.unwrap_str().len().try_into().unwrap()),
     }
+}
+
+fn bool_to_str(bool: bool) -> ArcStr {
+    ArcStr::from(if bool { "true" } else { "false" })
 }
 
 #[expect(clippy::needless_pass_by_value)]
