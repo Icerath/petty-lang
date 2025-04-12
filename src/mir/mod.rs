@@ -175,7 +175,7 @@ impl Operand {
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 pub enum Constant {
     Unit,
-    EmptyArray,
+    EmptyArray { cap: usize },
     UninitStruct { size: u32 },
     Bool(bool),
     Int(i64),

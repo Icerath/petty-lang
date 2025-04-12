@@ -14,6 +14,12 @@ impl Array {
         self.inner.set(inner);
         out
     }
+    pub fn with_capacity(cap: usize) -> Self {
+        Self { inner: Rc::new(Cell::new(Vec::with_capacity(cap))) }
+    }
+    pub fn capacity(&self) -> usize {
+        self.with(|vec| vec.capacity())
+    }
     pub fn get(&self, index: usize) -> Option<Allocation> {
         self.with(|array| array.get(index).cloned())
     }

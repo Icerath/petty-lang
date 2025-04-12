@@ -184,7 +184,7 @@ pub fn const_value(constant: &Constant) -> Value {
             std::iter::repeat_with(|| Allocation::from(Value::Unit)).take(size as _).collect(),
         ),
         Constant::Unit => Value::Unit,
-        Constant::EmptyArray => Value::Array(Array::default()),
+        Constant::EmptyArray { cap } => Value::Array(Array::with_capacity(cap)),
         Constant::Bool(bool) => Value::Bool(bool),
         Constant::Int(int) => Value::Int(int),
         Constant::Char(char) => Value::Char(char),

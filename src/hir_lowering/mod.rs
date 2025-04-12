@@ -416,10 +416,24 @@ impl Lowering<'_, '_> {
 
     fn lower_array_lit(&mut self, segments: &[ArraySeg]) -> RValue {
         if segments.is_empty() {
-            return RValue::Use(Operand::Constant(Constant::EmptyArray));
+            return RValue::Use(Operand::Constant(Constant::EmptyArray { cap: 0 }));
         }
         let throwaway = self.new_local();
-        let array = self.assign_new(Constant::EmptyArray);
+
+        let cap = {
+            segments
+                .iter()
+                .map(|seg| match seg.repeated {
+                    None => 1,
+                    Some(expr) => match self.hir.exprs[expr].kind {
+                        ExprKind::Literal(Lit::Int(int)) => int.try_into().unwrap(),
+                        _ => 1,
+                    },
+                })
+                .sum()
+        };
+
+        let array = self.assign_new(Constant::EmptyArray { cap });
         for seg in segments {
             let value = self.lower(seg.expr);
             let repeat = match seg.repeated {
@@ -436,8 +450,7 @@ impl Lowering<'_, '_> {
             return self.format_expr(single);
         }
 
-        // TODO: set capacity or use a string builder type.
-        let builder = self.assign_new(Constant::EmptyArray);
+        let builder = self.assign_new(Constant::EmptyArray { cap: segments.len() as _ });
         for &segment in segments {
             let segment_str = self.format_expr(segment);
             let rhs = self.process(segment_str);

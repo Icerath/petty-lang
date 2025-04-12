@@ -132,7 +132,7 @@ impl fmt::Display for ConstDisplay<'_, '_> {
         }
         match self.1 {
             Constant::UninitStruct { size } => write!(f, "struct {{ {size:?} }}"),
-            Constant::EmptyArray => write!(f, "[]"),
+            Constant::EmptyArray { cap } => write!(f, "[cap: {cap}]"),
             Constant::Unit => write!(f, "()"),
             Constant::Bool(bool) => write!(f, "{bool}"),
             Constant::Int(int) => write!(f, "{int}"),

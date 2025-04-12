@@ -49,7 +49,9 @@ pub fn constant_of(value: &Value) -> Option<Operand> {
         Value::Int(int) => Constant::Int(int),
         Value::Char(char) => Constant::Char(char),
         Value::Str(ref str) => Constant::Str(str.as_str().into()),
-        Value::Array(ref array) if array.is_empty() => Constant::EmptyArray,
+        Value::Array(ref array) if array.is_empty() => {
+            Constant::EmptyArray { cap: array.capacity() }
+        }
         Value::Fn(body) => Constant::Func(body),
         _ => return None,
     };
