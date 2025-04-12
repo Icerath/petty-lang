@@ -224,6 +224,7 @@ impl BinaryOp {
 #[derive(Debug, Clone, Copy, Hash)]
 pub enum UnaryOp {
     BoolNot,
+    BoolToStr,
 
     IntToStr,
     IntNeg,

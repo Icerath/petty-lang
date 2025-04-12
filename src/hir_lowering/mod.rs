@@ -470,6 +470,7 @@ impl Lowering<'_, '_> {
         }
         match (expr.ty, self.lower(id)) {
             (TyKind::Str, _) => unreachable!(),
+            (TyKind::Bool, operand) => RValue::UnaryExpr { op: UnaryOp::BoolToStr, operand },
             (TyKind::Int, Operand::Constant(Constant::Int(int))) => {
                 RValue::from(Constant::Str(int.to_string().into()))
             }
