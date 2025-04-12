@@ -1,5 +1,6 @@
 fn main() {
     let sum = 0 + 0 + 0 + 0 + 0 + 0 + 0 + 0;
+    println("${sum}");
     let i = 0;
     while i < 10000 {
         i += 1;

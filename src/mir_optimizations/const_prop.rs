@@ -40,4 +40,40 @@ pub fn optimize(mir: &mut Mir, body_id: mir::BodyId) {
         }
         block.terminator.with_operands_mut(replace);
     }
+
+    let mut cache: IndexVec<_, Option<&Operand>> = (0..body.locals.index()).map(|_| None).collect();
+    for block in blocks_mut(body) {
+        cache.as_raw_slice_mut().fill_with(|| None);
+
+        macro_rules! replace {
+            () => {
+                &mut |operand: &mut Operand| {
+                    let Operand::Place(place) = operand else { return };
+                    if !place.projections.is_empty() {
+                        return;
+                    }
+                    let Some(cached) = cache[place.local] else { return };
+                    *operand = cached.clone();
+                }
+            };
+        }
+
+        for statement in &mut block.statements {
+            let Statement::Assign { place, rvalue } = statement;
+
+            rvalue.with_operands_mut(replace!());
+            rvalue.with_locals(|local| {
+                if rvalue.mutates_local(local) {
+                    cache[local] = None;
+                }
+            });
+            cache[place.local] = None;
+            let RValue::Use(operand) = rvalue else { continue };
+            if !place.projections.is_empty() {
+                continue;
+            }
+            cache[place.local] = Some(&*operand);
+        }
+        block.terminator.with_operands_mut(replace!());
+    }
 }
