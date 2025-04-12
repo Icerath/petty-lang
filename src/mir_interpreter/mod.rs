@@ -77,39 +77,7 @@ impl Interpreter<'_> {
                 let rhs = self.operand(rhs, locals);
                 binary_op(lhs, *op, rhs)
             }
-            RValue::UnaryExpr { op, operand } => {
-                let operand = self.operand(operand, locals);
-                match op {
-                    UnaryOp::StrJoin => {
-                        let mut string = String::new();
-                        let array = operand.unwrap_array();
-                        array.for_each(|value| string.push_str(&value.clone_raw().unwrap_str()));
-                        Value::Str(string.into())
-                    }
-                    UnaryOp::ArrayLen => {
-                        Value::Int(operand.unwrap_ref_array().len().try_into().unwrap())
-                    }
-                    UnaryOp::Deref => operand.unwrap_ref().clone_raw(),
-                    UnaryOp::BoolNot => Value::Bool(!operand.unwrap_bool()),
-
-                    UnaryOp::IntNeg => Value::Int(-operand.unwrap_int()),
-                    UnaryOp::IntToStr => Value::Str(operand.unwrap_int().to_string().into()),
-                    UnaryOp::CharToStr => Value::Str(operand.unwrap_char().to_string().into()),
-                    UnaryOp::Chr => {
-                        Value::Char(u8::try_from(operand.unwrap_int()).unwrap() as char)
-                    }
-                    UnaryOp::Print => {
-                        print!("{}", operand.unwrap_str());
-                        Value::Unit
-                    }
-
-                    UnaryOp::Println => {
-                        println!("{}", operand.unwrap_str());
-                        Value::Unit
-                    }
-                    UnaryOp::StrLen => Value::Int(operand.unwrap_str().len().try_into().unwrap()),
-                }
-            }
+            RValue::UnaryExpr { op, operand } => unary_op(*op, self.operand(operand, locals)),
         }
     }
 
@@ -135,6 +103,36 @@ impl Interpreter<'_> {
             };
         }
         alloc
+    }
+}
+
+#[expect(clippy::needless_pass_by_value)]
+pub fn unary_op(op: UnaryOp, operand: Value) -> Value {
+    match op {
+        UnaryOp::StrJoin => {
+            let mut string = String::new();
+            let array = operand.unwrap_array();
+            array.for_each(|value| string.push_str(&value.clone_raw().unwrap_str()));
+            Value::Str(string.into())
+        }
+        UnaryOp::ArrayLen => Value::Int(operand.unwrap_ref_array().len().try_into().unwrap()),
+        UnaryOp::Deref => operand.unwrap_ref().clone_raw(),
+        UnaryOp::BoolNot => Value::Bool(!operand.unwrap_bool()),
+
+        UnaryOp::IntNeg => Value::Int(-operand.unwrap_int()),
+        UnaryOp::IntToStr => Value::Str(operand.unwrap_int().to_string().into()),
+        UnaryOp::CharToStr => Value::Str(operand.unwrap_char().to_string().into()),
+        UnaryOp::Chr => Value::Char(u8::try_from(operand.unwrap_int()).unwrap() as char),
+        UnaryOp::Print => {
+            print!("{}", operand.unwrap_str());
+            Value::Unit
+        }
+
+        UnaryOp::Println => {
+            println!("{}", operand.unwrap_str());
+            Value::Unit
+        }
+        UnaryOp::StrLen => Value::Int(operand.unwrap_str().len().try_into().unwrap()),
     }
 }
 

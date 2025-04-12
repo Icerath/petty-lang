@@ -9,18 +9,29 @@ pub fn optimize(mir: &mut Mir, body_id: mir::BodyId) {
 
     for block in blocks_mut(body) {
         for statement in &mut block.statements {
-            let new_value = match statement.rvalue() {
-                RValue::BinaryExpr { lhs, op, rhs } => {
-                    let Some(lhs) = value_of(lhs) else { continue };
-                    let Some(rhs) = value_of(rhs) else { continue };
-                    let value = mir_interpreter::binary_op(lhs, *op, rhs);
-                    constant_of(&value)
-                }
-                _ => continue,
-            };
-            let Some(new_value) = new_value else { continue };
+            let Some(new_value) = try_compute(statement.rvalue()) else { continue };
             *statement.rvalue_mut() = RValue::Use(new_value);
         }
+    }
+}
+
+pub fn try_compute(rvalue: &RValue) -> Option<Operand> {
+    if rvalue.side_effect() {
+        return None;
+    }
+    match rvalue {
+        RValue::BinaryExpr { lhs, op, rhs } => {
+            let lhs = value_of(lhs)?;
+            let rhs = value_of(rhs)?;
+            let value = mir_interpreter::binary_op(lhs, *op, rhs);
+            constant_of(&value)
+        }
+        RValue::UnaryExpr { op, operand } => {
+            let operand = value_of(operand)?;
+            let value = mir_interpreter::unary_op(*op, operand);
+            constant_of(&value)
+        }
+        _ => None,
     }
 }
 
