@@ -2,4 +2,6 @@ fn main() {
     let hello = "Hello";
     assert "${hello}, World!" == "Hello, World!";
     assert "${1}" == "1";
+
+    assert "Hello, " + "World!" == "Hello, World!";
 }

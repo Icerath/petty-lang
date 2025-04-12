@@ -205,6 +205,7 @@ pub enum BinaryOp {
 
     StrEq,
     StrNeq,
+    StrAdd,
     StrFind,
     StrRFind,
     StrIndex,

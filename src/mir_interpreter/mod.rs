@@ -166,6 +166,7 @@ pub fn binary_op(lhs: Value, op: BinaryOp, rhs: Value) -> Value {
 
         BinaryOp::StrEq => Value::Bool(lhs.unwrap_str() == rhs.unwrap_str()),
         BinaryOp::StrNeq => Value::Bool(lhs.unwrap_str() != rhs.unwrap_str()),
+        BinaryOp::StrAdd => Value::Str((lhs.unwrap_str().to_string() + &*rhs.unwrap_str()).into()),
         BinaryOp::StrIndex => {
             Value::Char(lhs.unwrap_str().as_bytes()[rhs.unwrap_int_usize()] as char)
         }
