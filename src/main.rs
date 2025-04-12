@@ -22,7 +22,7 @@ mod source;
 mod symbol;
 mod ty;
 
-use codegen_opts::CodegenOpts;
+pub use codegen_opts::CodegenOpts;
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use source::span;
 

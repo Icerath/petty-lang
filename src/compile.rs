@@ -14,15 +14,18 @@ use crate::{
 
 #[cfg(test)]
 pub fn compile_test(path: impl Into<std::path::PathBuf>) -> miette::Result<()> {
-    let args = Args {
+    let path = path.into();
+    let mut args = Args {
         command: crate::Command::Run,
-        path: path.into(),
+        path: path.clone(),
         verbose: 0,
         no_default_optimizations: false,
         dump: false,
         target: "target".into(),
-        codegen: crate::CodegenOpts::default(),
+        codegen: crate::CodegenOpts::all(true),
     };
+    compile(&args)?;
+    args.codegen = crate::CodegenOpts::all(false);
     compile(&args)
 }
 

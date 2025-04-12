@@ -15,9 +15,10 @@ macro_rules! opts {
             pub $name: bool,
         )*}
 
-        impl Default for CodegenOpts {
-            fn default() -> Self {
-                Self { $($name: true),* }
+        impl CodegenOpts {
+            #[must_use]
+            pub fn all(bool: bool)  -> Self {
+                Self { $($name: bool),* }
             }
         }
     };
