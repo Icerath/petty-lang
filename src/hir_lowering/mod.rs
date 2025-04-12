@@ -477,13 +477,13 @@ impl Lowering<'_, '_> {
             return self.lower_inner(id);
         }
         match (expr.ty, self.lower(id)) {
-            (TyKind::Str, _) => unreachable!(),
+            (TyKind::Infer(_) | TyKind::Str, _) => unreachable!(),
+            (TyKind::Never, _) => RValue::from(Constant::Str("!".into())),
+            (TyKind::Unit, _) => RValue::from(Constant::Str("()".into())),
             (TyKind::Bool, operand) => RValue::UnaryExpr { op: UnaryOp::BoolToStr, operand },
-            (TyKind::Int, Operand::Constant(Constant::Int(int))) => {
-                RValue::from(Constant::Str(int.to_string().into()))
-            }
             (TyKind::Int, operand) => RValue::UnaryExpr { op: UnaryOp::IntToStr, operand },
             (TyKind::Char, operand) => RValue::UnaryExpr { op: UnaryOp::CharToStr, operand },
+
             _ => todo!("{}.to_string()", expr.ty),
         }
     }
