@@ -138,6 +138,7 @@ pub enum RValue {
 
 impl RValue {
     pub const UNIT: Self = Self::Use(Operand::UNIT);
+
     pub fn local(local: Local) -> Self {
         Self::Use(Operand::local(local))
     }

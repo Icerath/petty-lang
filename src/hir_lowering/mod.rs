@@ -10,7 +10,7 @@ use crate::{
         RValue, Statement, Terminator, UnaryOp,
     },
     symbol::Symbol,
-    ty::TyKind,
+    ty::{Ty, TyKind},
 };
 
 pub fn lower(hir: &Hir) -> Mir {
@@ -80,7 +80,7 @@ impl Lowering<'_, '_> {
 
     fn lower(&mut self, id: ExprId) -> Operand {
         let rvalue = self.lower_inner(id);
-        self.process(rvalue)
+        self.process(rvalue, self.hir.exprs[id].ty)
     }
 
     fn lower_local(&mut self, id: ExprId) -> Local {
@@ -97,9 +97,13 @@ impl Lowering<'_, '_> {
         }
     }
 
-    fn process(&mut self, rvalue: RValue) -> Operand {
+    fn process(&mut self, rvalue: RValue, ty: Ty) -> Operand {
         match rvalue {
             RValue::Use(operand) => operand,
+            rvalue if ty.is_unit() => {
+                let _ = self.assign_new(rvalue);
+                Operand::UNIT
+            }
             rvalue => Operand::Place(self.assign_new(rvalue).into()),
         }
     }
@@ -237,7 +241,7 @@ impl Lowering<'_, '_> {
                     });
                     let block_out = self.block_expr(&arm.body);
                     if is_unit {
-                        self.process(block_out);
+                        self.process(block_out, expr.ty);
                     } else {
                         self.assign(out_local, block_out);
                     }
@@ -250,7 +254,7 @@ impl Lowering<'_, '_> {
                 }
                 let els_out = self.block_expr(els);
                 if is_unit {
-                    self.process(els_out);
+                    self.process(els_out, expr.ty);
                 } else {
                     self.assign(out_local, els_out);
                 }
@@ -454,12 +458,15 @@ impl Lowering<'_, '_> {
         let builder = self.assign_new(Constant::EmptyArray { cap: segments.len() as _ });
         for &segment in segments {
             let segment_str = self.format_expr(segment);
-            let rhs = self.process(segment_str);
-            self.process(RValue::BinaryExpr {
-                lhs: Operand::Ref(Place::local(builder)),
-                op: mir::BinaryOp::ArrayPush,
-                rhs,
-            });
+            let rhs = self.process(segment_str, self.hir.exprs[segment].ty);
+            self.process(
+                RValue::BinaryExpr {
+                    lhs: Operand::Ref(Place::local(builder)),
+                    op: mir::BinaryOp::ArrayPush,
+                    rhs,
+                },
+                &TyKind::Unit,
+            );
         }
         RValue::UnaryExpr { op: UnaryOp::StrJoin, operand: Operand::local(builder) }
     }
