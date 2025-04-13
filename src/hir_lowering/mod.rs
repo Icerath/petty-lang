@@ -387,6 +387,10 @@ impl Lowering<'_, '_> {
                 proj.push(Projection::Deref);
                 local
             }
+            ExprKind::Unary { op: hir::UnaryOp::Ref, expr } => {
+                let place = self.lower_place(expr);
+                self.assign_new(RValue::Use(Operand::Ref(place)))
+            }
             ExprKind::Field { expr, field } => {
                 let field = field.try_into().unwrap();
                 let local = self.lower_place_inner(expr, proj);
