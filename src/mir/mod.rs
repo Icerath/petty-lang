@@ -329,6 +329,12 @@ impl Operand {
     }
 }
 
+impl From<Operand> for RValue {
+    fn from(operand: Operand) -> Self {
+        Self::Use(operand)
+    }
+}
+
 impl From<Constant> for RValue {
     fn from(value: Constant) -> Self {
         Self::Use(Operand::Constant(value))

@@ -389,7 +389,7 @@ impl Lowering<'_, '_> {
             }
             ExprKind::Unary { op: hir::UnaryOp::Ref, expr } => {
                 let place = self.lower_place(expr);
-                self.assign_new(RValue::Use(Operand::Ref(place)))
+                self.assign_new(Operand::Ref(place))
             }
             ExprKind::Field { expr, field } => {
                 let field = field.try_into().unwrap();
@@ -564,7 +564,7 @@ impl Lowering<'_, '_> {
         // segments + seperators + open/close brackets
         let num_parts = fields.len() + fields.len().saturating_sub(1) + 2;
 
-        let strings = self.assign_new(RValue::from(Constant::EmptyArray { cap: num_parts }));
+        let strings = self.assign_new(Constant::EmptyArray { cap: num_parts });
 
         self.process(
             RValue::BinaryExpr {
