@@ -174,13 +174,15 @@ impl Lowering<'_, '_> {
             ExprKind::Unary { op, expr } => 'outer: {
                 if let hir::UnaryOp::Ref = op {
                     break 'outer RValue::Use(self.ref_expr(expr));
+                } else if let hir::UnaryOp::Deref = op {
+                    let rvalue = self.lower_inner(expr);
+                    break 'outer RValue::Use(self.deref_operand(rvalue));
                 }
                 let operand = self.lower(expr);
                 let op = match op {
                     hir::UnaryOp::Not => mir::UnaryOp::BoolNot,
                     hir::UnaryOp::Neg => mir::UnaryOp::IntNeg,
-                    hir::UnaryOp::Deref => mir::UnaryOp::Deref,
-                    hir::UnaryOp::Ref => unreachable!(),
+                    _ => unreachable!(),
                 };
                 RValue::UnaryExpr { op, operand }
             }

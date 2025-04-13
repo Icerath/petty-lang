@@ -117,7 +117,6 @@ pub fn unary_op(op: UnaryOp, operand: Value) -> Value {
             Value::Str(string.into())
         }
         UnaryOp::ArrayLen => Value::Int(operand.unwrap_ref_array().len().try_into().unwrap()),
-        UnaryOp::Deref => operand.unwrap_ref().clone_raw(),
 
         UnaryOp::BoolNot => Value::Bool(!operand.unwrap_bool()),
         UnaryOp::BoolToStr => Value::Str(bool_to_str(operand.unwrap_bool())),

@@ -240,8 +240,6 @@ pub enum UnaryOp {
 
     ArrayLen,
     StrJoin,
-
-    Deref,
 }
 
 impl UnaryOp {
