@@ -91,8 +91,8 @@ impl Lowering<'_, '_> {
         self.process_to_local(rvalue)
     }
 
-    fn process_to_local(&mut self, rvalue: RValue) -> Local {
-        match rvalue {
+    fn process_to_local(&mut self, rvalue: impl Into<RValue>) -> Local {
+        match rvalue.into() {
             RValue::Use(Operand::Place(Place { local, projections })) if projections.is_empty() => {
                 local
             }
@@ -173,8 +173,7 @@ impl Lowering<'_, '_> {
             ExprKind::Literal(ref lit) => self.lit_rvalue(lit),
             ExprKind::Unary { op, expr } => 'outer: {
                 if let hir::UnaryOp::Ref = op {
-                    let arg = self.lower_place(expr);
-                    break 'outer RValue::Use(Operand::Ref(arg));
+                    break 'outer RValue::Use(self.ref_expr(expr));
                 }
                 let operand = self.lower(expr);
                 let op = match op {
@@ -388,8 +387,8 @@ impl Lowering<'_, '_> {
                 local
             }
             ExprKind::Unary { op: hir::UnaryOp::Ref, expr } => {
-                let place = self.lower_place(expr);
-                self.assign_new(Operand::Ref(place))
+                let rvalue = self.ref_expr(expr);
+                self.process_to_local(rvalue)
             }
             ExprKind::Field { expr, field } => {
                 let field = field.try_into().unwrap();
@@ -398,6 +397,16 @@ impl Lowering<'_, '_> {
                 local
             }
             _ => todo!(),
+        }
+    }
+
+    fn ref_expr(&mut self, expr: hir::ExprId) -> Operand {
+        let mut place = self.lower_place(expr);
+        if place.projections.last() == Some(&Projection::Deref) {
+            place.projections.pop();
+            Operand::Place(place)
+        } else {
+            Operand::Ref(place)
         }
     }
 
