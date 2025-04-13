@@ -338,7 +338,9 @@ impl Lowering<'_, '_> {
                 let function = self.lower(function);
                 let args = args.iter().map(|arg| self.lower(*arg)).collect();
 
-                RValue::Call { function, args }
+                match self.try_call_intrinsic(function, args) {
+                    Ok(rvalue) | Err(rvalue) => rvalue,
+                }
             }
             ExprKind::Break => {
                 let block = self.finish_with(Terminator::Goto(BlockId::PLACEHOLDER));
