@@ -2,15 +2,17 @@ mod intrinsics;
 
 use std::mem;
 
+use index_vec::IndexVec;
+
 use crate::{
     HashMap,
     hir::{self, ArraySeg, ExprId, ExprKind, Hir, Lit},
     mir::{
-        self, Block, BlockId, Body, BodyId, Constant, Local, Mir, Operand, Place, Projection,
-        RValue, Statement, Terminator, UnaryOp,
+        self, BinaryOp, Block, BlockId, Body, BodyId, Constant, Local, Mir, Operand, Place,
+        Projection, RValue, Statement, Terminator, UnaryOp,
     },
     symbol::Symbol,
-    ty::{Ty, TyKind},
+    ty::{StructId, Ty, TyKind},
 };
 
 pub fn lower(hir: &Hir) -> Mir {
@@ -18,7 +20,7 @@ pub fn lower(hir: &Hir) -> Mir {
     let root_body = mir.bodies.push(Body::new(None, 0).with_auto(true));
     let bodies = vec![BodyInfo::new(root_body)];
 
-    let mut lowering = Lowering { hir, mir, bodies };
+    let mut lowering = Lowering { hir, mir, bodies, struct_display_bodies: IndexVec::default() };
     for &expr in &hir.root {
         lowering.lower(expr);
     }
@@ -31,6 +33,7 @@ struct Lowering<'hir, 'tcx> {
     hir: &'hir Hir<'tcx>,
     mir: Mir,
     bodies: Vec<BodyInfo>,
+    struct_display_bodies: IndexVec<StructId, Option<BodyId>>,
 }
 
 struct BodyInfo {
@@ -473,18 +476,114 @@ impl Lowering<'_, '_> {
 
     fn format_expr(&mut self, id: ExprId) -> RValue {
         let expr = &self.hir.exprs[id];
-        if expr.ty.is_str() {
-            return self.lower_inner(id);
-        }
-        match (expr.ty, self.lower(id)) {
-            (TyKind::Infer(_) | TyKind::Str, _) => unreachable!(),
-            (TyKind::Never, _) => RValue::from(Constant::Str("!".into())),
-            (TyKind::Unit, _) => RValue::from(Constant::Str("()".into())),
-            (TyKind::Bool, operand) => RValue::UnaryExpr { op: UnaryOp::BoolToStr, operand },
-            (TyKind::Int, operand) => RValue::UnaryExpr { op: UnaryOp::IntToStr, operand },
-            (TyKind::Char, operand) => RValue::UnaryExpr { op: UnaryOp::CharToStr, operand },
+        let rvalue = self.lower_inner(id);
+        self.format_rvalue(rvalue, expr.ty)
+    }
 
-            _ => todo!("{}.to_string()", expr.ty),
+    fn format_rvalue(&mut self, rvalue: RValue, ty: Ty) -> RValue {
+        if ty.is_str() {
+            return rvalue;
         }
+        let operand = self.process(rvalue, ty);
+        match ty {
+            TyKind::Infer(_) | TyKind::Str => unreachable!(),
+            TyKind::Never => RValue::from(Constant::Str("!".into())),
+            TyKind::Unit => RValue::from(Constant::Str("()".into())),
+            TyKind::Bool => RValue::UnaryExpr { op: UnaryOp::BoolToStr, operand },
+            TyKind::Int => RValue::UnaryExpr { op: UnaryOp::IntToStr, operand },
+            TyKind::Char => RValue::UnaryExpr { op: UnaryOp::CharToStr, operand },
+            TyKind::Struct { id, symbols, fields } => {
+                self.format_struct(*id, symbols, fields, operand)
+            }
+            _ => todo!("{}.to_string()", ty),
+        }
+    }
+
+    fn format_struct(
+        &mut self,
+        id: StructId,
+        symbols: &[Symbol],
+        fields: &[Ty],
+        val: Operand,
+    ) -> RValue {
+        // TODO: This should pass the struct by ref
+        let body = self.generate_struct_func(id, symbols, fields);
+        let local = self.process_to_local(RValue::Use(val));
+        RValue::Call {
+            function: Operand::Constant(Constant::Func(body)),
+            args: [Operand::Ref(local.into())].into(),
+        }
+    }
+
+    fn generate_struct_func(&mut self, id: StructId, symbols: &[Symbol], fields: &[Ty]) -> BodyId {
+        _ = symbols;
+        let previous = self.bodies.pop().unwrap(); // TODO: We should pop till further up
+        let body_id = self.mir.bodies.push(Body::new(None, 1).with_auto(false));
+        self.bodies.push(BodyInfo::new(body_id));
+        let local = Local::from(0);
+
+        // segments + seperators + open/close brackets
+        let num_parts = fields.len() + fields.len().saturating_sub(1) + 2;
+
+        let strings = self.assign_new(RValue::from(Constant::EmptyArray { cap: num_parts }));
+
+        self.process(
+            RValue::BinaryExpr {
+                lhs: Operand::Ref(strings.into()),
+                op: BinaryOp::ArrayPush,
+                rhs: Operand::Constant(Constant::Str("(".into())),
+            },
+            &TyKind::Unit,
+        );
+
+        for (i, ty) in (0u32..).zip(fields) {
+            if i != 0 {
+                self.process(
+                    RValue::BinaryExpr {
+                        lhs: Operand::Ref(strings.into()),
+                        op: BinaryOp::ArrayPush,
+                        rhs: Operand::Constant(Constant::Str(", ".into())),
+                    },
+                    &TyKind::Unit,
+                );
+            }
+
+            let projections = vec![Projection::Deref, Projection::Field(i as _)];
+            let field = RValue::Use(Operand::Place(Place { local, projections }));
+            let field_str = self.format_rvalue(field, ty);
+            let rhs = self.process(field_str, &TyKind::Str);
+            self.process(
+                RValue::BinaryExpr {
+                    lhs: Operand::Ref(strings.into()),
+                    op: BinaryOp::ArrayPush,
+                    rhs,
+                },
+                &TyKind::Unit,
+            );
+        }
+
+        self.process(
+            RValue::BinaryExpr {
+                lhs: Operand::Ref(strings.into()),
+                op: BinaryOp::ArrayPush,
+                rhs: Operand::Constant(Constant::Str(")".into())),
+            },
+            &TyKind::Unit,
+        );
+
+        let out = self.assign_new(RValue::UnaryExpr {
+            op: UnaryOp::StrJoin,
+            operand: Operand::local(strings),
+        });
+        self.finish_with(Terminator::Return(Operand::local(out)));
+
+        if self.struct_display_bodies.len() <= id {
+            self.struct_display_bodies.resize(id.index() + 1, None);
+        }
+        self.struct_display_bodies[id] = Some(body_id);
+
+        self.bodies.pop();
+        self.bodies.push(previous);
+        body_id
     }
 }
