@@ -494,6 +494,9 @@ impl Lowering<'_, '_> {
         if ty.is_str() {
             return rvalue;
         }
+        if let TyKind::Ref(_) = ty {
+            return self.format_ref(rvalue, ty);
+        }
         let operand = self.process(rvalue, ty);
         match ty {
             TyKind::Infer(_) | TyKind::Str => unreachable!(),
@@ -507,6 +510,28 @@ impl Lowering<'_, '_> {
             }
             _ => todo!("{}.to_string()", ty),
         }
+    }
+
+    fn deref_operand(&mut self, rvalue: RValue) -> Operand {
+        match rvalue {
+            RValue::Use(Operand::Place(mut place)) => {
+                place.projections.push(Projection::Deref);
+                Operand::Place(place)
+            }
+            RValue::Use(Operand::Ref(place)) => Operand::Place(place),
+            _ => {
+                let local = self.assign_new(rvalue);
+                Operand::Place(Place { local, projections: vec![Projection::Deref] })
+            }
+        }
+    }
+
+    fn format_ref(&mut self, mut rvalue: RValue, mut ty: Ty) -> RValue {
+        while let TyKind::Ref(of) = ty {
+            rvalue = RValue::Use(self.deref_operand(rvalue));
+            ty = of;
+        }
+        self.format_rvalue(rvalue, ty)
     }
 
     fn format_struct(
