@@ -100,6 +100,16 @@ impl Lowering<'_, '_> {
         }
     }
 
+    fn ref_of(&mut self, rvalue: RValue) -> Operand {
+        match rvalue {
+            RValue::Use(Operand::Place(place)) => Operand::Ref(place),
+            rvalue => {
+                let local = self.assign_new(rvalue);
+                Operand::Ref(local.into())
+            }
+        }
+    }
+
     fn process(&mut self, rvalue: RValue, ty: Ty) -> Operand {
         match rvalue {
             RValue::Use(operand) => operand,
@@ -508,10 +518,10 @@ impl Lowering<'_, '_> {
     ) -> RValue {
         // TODO: This should pass the struct by ref
         let body = self.generate_struct_func(id, symbols, fields);
-        let local = self.process_to_local(RValue::Use(val));
+        let ref_struct = self.ref_of(RValue::Use(val));
         RValue::Call {
             function: Operand::Constant(Constant::Func(body)),
-            args: [Operand::Ref(local.into())].into(),
+            args: [ref_struct].into(),
         }
     }
 
