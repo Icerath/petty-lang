@@ -16,26 +16,40 @@ type Places = IndexSlice<Local, [Allocation]>;
 
 pub fn interpret(mir: &Mir) {
     let Some(main) = mir.main_body else { return };
-    let mut interpreter = Interpreter { mir };
+    let mut interpreter = Interpreter { mir, allocs: vec![] };
     interpreter.run(main, vec![]);
 }
 
 struct Interpreter<'mir> {
     mir: &'mir Mir,
+    allocs: Vec<Allocation>,
 }
 
 impl Interpreter<'_> {
+    pub fn alloc_locals(&mut self, size: usize) -> IndexVec<Local, Allocation> {
+        std::iter::repeat_with(|| {
+            self.allocs.pop().unwrap_or_else(|| Allocation::from(Value::Unit))
+        })
+        .take(size)
+        .collect()
+    }
+
+    pub fn dealloc_locals(&mut self, stack: IndexVec<Local, Allocation>) {
+        for alloc in stack {
+            if alloc.count() == 1 {
+                self.allocs.push(alloc);
+            }
+        }
+    }
+
     fn run(&mut self, body_id: BodyId, args: Vec<Value>) -> Value {
         let body = &self.mir.bodies[body_id];
         let mut block_id = BlockId::from(0);
-        let mut locals: IndexVec<Local, Allocation> =
-            std::iter::repeat_with(|| Allocation::from(Value::Unit))
-                .take(body.locals.index())
-                .collect();
+        let mut locals = self.alloc_locals(body.locals.index());
         for (i, arg) in args.into_iter().enumerate() {
             locals[i] = arg.into();
         }
-        loop {
+        let output = loop {
             let block = &body.blocks[block_id];
             for stmt in &block.statements {
                 let Statement::Assign { place, rvalue } = stmt;
@@ -54,9 +68,11 @@ impl Interpreter<'_> {
                     let condition = self.operand(condition, &locals).unwrap_bool();
                     block_id = if condition { tru } else { fals };
                 }
-                Terminator::Return(ref operand) => return self.operand(operand, &locals),
+                Terminator::Return(ref operand) => break self.operand(operand, &locals),
             }
-        }
+        };
+        self.dealloc_locals(locals);
+        output
     }
     #[allow(clippy::too_many_lines)]
     fn rvalue(&mut self, rvalue: &RValue, locals: &Places) -> Value {

@@ -16,6 +16,9 @@ pub struct Allocation {
 }
 
 impl Allocation {
+    pub fn count(&self) -> usize {
+        Rc::strong_count(&self.inner)
+    }
     pub fn borrow(&self) -> RefMut<Value> {
         self.inner.borrow_mut()
     }
