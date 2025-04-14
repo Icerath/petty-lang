@@ -60,7 +60,7 @@ pub fn compile(args: &Args) -> miette::Result<()> {
     let mut mir = hir_lowering::lower(&hir);
     drop(hir);
     dump!(unoptimized_mir, mir);
-    mir_optimizations::optimize(&mut mir, &args.codegen);
+    mir_optimizations::optimize(&mut mir, &args.codegen, args.verbose);
     dump!(mir);
     if args.verbose > 1 {
         crate::log!("type interner entries: {}", ty_intern.len());
