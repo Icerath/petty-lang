@@ -35,7 +35,7 @@ impl Interpreter<'_> {
     }
 
     pub fn dealloc_locals(&mut self, stack: IndexVec<Local, Allocation>) {
-        for alloc in stack {
+        for alloc in stack.into_iter().rev() {
             if alloc.count() == 1 {
                 self.allocs.push(alloc);
             }
