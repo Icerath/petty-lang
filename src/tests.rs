@@ -27,6 +27,7 @@ test! { ref_assignment }
 test! { precedence }
 test! { strings }
 test! { format }
+test! { recursion }
 
 test! { "expected `!`, found `int`" fail_never }
 test! { "expected `int`, found `str`" fail_variables }
