@@ -45,9 +45,9 @@ impl Interpreter<'_> {
     fn run(&mut self, body_id: BodyId, args: Vec<Value>) -> Value {
         let body = &self.mir.bodies[body_id];
         let mut block_id = BlockId::from(0);
-        let mut locals = self.alloc_locals(body.locals.index());
+        let locals = self.alloc_locals(body.locals.index());
         for (i, arg) in args.into_iter().enumerate() {
-            locals[i] = arg.into();
+            *locals[i].borrow() = arg;
         }
         let output = loop {
             let block = &body.blocks[block_id];
