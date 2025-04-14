@@ -1,5 +1,5 @@
 use super::utils::{blocks, blocks_mut};
-use crate::mir::{BodyId, Local, Mir, Statement};
+use crate::mir::{BodyId, Local, Mir, Statement, Terminator};
 
 pub fn optimize(mir: &mut Mir, body_id: BodyId) {
     let body = &mut mir.bodies[body_id];
@@ -29,6 +29,38 @@ pub fn optimize(mir: &mut Mir, body_id: BodyId) {
                 return true;
             }
             false
+        });
+    }
+
+    for block in blocks_mut(body) {
+        let term_op = match &block.terminator {
+            Terminator::Return(operand) => Some(operand),
+            Terminator::Abort => None,
+            _ => continue,
+        };
+        let statements = block.statements.clone();
+        let mut i = 0;
+        block.statements.retain(|statement| {
+            i += 1;
+
+            let Statement::Assign { place, rvalue } = statement;
+            if rvalue.side_effect() {
+                return true;
+            }
+
+            let rem = &statements[i..];
+            let mut used = rem.iter().any(|stmt| {
+                let Statement::Assign { place: _, rvalue } = stmt;
+                let mut used = false;
+                rvalue.with_locals(|local| used = used || local == place.local);
+                place.with_locals(|local| used = used || local == place.local);
+                used
+            });
+            if let Some(term_op) = term_op {
+                term_op.with_locals(|local| used = used || local == place.local);
+            }
+
+            used
         });
     }
 }

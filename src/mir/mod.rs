@@ -121,13 +121,13 @@ impl Terminator {
     }
 }
 
-#[derive(Debug, Hash)]
+#[derive(Debug, Hash, Clone)]
 pub enum Statement {
     Assign { place: Place, rvalue: RValue },
 }
 
 #[must_use]
-#[derive(Debug, Hash)]
+#[derive(Debug, Hash, Clone)]
 pub enum RValue {
     Extend { array: Local, value: Operand, repeat: Operand },
     Use(Operand),
