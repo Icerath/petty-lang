@@ -455,16 +455,8 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
     }
 
     fn read_ident(&self, ident: Symbol, span: Span) -> Result<Ty<'tcx>> {
-        self.bodies.iter().rev().find_map(|body| body.variables.get(&ident)).copied().ok_or_else(
-            || {
-                crate::errors::error(
-                    &format!("indentifer '{ident}' not found"),
-                    self.file,
-                    self.src,
-                    [(span, format!("'{ident}' not found"))],
-                )
-            },
-        )
+        (self.bodies.iter().rev().find_map(|body| body.variables.get(&ident)).copied())
+            .ok_or_else(|| self.ident_not_found(ident, span))
     }
 
     fn analyze_lit(&mut self, lit: &Lit) -> Result<Ty<'tcx>> {
