@@ -100,6 +100,13 @@ impl Lowering<'_, '_> {
         }
     }
 
+    fn process_to_place(&mut self, rvalue: impl Into<RValue>) -> Place {
+        match rvalue.into() {
+            RValue::Use(Operand::Place(place)) => place,
+            rvalue => Place::local(self.assign_new(rvalue)),
+        }
+    }
+
     fn ref_of(&mut self, rvalue: RValue) -> Operand {
         match rvalue {
             RValue::Use(Operand::Place(place)) => Operand::Ref(place),
@@ -370,21 +377,21 @@ impl Lowering<'_, '_> {
     fn index_array(&mut self, expr: ExprId, index: ExprId) -> RValue {
         let expr_ty = self.hir.exprs[expr].ty;
 
-        let local = self.lower_local(expr);
+        let expr = self.lower_inner(expr);
+        let expr = self.array_index_derefs(expr, expr_ty);
+        let mut place = self.process_to_place(expr);
         let index_local = self.lower_local(index);
-        let mut projections = Self::array_index_derefs(expr_ty);
-        projections.push(Projection::Index(index_local));
-        RValue::Use(Operand::Place(Place { local, projections }))
+        place.projections.push(Projection::Index(index_local));
+        RValue::Use(Operand::Place(place))
     }
 
-    fn array_index_derefs(mut ty: Ty) -> Vec<Projection> {
-        let mut projections = vec![];
+    fn array_index_derefs(&mut self, mut rvalue: RValue, mut ty: Ty) -> RValue {
         loop {
             match ty {
-                TyKind::Array(_) => return projections,
+                TyKind::Array(_) => return rvalue,
                 TyKind::Ref(of) => {
-                    projections.push(Projection::Deref);
                     ty = of;
+                    rvalue = RValue::Use(self.deref_operand(rvalue));
                 }
                 _ => unreachable!(),
             }
