@@ -10,12 +10,16 @@ pub fn optimize(mir: &mut Mir, body_id: mir::BodyId) {
     let mut local_rvalues: IndexVec<Local, Option<Operand>> =
         vec![None; body.locals.index()].into();
 
+    // FIXME: This just seems wrong
     for block in blocks(body) {
         for statement in &block.statements {
             let Statement::Assign { place, rvalue } = statement;
             mutated_locals[place.local] += 1;
+
             if let RValue::Use(operand) = rvalue {
-                local_rvalues[place.local] = Some(operand.clone());
+                if place.projections.is_empty() {
+                    local_rvalues[place.local] = Some(operand.clone());
+                }
             }
             for local in 0..body.locals.index() {
                 mutated_locals[local] += u32::from(rvalue.mutates_local(local.into()));
