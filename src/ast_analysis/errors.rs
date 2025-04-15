@@ -8,7 +8,10 @@ use crate::{
 
 impl<'tcx> Collector<'_, '_, 'tcx> {
     pub fn cannot_deref(&self, ty: Ty, span: Span) -> miette::Error {
-        self.raw_error(&format!("type '{ty}' cannot be dereferenced"), [(span, "cannot deref")])
+        self.raw_error(
+            &format!("type '{ty}' cannot be dereferenced"),
+            [(span, format!("cannot deref `{ty}`"))],
+        )
     }
     pub fn ident_not_found(&self, ident: Symbol, span: Span) -> miette::Error {
         self.raw_error(
