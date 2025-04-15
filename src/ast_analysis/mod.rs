@@ -230,7 +230,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 &TyKind::Unit
             }
             ExprKind::Lit(ref lit) => self.analyze_lit(lit)?,
-            ExprKind::Ident(ident) => self.read_ident(ident)?,
+            ExprKind::Ident(ident) => self.read_ident(ident, self.ast.exprs[id].span)?,
             ExprKind::Unary { expr, op } => 'outer: {
                 let operand = self.analyze_expr(expr)?;
                 let ty = match op {
@@ -454,13 +454,17 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         Ok(&TyKind::Unit)
     }
 
-    fn read_ident(&self, ident: Symbol) -> Result<Ty<'tcx>> {
-        self.bodies
-            .iter()
-            .rev()
-            .find_map(|body| body.variables.get(&ident))
-            .copied()
-            .ok_or_else(|| miette::miette!("todo: {ident}"))
+    fn read_ident(&self, ident: Symbol, span: Span) -> Result<Ty<'tcx>> {
+        self.bodies.iter().rev().find_map(|body| body.variables.get(&ident)).copied().ok_or_else(
+            || {
+                crate::errors::error(
+                    &format!("indentifer '{ident}' not found"),
+                    self.file,
+                    self.src,
+                    &[(span, format!("'{ident}' not found").into())],
+                )
+            },
+        )
     }
 
     fn analyze_lit(&mut self, lit: &Lit) -> Result<Ty<'tcx>> {
