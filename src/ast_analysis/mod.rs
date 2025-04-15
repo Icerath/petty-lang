@@ -221,6 +221,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
 
     #[expect(clippy::too_many_lines)]
     fn analyze_expr(&mut self, id: ExprId) -> Result<Ty<'tcx>> {
+        let expr_span = self.ast.exprs[id].span;
         let ty = match self.ast.exprs[id].kind {
             ExprKind::Trait(ref trait_) => self.analyze_trait(trait_, id)?,
             ExprKind::Impl(ref impl_) => self.analyze_impl(impl_, id)?,
@@ -230,7 +231,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 &TyKind::Unit
             }
             ExprKind::Lit(ref lit) => self.analyze_lit(lit)?,
-            ExprKind::Ident(ident) => self.read_ident(ident, self.ast.exprs[id].span)?,
+            ExprKind::Ident(ident) => self.read_ident(ident, expr_span)?,
             ExprKind::Unary { expr, op } => 'outer: {
                 let operand = self.analyze_expr(expr)?;
                 let ty = match op {
@@ -239,7 +240,9 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                     UnaryOp::Ref => break 'outer self.tcx.intern(TyKind::Ref(operand)),
                     UnaryOp::Deref => {
                         let operand = self.tcx.infer_shallow(operand);
-                        let TyKind::Ref(inner) = operand else { panic!() };
+                        let TyKind::Ref(inner) = operand else {
+                            return Err(self.cannot_deref(operand, expr_span));
+                        };
                         break 'outer inner;
                     }
                 };
