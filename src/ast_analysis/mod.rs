@@ -294,19 +294,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                     lhs
                 }
             },
-            ExprKind::Index { expr, index } => {
-                let expr = self.analyze_expr(expr)?;
-                let index = self.analyze_expr(index)?;
-                let expr = self.tcx.infer_shallow(expr);
-                match (expr, index) {
-                    (TyKind::Str, TyKind::Range | TyKind::RangeInclusive) => &TyKind::Str,
-                    (TyKind::Array(_), TyKind::Range | TyKind::RangeInclusive) => expr,
-
-                    (TyKind::Array(of), TyKind::Int) => *of,
-                    (TyKind::Str, TyKind::Int) => &TyKind::Char,
-                    _ => panic!("Cannot index `{expr:?}`"),
-                }
-            }
+            ExprKind::Index { expr, index } => self.index(expr, index)?,
             ExprKind::FnCall { function, ref args } => {
                 let fn_ty = self.analyze_expr(function)?;
                 let TyKind::Function(func) = fn_ty else {
@@ -406,6 +394,24 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         };
         self.ty_info.expr_tys[id] = ty;
         Ok(ty)
+    }
+
+    fn index(&mut self, expr: ExprId, index: ExprId) -> Result<Ty<'tcx>> {
+        let expr = self.analyze_expr(expr)?;
+        let index = self.analyze_expr(index)?;
+        let expr = self.tcx.infer_shallow(expr);
+        Self::index_ty(expr, index)
+    }
+
+    fn index_ty(lhs: Ty<'tcx>, rhs: Ty<'tcx>) -> Result<Ty<'tcx>> {
+        Ok(match (lhs, rhs) {
+            (TyKind::Str, TyKind::Range | TyKind::RangeInclusive) => &TyKind::Str,
+            (TyKind::Array(_), TyKind::Range | TyKind::RangeInclusive) => lhs,
+            (TyKind::Array(of), TyKind::Int) => *of,
+            (TyKind::Str, TyKind::Int) => &TyKind::Char,
+            (TyKind::Ref(lhs), rhs) => return Self::index_ty(lhs, rhs),
+            _ => panic!("Cannot index `{lhs:?}`"),
+        })
     }
 
     fn analyze_fndecl(&mut self, decl: &FnDecl) -> Result<Ty<'tcx>> {

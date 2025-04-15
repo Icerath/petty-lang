@@ -349,7 +349,8 @@ impl Lowering<'_, '_> {
             }
             ExprKind::Index { expr, index } => {
                 let rhs = self.lower(index);
-                let op = if self.hir.exprs[expr].ty.is_str() {
+                let expr_ty = self.hir.exprs[expr].ty;
+                let op = if expr_ty.is_str() {
                     if self.hir.exprs[index].ty.is_range() {
                         mir::BinaryOp::StrIndexSlice
                     } else {
@@ -360,13 +361,28 @@ impl Lowering<'_, '_> {
                 } else {
                     let local = self.lower_local(expr);
                     let index_local = self.process_to_local(RValue::Use(rhs));
-                    let place = Place { local, projections: vec![Projection::Index(index_local)] };
-                    return RValue::Use(Operand::Place(place));
+                    let mut projections = Self::array_index_derefs(expr_ty);
+                    projections.push(Projection::Index(index_local));
+                    return RValue::Use(Operand::Place(Place { local, projections }));
                 };
                 let lhs = self.lower(expr);
                 RValue::BinaryExpr { lhs, op, rhs }
             }
             ExprKind::Block(ref exprs) => self.block_expr(exprs),
+        }
+    }
+
+    fn array_index_derefs(mut ty: Ty) -> Vec<Projection> {
+        let mut projections = vec![];
+        loop {
+            match ty {
+                TyKind::Array(_) => return projections,
+                TyKind::Ref(of) => {
+                    projections.push(Projection::Deref);
+                    ty = of;
+                }
+                _ => unreachable!(),
+            }
         }
     }
 
