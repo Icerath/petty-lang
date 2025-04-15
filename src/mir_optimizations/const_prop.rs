@@ -10,7 +10,10 @@ pub fn optimize(mir: &mut Mir, body_id: mir::BodyId) {
     let mut local_rvalues: IndexVec<Local, Option<Operand>> =
         vec![None; body.locals.index()].into();
 
-    // FIXME: This just seems wrong
+    for i in 0..body.params {
+        mutated_locals[i] += 1;
+    }
+
     for block in blocks(body) {
         for statement in &block.statements {
             let Statement::Assign { place, rvalue } = statement;
