@@ -12,7 +12,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
     }
     pub fn ident_not_found(&self, ident: Symbol, span: Span) -> miette::Error {
         self.raw_error(
-            &format!("indentifer '{ident}' not found"),
+            &format!("identifer '{ident}' not found"),
             [(span, format!("'{ident}' not found"))],
         )
     }
