@@ -139,8 +139,11 @@ pub fn unary_op(op: UnaryOp, operand: Value) -> Value {
 
         UnaryOp::IntNeg => Value::Int(-operand.unwrap_int()),
         UnaryOp::IntToStr => Value::Str(operand.unwrap_int().to_string().into()),
-        UnaryOp::CharToStr => Value::Str(operand.unwrap_char().to_string().into()),
         UnaryOp::Chr => Value::Char(u8::try_from(operand.unwrap_int()).unwrap() as char),
+
+        UnaryOp::Ord => Value::Int(i64::from(u32::from(operand.unwrap_char()))),
+        UnaryOp::CharToStr => Value::Str(operand.unwrap_char().to_string().into()),
+
         UnaryOp::Print => {
             print!("{}", operand.unwrap_str());
             Value::Unit

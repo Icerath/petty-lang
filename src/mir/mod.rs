@@ -232,6 +232,7 @@ pub enum UnaryOp {
     IntNeg,
     Chr,
 
+    Ord,
     CharToStr,
 
     StrLen,

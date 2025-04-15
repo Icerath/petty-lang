@@ -1,0 +1,5 @@
+fn main() {
+    assert ord('a') == 97;
+    assert chr(ord('a')) == 'a';
+
+}

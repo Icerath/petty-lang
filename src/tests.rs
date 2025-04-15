@@ -25,6 +25,7 @@ test! { functions }
 test! { structs }
 test! { ref_assignment }
 test! { precedence }
+test! { chars }
 test! { strings }
 test! { format }
 test! { recursion }

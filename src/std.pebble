@@ -4,6 +4,7 @@ fn str_rfind(haystack: str, needle: str) -> int { unreachable }
 fn print(str: str) { unreachable }
 fn println(str: str) { unreachable }
 fn chr(int: int) -> char { unreachable }
+fn ord(char: char) -> int { unreachable }
 fn len<T>(arr: &[T]) -> int { unreachable }
 fn push<T>(arr: &[T], value: T) { unreachable }
 fn pop<T>(arr: &[T]) -> T { unreachable }
