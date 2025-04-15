@@ -78,10 +78,16 @@ impl<'tcx> TyCtx<'tcx> {
         self.interner.intern(TyKind::Infer(self.new_vid()))
     }
     pub fn infer_shallow(&self, ty: Ty<'tcx>) -> Ty<'tcx> {
-        self.inner.borrow().infer_shallow(ty)
+        self.inner.borrow().try_infer_shallow(ty).expect("Failed to Infer")
     }
     pub fn infer_deep(&self, ty: Ty<'tcx>) -> Ty<'tcx> {
-        self.inner.borrow().infer_deep(ty, self.interner)
+        self.inner.borrow().try_infer_deep(ty, self.interner).expect("Failed to Infer")
+    }
+    // pub fn try_infer_shallow(&self, ty: Ty<'tcx>) -> Result<Ty<'tcx>, Ty<'tcx>> {
+    //     self.inner.borrow().try_infer_shallow(ty)
+    // }
+    pub fn try_infer_deep(&self, ty: Ty<'tcx>) -> Result<Ty<'tcx>, Ty<'tcx>> {
+        self.inner.borrow().try_infer_deep(ty, self.interner)
     }
     pub fn eq(&self, lhs: Ty<'tcx>, rhs: Ty<'tcx>) -> Result<(), [Ty<'tcx>; 2]> {
         self.inner.borrow_mut().eq(lhs, rhs)
@@ -118,20 +124,24 @@ impl<'tcx> TyCtxInner<'tcx> {
         self.subs.push(intern.intern(TyKind::Infer(id)))
     }
 
-    fn infer_shallow(&self, ty: Ty<'tcx>) -> Ty<'tcx> {
+    fn try_infer_shallow(&self, ty: Ty<'tcx>) -> Result<Ty<'tcx>, Ty<'tcx>> {
         match *ty {
-            TyKind::Infer(var) if self.subs[var] == ty => panic!("Failed to infer"),
-            TyKind::Infer(var) => self.infer_shallow(self.subs[var]),
-            _ => ty,
+            TyKind::Infer(var) if self.subs[var] == ty => Err(ty),
+            TyKind::Infer(var) => self.try_infer_shallow(self.subs[var]).map_err(|_| ty),
+            _ => Ok(ty),
         }
     }
 
-    fn infer_deep(&self, ty: Ty<'tcx>, intern: &'tcx TyInterner) -> Ty<'tcx> {
-        match self.infer_shallow(ty) {
-            TyKind::Array(of) => intern.intern(TyKind::Array(self.infer_deep(of, intern))),
-            TyKind::Ref(of) => intern.intern(TyKind::Ref(self.infer_deep(of, intern))),
+    fn try_infer_deep(&self, ty: Ty<'tcx>, intern: &'tcx TyInterner) -> Result<Ty<'tcx>, Ty<'tcx>> {
+        Ok(match self.try_infer_shallow(ty)? {
+            TyKind::Array(of) => {
+                intern.intern(TyKind::Array(self.try_infer_deep(of, intern).map_err(|_| ty)?))
+            }
+            TyKind::Ref(of) => {
+                intern.intern(TyKind::Ref(self.try_infer_deep(of, intern).map_err(|_| ty)?))
+            }
             ty => ty,
-        }
+        })
     }
 
     #[expect(clippy::match_same_arms)]

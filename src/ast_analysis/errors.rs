@@ -7,7 +7,8 @@ use crate::{
 };
 
 impl<'tcx> Collector<'_, '_, 'tcx> {
-    pub fn cannot_deref(&self, ty: Ty, span: Span) -> miette::Error {
+    pub fn cannot_deref(&self, ty: Ty<'tcx>, span: Span) -> miette::Error {
+        let ty = self.tcx.try_infer_deep(ty).unwrap_or_else(|ty| ty);
         self.raw_error(
             &format!("type '{ty}' cannot be dereferenced"),
             [(span, format!("cannot deref `{ty}`"))],
@@ -36,6 +37,8 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
     #[cold]
     #[inline(never)]
     fn subtype_err_inner(&self, lhs: Ty<'tcx>, rhs: Ty<'tcx>, spans: Vec<Span>) -> miette::Error {
+        let lhs = self.tcx.try_infer_deep(lhs).unwrap_or_else(|ty| ty);
+        let rhs = self.tcx.try_infer_deep(rhs).unwrap_or_else(|ty| ty);
         self.raw_error(
             "mismatched_typed",
             spans.into_iter().map(|span| (span, format!("expected `{rhs}`, found `{lhs}`"))),
