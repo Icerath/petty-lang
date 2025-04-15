@@ -68,8 +68,10 @@ pub fn analyze<'tcx>(
     let top_level = ast::Block { span: Span::ZERO, stmts: top_level_exprs, is_expr: false };
     collector.analyze_body_with(&top_level, Body::new(&TyKind::Never))?;
 
-    let mut ty_info = collector.ty_info;
-    ty_info.expr_tys.iter_mut().for_each(|ty| *ty = tcx.infer_deep(ty));
+    let mut ty_info = std::mem::take(&mut collector.ty_info);
+    for (expr, ty) in std::iter::zip(&ast.exprs, &mut ty_info.expr_tys) {
+        *ty = tcx.try_infer_deep(ty).map_err(|ty| collector.cannot_infer(ty, expr.span))?;
+    }
     ty_info.type_ids.iter_mut().for_each(|ty| *ty = tcx.infer_deep(ty));
 
     Ok(ty_info)

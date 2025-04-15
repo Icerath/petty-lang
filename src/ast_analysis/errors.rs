@@ -7,6 +7,9 @@ use crate::{
 };
 
 impl<'tcx> Collector<'_, '_, 'tcx> {
+    pub fn cannot_infer(&self, ty: Ty<'tcx>, span: Span) -> miette::Error {
+        self.raw_error(&format!("cannot infer type {ty}"), [(span, "cannot infer")])
+    }
     pub fn cannot_deref(&self, ty: Ty<'tcx>, span: Span) -> miette::Error {
         let ty = self.tcx.try_infer_deep(ty).unwrap_or_else(|ty| ty);
         self.raw_error(
