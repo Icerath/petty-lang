@@ -29,6 +29,12 @@ impl From<&String> for Symbol {
     }
 }
 
+impl PartialEq<&str> for Symbol {
+    fn eq(&self, other: &&str) -> bool {
+        self.as_str() == *other
+    }
+}
+
 impl Deref for Symbol {
     type Target = str;
     fn deref(&self) -> &'static str {

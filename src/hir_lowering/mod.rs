@@ -200,7 +200,7 @@ impl Lowering<'_, '_> {
                 let body_id = self.mir.bodies.push(Body::new(Some(ident), params.len()));
                 self.current().functions.insert(ident, body_id);
                 self.bodies.push(BodyInfo::new(body_id));
-                if self.bodies.len() == 2 && ident.as_str() == "main" {
+                if self.bodies.len() == 2 && ident == "main" {
                     self.mir.main_body = Some(body_id);
                 }
 

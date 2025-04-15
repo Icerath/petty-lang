@@ -187,6 +187,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
             ast::TyKind::Array(of) => {
                 self.tcx.intern(TyKind::Array(self.read_ast_ty_with(of, generics)?))
             }
+            ast::TyKind::Name(name) if name == "_" => self.tcx.new_infer(),
             ast::TyKind::Name(name) => {
                 match generics.iter().find(|&g| self.tcx.generic_symbol(g) == name) {
                     Some(id) => self.tcx.intern(TyKind::Generic(id)),

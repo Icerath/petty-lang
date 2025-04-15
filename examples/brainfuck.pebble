@@ -2,7 +2,7 @@
 
 fn main() {
     let input = "++++++++[>++++[>++>+++>+++>+<<<<-]>+>+>->>+[<]<-]>>.>---.+++++++..+++.>>.<-.<.+++.------.--------.>>+.>++.";
-    let cells: [int] = [0; 256];
+    let cells: [_] = [0; 256];
     let data_ptr = 0;
     let instruction_ptr = 0;
     while instruction_ptr < strlen(input) {
