@@ -1,4 +1,4 @@
-use std::{fmt, fmt::Write};
+use std::fmt;
 
 use super::{Constant, Mir, Operand, Place, Projection, RValue, Statement, Terminator};
 
@@ -110,18 +110,15 @@ impl Operand {
 
 impl fmt::Display for Place {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut end = String::new();
-
+        write!(f, "var {:?}", self.local)?;
         for projection in &self.projections {
             match projection {
                 Projection::Deref => write!(f, "*")?,
-                Projection::Field(field) => write!(end, ".{field}")?,
-                Projection::Index(index) => write!(end, "[var {index:?}]")?,
+                Projection::Field(field) => write!(f, ".{field}")?,
+                Projection::Index(index) => write!(f, "[var {index:?}]")?,
             }
         }
-
-        write!(f, "var {:?}", self.local)?;
-        f.write_str(&end)
+        Ok(())
     }
 }
 
