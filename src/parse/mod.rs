@@ -61,7 +61,7 @@ impl Stream<'_, '_> {
             "unexpected EOF",
             self.path,
             self.lexer.src(),
-            &[(self.lexer.span_eof(), "EOF".into())],
+            [(self.lexer.span_eof(), "EOF")],
         )
     }
     fn expect(&mut self, kind: TokenKind) -> Result<Token> {
@@ -71,7 +71,7 @@ impl Stream<'_, '_> {
                 &format!("expected `{}`, found: `{}`", kind.repr(), token.kind.repr()),
                 self.path,
                 self.lexer.src(),
-                &[(self.lexer.span(), "here".into())],
+                [(self.lexer.span(), "here")],
             ));
         }
         Ok(token)
@@ -97,7 +97,7 @@ impl Stream<'_, '_> {
             ),
             self.path,
             self.lexer.src(),
-            &[(self.lexer.span(), "here".into())],
+            [(self.lexer.span(), "here")],
         )
     }
 
@@ -459,7 +459,7 @@ fn parse_atom_with(stream: &mut Stream, tok: Token) -> Result<ExprId> {
                 &format!("expected `expression`, found {found:?}"),
                 stream.path,
                 stream.lexer.src(),
-                &[(stream.lexer.span(), "here".into())],
+                [(stream.lexer.span(), "here")],
             ));
         }
     };

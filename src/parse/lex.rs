@@ -120,7 +120,7 @@ impl Iterator for Lexer<'_> {
                     "unknown token",
                     None,
                     self.src,
-                    &[(self.span(), "here".into())],
+                    [(self.span(), "here")],
                 )));
             }
         };

@@ -461,7 +461,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                     &format!("indentifer '{ident}' not found"),
                     self.file,
                     self.src,
-                    &[(span, format!("'{ident}' not found").into())],
+                    [(span, format!("'{ident}' not found"))],
                 )
             },
         )

@@ -1,5 +1,3 @@
-use std::borrow::Cow;
-
 use super::Collector;
 use crate::{
     ast::{BlockId, ExprId, ExprKind},
@@ -10,7 +8,7 @@ use crate::{
 
 impl<'tcx> Collector<'_, '_, 'tcx> {
     pub fn unknown_type_err(&self, span: Span) -> miette::Error {
-        errors::error("unknown type", self.file, self.src, &[(span, Cow::Borrowed("here"))])
+        errors::error("unknown type", self.file, self.src, [(span, "here")])
     }
     #[cold]
     #[inline(never)]
@@ -26,11 +24,9 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
     #[cold]
     #[inline(never)]
     fn subtype_err_inner(&self, lhs: Ty<'tcx>, rhs: Ty<'tcx>, spans: Vec<Span>) -> miette::Error {
-        let labels: Vec<_> = spans
-            .into_iter()
-            .map(|span| (span, format!("expected `{rhs}`, found `{lhs}`").into()))
-            .collect();
-        errors::error("mismatched_types", self.file, self.src, &labels)
+        let labels =
+            spans.into_iter().map(|span| (span, format!("expected `{rhs}`, found `{lhs}`")));
+        errors::error("mismatched_types", self.file, self.src, labels)
     }
     fn invalid_type_span(&self, expr: ExprId) -> Vec<Span> {
         let expr = &self.ast.exprs[expr];

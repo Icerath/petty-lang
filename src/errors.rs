@@ -1,4 +1,4 @@
-use std::{borrow::Cow, path::Path};
+use std::path::Path;
 
 use miette::{Error, LabeledSpan, NamedSource};
 
@@ -6,11 +6,22 @@ use crate::span::Span;
 
 #[inline(never)]
 #[cold]
-pub fn error(error: &str, path: Option<&Path>, src: &str, labels: &[(Span, Cow<str>)]) -> Error {
+pub fn error<S: Into<String>>(
+    error: &str,
+    path: Option<&Path>,
+    src: &str,
+    labels: impl IntoIterator<Item = (Span, S)>,
+) -> Error {
     let labels: Vec<_> = labels
-        .iter()
-        .map(|(span, msg)| LabeledSpan::at(offset_span(*span).into_range_usize(), msg.as_ref()))
+        .into_iter()
+        .map(|(span, msg)| LabeledSpan::at(offset_span(span).into_range_usize(), msg))
         .collect();
+    error_inner(error, path, src, &labels)
+}
+
+#[inline(never)]
+#[cold]
+fn error_inner(error: &str, path: Option<&Path>, src: &str, labels: &[LabeledSpan]) -> Error {
     miette::miette!(labels = labels, "{error}").with_source_code(source(src, path))
 }
 
