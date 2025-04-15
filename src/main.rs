@@ -46,7 +46,9 @@ struct Args {
 
 #[derive(clap::ValueEnum, Clone, PartialEq, Eq, PartialOrd, Ord)]
 enum Command {
+    #[value(alias = "b")]
     Build,
+    #[value(alias = "r")]
     Run,
 }
 
