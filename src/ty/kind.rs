@@ -127,7 +127,7 @@ impl fmt::Display for TyKind<'_> {
                 debug_tuple.finish()?;
                 write!(f, " -> {ret}")
             }
-            Self::Infer(var) => write!(f, "infer<{}>", var.index()),
+            Self::Infer(_) => write!(f, "_"),
             Self::Generic(id) => write!(f, "<generic {id:?}>"),
             Self::Struct { .. } => write!(f, "struct"),
         }
