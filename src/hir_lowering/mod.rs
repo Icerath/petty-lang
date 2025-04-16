@@ -301,41 +301,9 @@ impl Lowering<'_, '_> {
             }
             ExprKind::Binary { lhs, op, rhs } => {
                 let ty = self.hir.exprs[lhs].ty;
-                let op = match (ty, op) {
-                    (TyKind::Int, op) => match op {
-                        hir::BinaryOp::Add => mir::BinaryOp::IntAdd,
-                        hir::BinaryOp::Sub => mir::BinaryOp::IntSub,
-                        hir::BinaryOp::Mul => mir::BinaryOp::IntMul,
-                        hir::BinaryOp::Div => mir::BinaryOp::IntDiv,
-                        hir::BinaryOp::Mod => mir::BinaryOp::IntMod,
-                        hir::BinaryOp::Less => mir::BinaryOp::IntLess,
-                        hir::BinaryOp::Greater => mir::BinaryOp::IntGreater,
-                        hir::BinaryOp::LessEq => mir::BinaryOp::IntLessEq,
-                        hir::BinaryOp::GreaterEq => mir::BinaryOp::IntGreaterEq,
-                        hir::BinaryOp::Eq => mir::BinaryOp::IntEq,
-                        hir::BinaryOp::Neq => mir::BinaryOp::IntNeq,
-                        hir::BinaryOp::Range => mir::BinaryOp::IntRange,
-                        hir::BinaryOp::RangeInclusive => mir::BinaryOp::IntRangeInclusive,
-                    },
-                    (TyKind::Char, op) => match op {
-                        hir::BinaryOp::Eq => mir::BinaryOp::CharEq,
-                        hir::BinaryOp::Neq => mir::BinaryOp::CharNeq,
-                        _ => unreachable!("char - {op:?}"),
-                    },
-                    (TyKind::Str, op) => match op {
-                        hir::BinaryOp::Eq => mir::BinaryOp::StrEq,
-                        hir::BinaryOp::Neq => mir::BinaryOp::StrNeq,
-                        hir::BinaryOp::Add => mir::BinaryOp::StrAdd,
-                        _ => unreachable!("str - {op:?}"),
-                    },
-
-                    (ty, op) => unreachable!("{ty:?} - {op:?}"),
-                };
-
-                let lhs = self.lower(lhs);
-                let rhs = self.lower(rhs);
-
-                RValue::BinaryExpr { lhs, op, rhs }
+                let lhs = self.lower_inner(lhs);
+                let rhs = self.lower_inner(rhs);
+                self.binary_op(lhs, op, rhs, ty)
             }
             ExprKind::Ident(ident) => match self.load_ident(ident) {
                 RValue::Use(operand) => RValue::Use(operand),
@@ -372,6 +340,50 @@ impl Lowering<'_, '_> {
             }
             ExprKind::Block(ref exprs) => self.block_expr(exprs),
         }
+    }
+
+    fn binary_op(&mut self, lhs: RValue, op: hir::BinaryOp, rhs: RValue, ty: Ty) -> RValue {
+        let op = match (ty, op) {
+            (TyKind::Int, op) => match op {
+                hir::BinaryOp::Add => mir::BinaryOp::IntAdd,
+                hir::BinaryOp::Sub => mir::BinaryOp::IntSub,
+                hir::BinaryOp::Mul => mir::BinaryOp::IntMul,
+                hir::BinaryOp::Div => mir::BinaryOp::IntDiv,
+                hir::BinaryOp::Mod => mir::BinaryOp::IntMod,
+                hir::BinaryOp::Less => mir::BinaryOp::IntLess,
+                hir::BinaryOp::Greater => mir::BinaryOp::IntGreater,
+                hir::BinaryOp::LessEq => mir::BinaryOp::IntLessEq,
+                hir::BinaryOp::GreaterEq => mir::BinaryOp::IntGreaterEq,
+                hir::BinaryOp::Eq => mir::BinaryOp::IntEq,
+                hir::BinaryOp::Neq => mir::BinaryOp::IntNeq,
+                hir::BinaryOp::Range => mir::BinaryOp::IntRange,
+                hir::BinaryOp::RangeInclusive => mir::BinaryOp::IntRangeInclusive,
+            },
+            (TyKind::Char, op) => match op {
+                hir::BinaryOp::Eq => mir::BinaryOp::CharEq,
+                hir::BinaryOp::Neq => mir::BinaryOp::CharNeq,
+                _ => unreachable!("char - {op:?}"),
+            },
+            (TyKind::Str, op) => match op {
+                hir::BinaryOp::Eq => mir::BinaryOp::StrEq,
+                hir::BinaryOp::Neq => mir::BinaryOp::StrNeq,
+                hir::BinaryOp::Add => mir::BinaryOp::StrAdd,
+                _ => unreachable!("str - {op:?}"),
+            },
+            (TyKind::Ref(of), op) => match op {
+                hir::BinaryOp::Eq => {
+                    let lhs = self.deref_operand(lhs);
+                    let rhs = self.deref_operand(rhs);
+                    return self.binary_op(lhs.into(), op, rhs.into(), of);
+                }
+                _ => unreachable!("ref {of:?} - {op:?}"),
+            },
+
+            (ty, op) => unreachable!("{ty:?} - {op:?}"),
+        };
+        let lhs = self.process(lhs, ty);
+        let rhs = self.process(rhs, ty);
+        RValue::BinaryExpr { lhs, op, rhs }
     }
 
     fn index_array(&mut self, expr: ExprId, index: ExprId) -> RValue {
