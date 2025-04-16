@@ -16,12 +16,12 @@ pub fn error<S: Into<String>>(
         .into_iter()
         .map(|(span, msg)| LabeledSpan::at(offset_span(span).into_range_usize(), msg))
         .collect();
-    error_inner(error, path, src, &labels)
+    error_inner(error, path, src, labels)
 }
 
 #[inline(never)]
 #[cold]
-fn error_inner(error: &str, path: Option<&Path>, src: &str, labels: &[LabeledSpan]) -> Error {
+fn error_inner(error: &str, path: Option<&Path>, src: &str, labels: Vec<LabeledSpan>) -> Error {
     miette::miette!(labels = labels, "{error}").with_source_code(source(src, path))
 }
 
