@@ -7,6 +7,13 @@ use crate::{
 };
 
 impl<'tcx> Collector<'_, '_, 'tcx> {
+    pub fn cannot_index(&self, ty: Ty<'tcx>, span: Span) -> miette::Error {
+        self.raw_error(
+            &format!("type `{ty}` cannot be indexed"),
+            [(span, format!("cannot index `{ty}`"))],
+        )
+    }
+
     pub fn field_error(&self, ty: Ty<'tcx>, field: Symbol, span: Span) -> miette::Error {
         self.raw_error(&format!("no field `{field}` on type `{ty}`"), [(span, "unknown field")])
     }
