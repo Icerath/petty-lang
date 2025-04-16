@@ -314,7 +314,8 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                     return Err(self.invalid_arg_count(
                         args.len(),
                         params.len(),
-                        self.ast.exprs[id].span,
+                        self.ast.exprs[function].span,
+                        expr_span,
                     ));
                 }
 

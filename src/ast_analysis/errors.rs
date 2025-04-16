@@ -19,8 +19,13 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         &self,
         arg_count: usize,
         param_count: usize,
-        span: Span,
+        func_span: Span,
+        expr_span: Span,
     ) -> miette::Error {
+        let span_start = func_span.end() as usize;
+        let span_end = expr_span.end() as usize;
+        let span = Span::new(span_start..span_end, func_span.source());
+
         let s = if arg_count > param_count { "too many arguments" } else { "missing arguments" };
         self.raw_error(&format!("expected {param_count} arguments, found {arg_count}"), [(span, s)])
     }

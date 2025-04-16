@@ -22,6 +22,9 @@ impl Span {
         });
         Span::from(start..end)
     }
+    pub fn source(self) -> SourceId {
+        self.source
+    }
 }
 
 const _: () = assert!(size_of::<Span>() == size_of::<usize>());
