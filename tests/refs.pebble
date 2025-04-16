@@ -6,4 +6,7 @@ fn main() {
     let x = 1;
     add_one(&x);
     assert x == 2;
+
+    let one = 1; // TODO: ref temporaries
+    assert &&one == &&one;
 }

@@ -440,7 +440,7 @@ impl Lowering<'_, '_> {
                 proj.push(Projection::Field(field));
                 local
             }
-            _ => todo!(),
+            ref kind => todo!("{kind:?}"),
         }
     }
 
