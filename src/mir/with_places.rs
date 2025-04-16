@@ -110,13 +110,13 @@ impl Place {
 impl Projection {
     pub fn with_locals(&self, mut f: impl FnMut(Local)) {
         match self {
-            Self::Deref | Self::Field(..) => {}
+            Self::Deref | Self::Field(..) | Self::ConstantIndex(..) => {}
             Self::Index(local) => f(*local),
         }
     }
     pub fn with_locals_mut(&mut self, mut f: impl FnMut(&mut Local)) {
         match self {
-            Self::Deref | Self::Field(..) => {}
+            Self::Deref | Self::Field(..) | Self::ConstantIndex(..) => {}
             Self::Index(local) => f(local),
         }
     }

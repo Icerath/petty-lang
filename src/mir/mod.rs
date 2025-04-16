@@ -29,6 +29,7 @@ pub enum Projection {
     Deref,
     Field(u32),
     Index(Local),
+    ConstantIndex(u32),
 }
 
 impl BlockId {

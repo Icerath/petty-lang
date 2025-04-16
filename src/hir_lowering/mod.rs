@@ -392,8 +392,13 @@ impl Lowering<'_, '_> {
         let expr = self.lower_rvalue(expr);
         let expr = self.array_index_derefs(expr, expr_ty);
         let mut place = self.process_to_place(expr);
-        let index_local = self.lower_local(index);
-        place.projections.push(Projection::Index(index_local));
+        let projection = match self.hir.exprs[index].kind {
+            ExprKind::Literal(Lit::Int(int)) if u32::try_from(int).is_ok() => {
+                Projection::ConstantIndex(int.try_into().unwrap())
+            }
+            _ => Projection::Index(self.lower_local(index)),
+        };
+        place.projections.push(projection);
         RValue::Use(Operand::Place(place))
     }
 

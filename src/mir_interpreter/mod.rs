@@ -117,6 +117,9 @@ impl Interpreter<'_> {
                     let index = locals[index].borrow().unwrap_int_usize();
                     alloc.borrow().unwrap_array().get(index).unwrap().clone()
                 }
+                Projection::ConstantIndex(index) => {
+                    alloc.borrow().unwrap_array().get(index as _).unwrap().clone()
+                }
             };
         }
         alloc

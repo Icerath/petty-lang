@@ -113,10 +113,11 @@ impl fmt::Display for Place {
         write!(f, "var {:?}", self.local)?;
         for projection in &self.projections {
             match projection {
-                Projection::Deref => write!(f, "*")?,
-                Projection::Field(field) => write!(f, ".{field}")?,
-                Projection::Index(index) => write!(f, "[var {index:?}]")?,
-            }
+                Projection::Deref => write!(f, "*"),
+                Projection::Field(field) => write!(f, ".{field}"),
+                Projection::Index(index) => write!(f, "[var {index:?}]"),
+                Projection::ConstantIndex(index) => write!(f, "[const {index:?}]"),
+            }?;
         }
         Ok(())
     }
