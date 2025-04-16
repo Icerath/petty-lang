@@ -44,6 +44,10 @@ pub fn optimize(mir: &mut Mir, body_id: BodyId) {
             i += 1;
 
             let Statement::Assign { place, rvalue } = statement;
+            if !place.projections.is_empty() {
+                return true;
+            }
+
             if rvalue.side_effect() {
                 return true;
             }
