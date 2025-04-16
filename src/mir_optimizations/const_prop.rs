@@ -1,7 +1,7 @@
 use index_vec::IndexVec;
 
 use super::utils::{blocks, blocks_mut};
-use crate::mir::{self, Local, Mir, Operand, RValue, Statement};
+use crate::mir::{self, Local, Mir, Operand, Projection, RValue, Statement};
 
 pub fn optimize(mir: &mut Mir, body_id: mir::BodyId) {
     let body = &mut mir.bodies[body_id];
@@ -56,11 +56,15 @@ pub fn optimize(mir: &mut Mir, body_id: mir::BodyId) {
             () => {
                 &mut |operand: &mut Operand| {
                     let Operand::Place(place) = operand else { return };
-                    if !place.projections.is_empty() {
-                        return;
-                    }
                     let Some(cached) = cache[place.local] else { return };
-                    *operand = cached.clone();
+                    match cached {
+                        // TODO: This should handle more cases
+                        Operand::Ref(to) if place.projections == [Projection::Deref] => {
+                            *operand = Operand::Place(to.clone())
+                        }
+                        _ if place.projections.is_empty() => *operand = cached.clone(),
+                        _ => {}
+                    }
                 }
             };
         }
