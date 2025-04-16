@@ -9,8 +9,8 @@ use thin_vec::ThinVec;
 use crate::{
     HashMap,
     ast::{
-        self, Ast, BinOpKind, Block, BlockId, ExprId, ExprKind, FnDecl, Impl, Lit, Trait, TypeId,
-        UnaryOp,
+        self, Ast, BinOpKind, BinaryOp, Block, BlockId, ExprId, ExprKind, FnDecl, Impl, Lit, Trait,
+        TypeId, UnaryOp,
     },
     span::Span,
     symbol::Symbol,
@@ -252,54 +252,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 self.subtype(operand, ty, id)?;
                 ty
             }
-            ExprKind::Binary { lhs, op, rhs } => match op.kind {
-                BinOpKind::Assign
-                | BinOpKind::AddAssign
-                | BinOpKind::SubAssign
-                | BinOpKind::MulAssign
-                | BinOpKind::DivAssign
-                | BinOpKind::ModAssign => {
-                    let lhs_ty = self.analyze_expr(lhs)?;
-                    let rhs_ty = self.analyze_expr(rhs)?;
-                    self.subtype(rhs_ty, lhs_ty, rhs)?;
-                    &TyKind::Unit
-                }
-                BinOpKind::Less
-                | BinOpKind::Greater
-                | BinOpKind::LessEq
-                | BinOpKind::GreaterEq
-                | BinOpKind::Eq
-                | BinOpKind::Neq => {
-                    let lhs = self.analyze_expr(lhs)?;
-                    let rhs_ty = self.analyze_expr(rhs)?;
-                    self.eq(lhs, rhs_ty, rhs)?;
-                    &TyKind::Bool
-                }
-                BinOpKind::Range | BinOpKind::RangeInclusive => {
-                    let lhs = self.analyze_expr(lhs)?;
-                    let rhs_ty = self.analyze_expr(rhs)?;
-                    self.eq(lhs, rhs_ty, rhs)?;
-
-                    self.subtype(lhs, &TyKind::Int, id)?;
-                    self.subtype(rhs_ty, &TyKind::Int, id)?;
-
-                    match op.kind {
-                        BinOpKind::Range => self.tcx.intern(TyKind::Range),
-                        BinOpKind::RangeInclusive => self.tcx.intern(TyKind::RangeInclusive),
-                        _ => unreachable!(),
-                    }
-                }
-                BinOpKind::Add
-                | BinOpKind::Sub
-                | BinOpKind::Mul
-                | BinOpKind::Div
-                | BinOpKind::Mod => {
-                    let lhs = self.analyze_expr(lhs)?;
-                    let rhs_ty = self.analyze_expr(rhs)?;
-                    self.eq(lhs, rhs_ty, rhs)?;
-                    lhs
-                }
-            },
+            ExprKind::Binary { lhs, op, rhs } => self.analyze_binary_expr(id, lhs, op, rhs)?,
             ExprKind::Index { expr, index } => self.index(expr, index, expr_span)?,
             ExprKind::FnCall { function, ref args } => {
                 let fn_ty = self.analyze_expr(function)?;
@@ -412,6 +365,50 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         };
         self.ty_info.expr_tys[id] = ty;
         Ok(ty)
+    }
+
+    fn analyze_binary_expr(
+        &mut self,
+        id: ExprId,
+        lhs: ExprId,
+        op: BinaryOp,
+        rhs: ExprId,
+    ) -> Result<Ty<'tcx>> {
+        let lhs_ty = self.analyze_expr(lhs)?;
+        let rhs_ty = self.analyze_expr(rhs)?;
+        Ok(match op.kind {
+            BinOpKind::Assign
+            | BinOpKind::AddAssign
+            | BinOpKind::SubAssign
+            | BinOpKind::MulAssign
+            | BinOpKind::DivAssign
+            | BinOpKind::ModAssign => {
+                self.subtype(rhs_ty, lhs_ty, rhs)?;
+                &TyKind::Unit
+            }
+            BinOpKind::Less
+            | BinOpKind::Greater
+            | BinOpKind::LessEq
+            | BinOpKind::GreaterEq
+            | BinOpKind::Eq
+            | BinOpKind::Neq => &TyKind::Bool,
+            BinOpKind::Range | BinOpKind::RangeInclusive => {
+                self.eq(lhs_ty, rhs_ty, rhs)?;
+
+                self.subtype(lhs_ty, &TyKind::Int, id)?;
+                self.subtype(rhs_ty, &TyKind::Int, id)?;
+
+                match op.kind {
+                    BinOpKind::Range => self.tcx.intern(TyKind::Range),
+                    BinOpKind::RangeInclusive => self.tcx.intern(TyKind::RangeInclusive),
+                    _ => unreachable!(),
+                }
+            }
+            BinOpKind::Add | BinOpKind::Sub | BinOpKind::Mul | BinOpKind::Div | BinOpKind::Mod => {
+                self.eq(lhs_ty, rhs_ty, rhs)?;
+                lhs_ty
+            }
+        })
     }
 
     fn index(&mut self, expr: ExprId, index: ExprId, span: Span) -> Result<Ty<'tcx>> {
