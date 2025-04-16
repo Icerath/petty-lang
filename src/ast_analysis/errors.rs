@@ -2,13 +2,23 @@ use miette::Error;
 
 use super::Collector;
 use crate::{
-    ast::{BlockId, ExprId, ExprKind},
+    ast::{BinaryOp, BlockId, ExprId, ExprKind},
     span::Span,
     symbol::Symbol,
     ty::Ty,
 };
 
 impl<'tcx> Collector<'_, '_, 'tcx> {
+    pub fn binop_err(&self, op: BinaryOp, lhs: Ty, rhs: Ty) -> Error {
+        let op_name = op.kind.name();
+        let msg = if lhs == rhs {
+            format!("cannot {op_name} values of type `{lhs}`",)
+        } else {
+            format!("cannot {op_name} values of type `{lhs}` with `{rhs}`",)
+        };
+        self.raw_error(&msg, [(op.span, format!("`{}` is not valid here", op.kind.symbol()))])
+    }
+
     pub fn cannot_index(&self, ty: Ty<'tcx>, span: Span) -> Error {
         self.raw_error(
             &format!("type `{ty}` cannot be indexed"),

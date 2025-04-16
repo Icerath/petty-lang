@@ -7,7 +7,7 @@ use thin_vec::ThinVec;
 
 use super::{ArraySeg, ExprKind, FnDecl, Impl, Param, Trait, TyKind, TypeId};
 use crate::{
-    ast::{Ast, BinOpKind, BinaryOp, BlockId, ExprId, Lit, UnaryOp},
+    ast::{Ast, BinaryOp, BlockId, ExprId, Lit, UnaryOp},
     symbol::Symbol,
 };
 
@@ -243,28 +243,7 @@ impl Dump for ArraySeg {
 
 impl Dump for BinaryOp {
     fn write(&self, w: &mut Writer) {
-        use BinOpKind as B;
-        w.f.push_str(match self.kind {
-            B::Add => "+",
-            B::AddAssign => "+=",
-            B::Div => "/",
-            B::DivAssign => "/=",
-            B::Eq => "==",
-            B::Greater => ">",
-            B::GreaterEq => ">=",
-            B::Less => "<",
-            B::LessEq => "<=",
-            B::Mod => "%",
-            B::ModAssign => "%=",
-            B::Mul => "*",
-            B::MulAssign => "*=",
-            B::Neq => "!=",
-            B::Range => "..",
-            B::RangeInclusive => "..=",
-            B::Sub => "-",
-            B::SubAssign => "-=",
-            B::Assign => "=",
-        });
+        w.f.push_str(self.kind.symbol());
     }
 }
 

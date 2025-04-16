@@ -132,7 +132,6 @@ pub enum Lit {
 #[derive(Debug, Clone, Copy)]
 pub struct BinaryOp {
     pub kind: BinOpKind,
-    #[expect(dead_code)]
     pub span: Span,
 }
 
@@ -188,5 +187,45 @@ impl ExprKind {
     }
     pub fn with_span(self, span: impl Into<Span>) -> Expr {
         Expr { span: span.into(), kind: self }
+    }
+}
+
+impl BinOpKind {
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Add | Self::AddAssign => "add",
+            Self::Sub | Self::SubAssign => "subtract",
+            Self::Mul | Self::MulAssign => "multiply",
+            Self::Div | Self::DivAssign => "divide",
+            Self::Mod | Self::ModAssign => "mod",
+            Self::Less | Self::LessEq | Self::Greater | Self::GreaterEq => "compare",
+            Self::Neq | Self::Eq => "s",
+            Self::Assign => "assign",
+            Self::Range | Self::RangeInclusive => "produce a range of",
+        }
+    }
+
+    pub fn symbol(self) -> &'static str {
+        match self {
+            Self::Add => "+",
+            Self::AddAssign => "+=",
+            Self::Div => "/",
+            Self::DivAssign => "/=",
+            Self::Eq => "==",
+            Self::Greater => ">",
+            Self::GreaterEq => ">=",
+            Self::Less => "<",
+            Self::LessEq => "<=",
+            Self::Mod => "%",
+            Self::ModAssign => "%=",
+            Self::Mul => "*",
+            Self::MulAssign => "*=",
+            Self::Neq => "!=",
+            Self::Range => "..",
+            Self::RangeInclusive => "..=",
+            Self::Sub => "-",
+            Self::SubAssign => "-=",
+            Self::Assign => "=",
+        }
     }
 }

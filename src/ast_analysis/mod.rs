@@ -252,7 +252,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 self.subtype(operand, ty, id)?;
                 ty
             }
-            ExprKind::Binary { lhs, op, rhs } => self.analyze_binary_expr(id, lhs, op, rhs)?,
+            ExprKind::Binary { lhs, op, rhs } => self.analyze_binary_expr(lhs, op, rhs)?,
             ExprKind::Index { expr, index } => self.index(expr, index, expr_span)?,
             ExprKind::FnCall { function, ref args } => {
                 let fn_ty = self.analyze_expr(function)?;
@@ -367,15 +367,12 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         Ok(ty)
     }
 
-    fn analyze_binary_expr(
-        &mut self,
-        id: ExprId,
-        lhs: ExprId,
-        op: BinaryOp,
-        rhs: ExprId,
-    ) -> Result<Ty<'tcx>> {
+    fn analyze_binary_expr(&mut self, lhs: ExprId, op: BinaryOp, rhs: ExprId) -> Result<Ty<'tcx>> {
         let lhs_ty = self.analyze_expr(lhs)?;
         let rhs_ty = self.analyze_expr(rhs)?;
+
+        self.enforce_valid_binop(lhs_ty, op, rhs_ty)?;
+
         Ok(match op.kind {
             BinOpKind::Assign
             | BinOpKind::AddAssign
@@ -395,9 +392,6 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
             BinOpKind::Range | BinOpKind::RangeInclusive => {
                 self.eq(lhs_ty, rhs_ty, rhs)?;
 
-                self.subtype(lhs_ty, &TyKind::Int, id)?;
-                self.subtype(rhs_ty, &TyKind::Int, id)?;
-
                 match op.kind {
                     BinOpKind::Range => self.tcx.intern(TyKind::Range),
                     BinOpKind::RangeInclusive => self.tcx.intern(TyKind::RangeInclusive),
@@ -409,6 +403,36 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 lhs_ty
             }
         })
+    }
+
+    fn enforce_valid_binop(&self, lhs: Ty<'tcx>, op: BinaryOp, rhs: Ty<'tcx>) -> Result<()> {
+        if let BinOpKind::Assign = op.kind {
+            return Ok(());
+        }
+
+        let lhs = self.tcx.infer_shallow(lhs);
+        let rhs = self.tcx.infer_shallow(rhs);
+
+        if let (TyKind::Ref(lhs), TyKind::Ref(rhs)) = (lhs, rhs) {
+            return self.enforce_valid_binop(lhs, op, rhs);
+        }
+
+        macro_rules! filter {
+            ($([$ty:ident => $($op:ident)|+])+) => {
+                $((matches!(lhs, TyKind::$ty) && matches!(op.kind, $(BinOpKind::$op)|+))) || +
+            };
+        }
+
+        let matches = filter! {
+            [Int => Add | Sub | Mul | Div | Mod | AddAssign | SubAssign | MulAssign | DivAssign | ModAssign
+                | Eq | Neq | Less | LessEq | Greater | GreaterEq | Range | RangeInclusive
+            ]
+            [Str => Add | AddAssign | Less | Greater | LessEq | GreaterEq | Eq | Neq]
+            [Bool => Eq | Neq]
+            [Char => Eq | Neq]
+            [Unit => Eq | Neq]
+        };
+        if matches { Ok(()) } else { Err(self.binop_err(op, lhs, rhs)) }
     }
 
     fn index(&mut self, expr: ExprId, index: ExprId, span: Span) -> Result<Ty<'tcx>> {
