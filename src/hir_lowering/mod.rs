@@ -82,12 +82,12 @@ impl Lowering<'_, '_> {
     }
 
     fn lower(&mut self, id: ExprId) -> Operand {
-        let rvalue = self.lower_inner(id);
+        let rvalue = self.lower_rvalue(id);
         self.process(rvalue, self.hir.exprs[id].ty)
     }
 
     fn lower_local(&mut self, id: ExprId) -> Local {
-        let rvalue = self.lower_inner(id);
+        let rvalue = self.lower_rvalue(id);
         self.process_to_local(rvalue)
     }
 
@@ -142,7 +142,7 @@ impl Lowering<'_, '_> {
     }
 
     #[expect(clippy::too_many_lines)]
-    fn lower_inner(&mut self, id: ExprId) -> RValue {
+    fn lower_rvalue(&mut self, id: ExprId) -> RValue {
         let expr = &self.hir.exprs[id];
         let is_unit = expr.ty.is_unit();
 
@@ -182,7 +182,7 @@ impl Lowering<'_, '_> {
                 if let hir::UnaryOp::Ref = op {
                     break 'outer RValue::Use(self.ref_expr(expr));
                 } else if let hir::UnaryOp::Deref = op {
-                    let rvalue = self.lower_inner(expr);
+                    let rvalue = self.lower_rvalue(expr);
                     break 'outer RValue::Use(self.deref_operand(rvalue));
                 }
                 let operand = self.lower(expr);
@@ -221,7 +221,7 @@ impl Lowering<'_, '_> {
                 RValue::Use(Operand::UNIT)
             }
             ExprKind::Let { ident, expr } => {
-                let rvalue = self.lower_inner(expr);
+                let rvalue = self.lower_rvalue(expr);
                 let local = self.assign_new(rvalue);
                 self.current().variables.insert(ident, local);
                 RValue::Use(Operand::UNIT)
@@ -294,15 +294,15 @@ impl Lowering<'_, '_> {
                 }
             }
             ExprKind::Assignment { lhs, expr } => {
-                let rvalue = self.lower_inner(expr);
+                let rvalue = self.lower_rvalue(expr);
                 let place = self.lower_place(lhs);
                 self.assign(place, rvalue);
                 RValue::Use(Operand::Constant(Constant::Unit))
             }
             ExprKind::Binary { lhs, op, rhs } => {
                 let ty = self.hir.exprs[lhs].ty;
-                let lhs = self.lower_inner(lhs);
-                let rhs = self.lower_inner(rhs);
+                let lhs = self.lower_rvalue(lhs);
+                let rhs = self.lower_rvalue(rhs);
                 self.binary_op(lhs, op, rhs, ty)
             }
             ExprKind::Ident(ident) => match self.load_ident(ident) {
@@ -389,7 +389,7 @@ impl Lowering<'_, '_> {
     fn index_array(&mut self, expr: ExprId, index: ExprId) -> RValue {
         let expr_ty = self.hir.exprs[expr].ty;
 
-        let expr = self.lower_inner(expr);
+        let expr = self.lower_rvalue(expr);
         let expr = self.array_index_derefs(expr, expr_ty);
         let mut place = self.process_to_place(expr);
         let index_local = self.lower_local(index);
@@ -441,7 +441,7 @@ impl Lowering<'_, '_> {
                 local
             }
             _ => {
-                let expr = self.lower_inner(expr);
+                let expr = self.lower_rvalue(expr);
                 self.process_to_local(expr)
             }
         }
@@ -461,7 +461,7 @@ impl Lowering<'_, '_> {
         let mut rvalue = None;
         for (i, &expr) in exprs.iter().enumerate() {
             if i == exprs.len() - 1 {
-                rvalue = Some(self.lower_inner(expr));
+                rvalue = Some(self.lower_rvalue(expr));
             } else {
                 self.lower(expr);
             }
@@ -546,7 +546,7 @@ impl Lowering<'_, '_> {
 
     fn format_expr(&mut self, id: ExprId) -> RValue {
         let expr = &self.hir.exprs[id];
-        let rvalue = self.lower_inner(id);
+        let rvalue = self.lower_rvalue(id);
         self.format_rvalue(rvalue, expr.ty)
     }
 
