@@ -161,7 +161,7 @@ pub fn unary_op(op: UnaryOp, operand: Value) -> Value {
 }
 
 fn bool_to_str(bool: bool) -> ArcStr {
-    ArcStr::from(if bool { "true" } else { "false" })
+    if bool { arcstr::literal!("true") } else { arcstr::literal!("false") }
 }
 
 #[expect(clippy::needless_pass_by_value)]
