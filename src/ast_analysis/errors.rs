@@ -7,6 +7,14 @@ use crate::{
 };
 
 impl<'tcx> Collector<'_, '_, 'tcx> {
+    pub fn expected_function(&self, ty: Ty<'tcx>, span: Span) -> miette::Error {
+        let ty = self.tcx.try_infer_deep(ty).unwrap_or_else(|ty| ty);
+        self.raw_error(
+            &format!("expected function, found `{ty}`"),
+            [(span, format!("`{ty}` is not callable"))],
+        )
+    }
+
     pub fn cannot_infer(&self, ty: Ty<'tcx>, span: Span) -> miette::Error {
         self.raw_error(&format!("cannot infer type {ty}"), [(span, "cannot infer")])
     }
