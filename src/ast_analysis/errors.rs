@@ -51,7 +51,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         let lhs = self.tcx.try_infer_deep(lhs).unwrap_or_else(|ty| ty);
         let rhs = self.tcx.try_infer_deep(rhs).unwrap_or_else(|ty| ty);
         self.raw_error(
-            "mismatched_typed",
+            "mismatched types",
             spans.into_iter().map(|span| (span, format!("expected `{rhs}`, found `{lhs}`"))),
         )
     }
