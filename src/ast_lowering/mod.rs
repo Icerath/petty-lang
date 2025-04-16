@@ -134,7 +134,7 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
             ast::ExprKind::Unary { op, expr } => {
                 (ExprKind::Unary { op, expr: self.lower(expr) }).with(expr_ty)
             }
-            ast::ExprKind::Break => ExprKind::Break.with(&TyKind::Never),
+            ast::ExprKind::Break => hir::Expr::BREAK,
             ast::ExprKind::Struct { ident, ref fields, span } => {
                 let struct_ty = self.ty_info.struct_types[&span];
 
@@ -197,7 +197,7 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
 
     fn lower_while_loop(&mut self, condition: ast::ExprId, body: ast::BlockId) -> hir::Expr<'tcx> {
         let condition = self.lower_then_not(condition);
-        let break_ = self.hir.exprs.push(ExprKind::Break.with(&TyKind::Unit));
+        let break_ = self.hir.exprs.push(hir::Expr::BREAK);
 
         let if_stmt = (ExprKind::If {
             arms: ThinVec::from([hir::IfStmt { condition, body: ThinVec::from([break_]) }]),

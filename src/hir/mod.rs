@@ -25,6 +25,7 @@ pub struct Expr<'tcx> {
 
 impl Expr<'_> {
     pub const UNIT: Self = Self { ty: &TyKind::Unit, kind: ExprKind::Literal(Lit::Unit) };
+    pub const BREAK: Self = Self { ty: &TyKind::Never, kind: ExprKind::Break };
 }
 
 #[derive(Debug)]
