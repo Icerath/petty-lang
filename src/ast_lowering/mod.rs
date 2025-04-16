@@ -131,9 +131,7 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
                 };
                 ExprKind::Return(inner).with(&TyKind::Never)
             }
-            ast::ExprKind::Unary { op, expr } => {
-                (ExprKind::Unary { op, expr: self.lower(expr) }).with(expr_ty)
-            }
+            ast::ExprKind::Unary { op, expr } => self.lower(expr).unary(op).with(expr_ty),
             ast::ExprKind::Break => hir::Expr::BREAK,
             ast::ExprKind::Struct { ident, ref fields, span } => {
                 let struct_ty = self.ty_info.struct_types[&span];
@@ -173,8 +171,7 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
     }
 
     fn lower_then_not(&mut self, ast_expr: ast::ExprId) -> hir::ExprId {
-        let inner = self.lower(ast_expr);
-        let hir_expr = (ExprKind::Unary { op: hir::UnaryOp::Not, expr: inner }).with(&TyKind::Bool);
+        let hir_expr = self.lower(ast_expr).unary(hir::UnaryOp::Not).with(&TyKind::Bool);
         self.hir.exprs.push(hir_expr)
     }
 

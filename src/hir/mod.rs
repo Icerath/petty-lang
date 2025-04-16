@@ -120,3 +120,9 @@ impl<'tcx> ExprKind<'tcx> {
         Expr { kind: self, ty }
     }
 }
+
+impl<'tcx> ExprId {
+    pub fn unary(self, op: UnaryOp) -> ExprKind<'tcx> {
+        ExprKind::Unary { op, expr: self }
+    }
+}

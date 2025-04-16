@@ -77,7 +77,6 @@ impl<'tcx> TyKind<'tcx> {
     }
 }
 
-#[expect(dead_code)]
 impl TyKind<'_> {
     pub const fn is_never(&self) -> bool {
         matches!(self, Self::Never)
