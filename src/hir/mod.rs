@@ -107,3 +107,9 @@ pub struct IfStmt {
     pub condition: ExprId,
     pub body: ThinVec<ExprId>,
 }
+
+impl<'tcx> ExprKind<'tcx> {
+    pub fn with(self, ty: Ty<'tcx>) -> Expr<'tcx> {
+        Expr { kind: self, ty }
+    }
+}
