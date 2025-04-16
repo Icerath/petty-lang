@@ -15,6 +15,16 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         )
     }
 
+    pub fn invalid_arg_count(
+        &self,
+        arg_count: usize,
+        param_count: usize,
+        span: Span,
+    ) -> miette::Error {
+        let s = if arg_count > param_count { "too many arguments" } else { "missing arguments" };
+        self.raw_error(&format!("expected {param_count} arguments, found {arg_count}"), [(span, s)])
+    }
+
     pub fn cannot_infer(&self, ty: Ty<'tcx>, span: Span) -> miette::Error {
         self.raw_error(&format!("cannot infer type {ty}"), [(span, "cannot infer")])
     }

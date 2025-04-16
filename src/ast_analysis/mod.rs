@@ -307,8 +307,16 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                     let fn_span = self.ast.exprs[function].span;
                     return Err(self.expected_function(fn_ty, fn_span));
                 };
+
                 let (params, ret) = func.caller(self.tcx);
-                assert_eq!(args.len(), params.len());
+
+                if args.len() != params.len() {
+                    return Err(self.invalid_arg_count(
+                        args.len(),
+                        params.len(),
+                        self.ast.exprs[id].span,
+                    ));
+                }
 
                 for (&arg_id, param) in std::iter::zip(args, params) {
                     let arg = self.analyze_expr(arg_id)?;
