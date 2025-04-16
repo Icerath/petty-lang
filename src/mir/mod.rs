@@ -1,6 +1,8 @@
 mod display;
 mod with_places;
 
+use std::ops::Range;
+
 use index_vec::IndexVec;
 use thin_vec::ThinVec;
 
@@ -180,6 +182,7 @@ pub enum Constant {
     UninitStruct { size: u32 },
     Bool(bool),
     Int(i64),
+    Range(Range<i64>),
     Char(char),
     Str(Symbol),
     Func(BodyId),

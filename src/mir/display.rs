@@ -133,6 +133,7 @@ impl fmt::Display for ConstDisplay<'_, '_> {
             Constant::Unit => write!(f, "()"),
             Constant::Bool(bool) => write!(f, "{bool}"),
             Constant::Int(int) => write!(f, "{int}"),
+            Constant::Range(range) => write!(f, "{range:?}"),
             Constant::Char(char) => write!(f, "{char:?}"),
             Constant::Str(str) => write!(f, "{str:?}"),
             Constant::Func(id) => match self.0.bodies[*id].name {
