@@ -37,10 +37,7 @@ struct Lowering<'src, 'ast, 'tcx> {
 }
 
 impl<'tcx> Lowering<'_, '_, 'tcx> {
-    #[track_caller]
     fn get_ty(&self, expr_id: ast::ExprId) -> Ty<'tcx> {
-        // Note: Does it provide any real benefit to remove the bounds check here? It seems relatively safe so I'm not opposed to it.
-        // Safety: We check once at lower_ast that ty_info can hold all of ast's expressions.
         self.ty_info.expr_tys[expr_id]
     }
 
