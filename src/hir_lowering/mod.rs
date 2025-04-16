@@ -462,9 +462,9 @@ impl Lowering<'_, '_> {
         for (i, &expr) in exprs.iter().enumerate() {
             if i == exprs.len() - 1 {
                 rvalue = Some(self.lower_inner(expr));
-                break;
+            } else {
+                self.lower(expr);
             }
-            self.lower(expr);
         }
         rvalue.unwrap_or(RValue::Use(Operand::UNIT))
     }
