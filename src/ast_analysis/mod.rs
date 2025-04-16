@@ -310,9 +310,9 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 let (params, ret) = func.caller(self.tcx);
                 assert_eq!(args.len(), params.len());
 
-                for (&arg, param) in std::iter::zip(args, params) {
-                    let arg = self.analyze_expr(arg)?;
-                    self.subtype(arg, param, id)?;
+                for (&arg_id, param) in std::iter::zip(args, params) {
+                    let arg = self.analyze_expr(arg_id)?;
+                    self.subtype(arg, param, arg_id)?;
                 }
                 ret
             }
