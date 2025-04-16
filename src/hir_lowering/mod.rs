@@ -440,7 +440,10 @@ impl Lowering<'_, '_> {
                 proj.push(Projection::Field(field));
                 local
             }
-            ref kind => todo!("{kind:?}"),
+            _ => {
+                let expr = self.lower_inner(expr);
+                self.process_to_local(expr)
+            }
         }
     }
 
