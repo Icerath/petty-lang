@@ -397,13 +397,15 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 &TyKind::Never
             }
             ExprKind::Break | ExprKind::Unreachable => &TyKind::Never,
-            ExprKind::FieldAccess { expr, field } => {
+            ExprKind::FieldAccess { expr, field, span } => {
                 let expr = self.tcx.infer_shallow(self.analyze_expr(expr)?);
-                let TyKind::Struct { symbols, fields, .. } = expr else { panic!() };
+                let TyKind::Struct { symbols, fields, .. } = expr else {
+                    return Err(self.field_error(expr, field, span));
+                };
                 let field = symbols
                     .iter()
                     .position(|&s| s == field)
-                    .unwrap_or_else(|| panic!("unknown field: {field}"));
+                    .ok_or_else(|| self.field_error(expr, field, span))?;
                 fields[field]
             }
             ExprKind::MethodCall { .. } => todo!(),

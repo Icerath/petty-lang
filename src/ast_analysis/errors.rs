@@ -7,6 +7,10 @@ use crate::{
 };
 
 impl<'tcx> Collector<'_, '_, 'tcx> {
+    pub fn field_error(&self, ty: Ty<'tcx>, field: Symbol, span: Span) -> miette::Error {
+        self.raw_error(&format!("no field `{field}` on type `{ty}`"), [(span, "unknown field")])
+    }
+
     pub fn expected_function(&self, ty: Ty<'tcx>, span: Span) -> miette::Error {
         let ty = self.tcx.try_infer_deep(ty).unwrap_or_else(|ty| ty);
         self.raw_error(

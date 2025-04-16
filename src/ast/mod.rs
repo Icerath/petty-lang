@@ -68,7 +68,7 @@ pub enum ExprKind {
     MethodCall { expr: ExprId, method: Symbol, args: ThinVec<ExprId> },
     Ident(Symbol),
     Index { expr: ExprId, index: ExprId },
-    FieldAccess { expr: ExprId, field: Symbol },
+    FieldAccess { expr: ExprId, field: Symbol, span: Span },
     Lit(Lit),
     Block(BlockId),
     Let { ident: Symbol, ty: Option<TypeId>, expr: ExprId },

@@ -75,12 +75,13 @@ fn parse_leaf_expr(stream: &mut Stream, next: Token) -> Result<ExprId> {
             }
             TokenKind::Dot => 'block: {
                 _ = stream.next();
-                let field = stream.expect_ident()?;
+                let (field, field_span) = stream.ident_spanned()?;
                 if stream.peek()?.kind != TokenKind::LParen {
                     let end = stream.lexer.current_pos();
                     let span = stream.ast.exprs[expr].span.start()..end;
-                    expr = (stream.ast.exprs)
-                        .push((ExprKind::FieldAccess { expr, field }).with_span(span));
+                    expr = (stream.ast.exprs).push(
+                        (ExprKind::FieldAccess { expr, field, span: field_span }).with_span(span),
+                    );
                     break 'block;
                 }
                 _ = stream.next();

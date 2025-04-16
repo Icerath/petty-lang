@@ -57,7 +57,7 @@ impl Writer<'_> {
             ExprKind::MethodCall { expr, method, ref args } => {
                 (expr, ".", method, "(", Sep(args, ", "), ")").write(self);
             }
-            ExprKind::FieldAccess { expr, field } => (expr, ".", field).write(self),
+            ExprKind::FieldAccess { expr, field, .. } => (expr, ".", field).write(self),
             ExprKind::Block(block) => self.display_block(block),
             ExprKind::FnDecl(ref decl) => decl.write(self),
             ExprKind::Trait(Trait { ident, ref methods }) => {
