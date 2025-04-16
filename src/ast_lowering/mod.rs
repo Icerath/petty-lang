@@ -175,10 +175,7 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
                     (self.hir.exprs).push(Expr { ty: &TyKind::Never, kind: ExprKind::Abort });
 
                 let body = ThinVec::from([display, abort]);
-                let condition_kind =
-                    ExprKind::Unary { op: ast::UnaryOp::Not, expr: self.lower(expr) };
-                let condition =
-                    self.hir.exprs.push(Expr { ty: &TyKind::Bool, kind: condition_kind });
+                let condition = self.lower_then_not(expr);
                 let arms = thin_vec![IfStmt { condition, body }];
                 Expr { ty: &TyKind::Unit, kind: hir::ExprKind::If { arms, els: ThinVec::new() } }
             }
@@ -191,6 +188,15 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
                 hir::Expr { ty: self.get_ty(expr_id), kind: hir::ExprKind::Field { expr, field } }
             }
         }
+    }
+
+    fn lower_then_not(&mut self, ast_expr: ast::ExprId) -> hir::ExprId {
+        let inner = self.lower(ast_expr);
+        let hir_expr = hir::Expr {
+            ty: &TyKind::Bool,
+            kind: ExprKind::Unary { op: hir::UnaryOp::Not, expr: inner },
+        };
+        self.hir.exprs.push(hir_expr)
     }
 
     fn assert_failed_error(&self, expr: ast::ExprId) -> Symbol {
@@ -211,11 +217,7 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
     }
 
     fn lower_while_loop(&mut self, condition: ast::ExprId, body: ast::BlockId) -> hir::Expr<'tcx> {
-        let condition = hir::Expr {
-            ty: &TyKind::Bool,
-            kind: hir::ExprKind::Unary { op: hir::UnaryOp::Not, expr: self.lower(condition) },
-        };
-        let condition = self.hir.exprs.push(condition);
+        let condition = self.lower_then_not(condition);
         let break_ = hir::Expr { ty: &TyKind::Unit, kind: ExprKind::Break };
         let break_ = self.hir.exprs.push(break_);
         let if_stmt = hir::Expr {
