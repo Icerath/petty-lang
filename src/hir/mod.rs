@@ -50,6 +50,12 @@ pub enum ExprKind<'tcx> {
     Return(ExprId),
 }
 
+impl<'tcx> From<FnDecl<'tcx>> for Expr<'tcx> {
+    fn from(decl: FnDecl<'tcx>) -> Self {
+        ExprKind::FnDecl(Box::new(decl)).with(&TyKind::Unit)
+    }
+}
+
 #[derive(Debug)]
 pub struct FnDecl<'tcx> {
     pub ident: Symbol,
