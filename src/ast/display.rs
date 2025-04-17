@@ -63,7 +63,7 @@ impl Writer<'_> {
             ExprKind::Trait(Trait { ident, ref methods }) => {
                 ("trait ", ident, methods).write(self);
             }
-            ExprKind::Let { ident, ty, expr } => {
+            ExprKind::Let { ident, ty, expr, .. } => {
                 self.inside_expr = inside_expr;
                 ("let ", ident, ty.map(|ty| (": ", ty)), " = ").write(self);
                 self.inside_expr = false;

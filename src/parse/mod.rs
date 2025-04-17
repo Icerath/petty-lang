@@ -291,8 +291,8 @@ fn parse_struct(stream: &mut Stream) -> Result<Expr> {
     Ok((ExprKind::Struct { ident, fields, span }).todo_span())
 }
 
-fn parse_let(stream: &mut Stream) -> Result<Expr> {
-    let ident = stream.expect_ident()?;
+fn parse_let(stream: &mut Stream, let_tok: Token) -> Result<Expr> {
+    let (ident, ident_span) = stream.ident_spanned()?;
     let tok = stream.any(&[TokenKind::Colon, TokenKind::Eq])?;
     let mut ty = None;
     if tok.kind == TokenKind::Colon {
@@ -300,7 +300,11 @@ fn parse_let(stream: &mut Stream) -> Result<Expr> {
         stream.expect(TokenKind::Eq)?;
     }
     let expr = stream.parse()?;
-    Ok((ExprKind::Let { ident, ty, expr }).todo_span())
+    let span = Span::new(
+        let_tok.span.start() as _..stream.lexer.current_pos() as _,
+        let_tok.span.source(),
+    );
+    Ok((ExprKind::Let { ident, ident_span, ty, expr }).with_span(span))
 }
 
 fn parse_while(stream: &mut Stream) -> Result<Expr> {
@@ -438,7 +442,7 @@ fn parse_atom_with(stream: &mut Stream, tok: Token) -> Result<ExprId> {
         TokenKind::Trait => Ok(ExprKind::Trait(stream.parse()?).todo_span()),
         TokenKind::Fn => Ok(ExprKind::FnDecl(stream.parse()?).todo_span()),
         TokenKind::Struct => parse_struct(stream),
-        TokenKind::Let => parse_let(stream),
+        TokenKind::Let => parse_let(stream, tok),
         TokenKind::While => parse_while(stream),
         TokenKind::For => parse_for(stream),
         TokenKind::If => parse_ifchain(stream),
