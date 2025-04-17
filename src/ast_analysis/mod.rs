@@ -368,6 +368,8 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
     }
 
     fn analyze_binary_expr(&mut self, lhs: ExprId, op: BinaryOp, rhs: ExprId) -> Result<Ty<'tcx>> {
+        use BinOpKind as B;
+
         let mut lhs_ty = self.analyze_expr(lhs)?;
         let mut rhs_ty = self.analyze_expr(rhs)?;
 
@@ -381,36 +383,19 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         }
 
         self.enforce_valid_binop(lhs_ty, op, rhs_ty)?;
+        self.subtype(rhs_ty, lhs_ty, rhs)?;
 
         Ok(match op.kind {
-            BinOpKind::Assign
-            | BinOpKind::AddAssign
-            | BinOpKind::SubAssign
-            | BinOpKind::MulAssign
-            | BinOpKind::DivAssign
-            | BinOpKind::ModAssign => {
-                self.subtype(rhs_ty, lhs_ty, rhs)?;
-                &TyKind::Unit
-            }
-            BinOpKind::Less
-            | BinOpKind::Greater
-            | BinOpKind::LessEq
-            | BinOpKind::GreaterEq
-            | BinOpKind::Eq
-            | BinOpKind::Neq => &TyKind::Bool,
-            BinOpKind::Range | BinOpKind::RangeInclusive => {
-                self.eq(lhs_ty, rhs_ty, rhs)?;
-
-                match op.kind {
-                    BinOpKind::Range => self.tcx.intern(TyKind::Range),
-                    BinOpKind::RangeInclusive => self.tcx.intern(TyKind::RangeInclusive),
-                    _ => unreachable!(),
-                }
-            }
-            BinOpKind::Add | BinOpKind::Sub | BinOpKind::Mul | BinOpKind::Div | BinOpKind::Mod => {
-                self.eq(lhs_ty, rhs_ty, rhs)?;
-                lhs_ty
-            }
+            B::Assign
+            | B::AddAssign
+            | B::SubAssign
+            | B::MulAssign
+            | B::DivAssign
+            | B::ModAssign => &TyKind::Unit,
+            B::Less | B::Greater | B::LessEq | B::GreaterEq | B::Eq | B::Neq => &TyKind::Bool,
+            B::Range => &TyKind::Range,
+            B::RangeInclusive => &TyKind::RangeInclusive,
+            B::Add | B::Sub | B::Mul | B::Div | B::Mod => lhs_ty,
         })
     }
 
