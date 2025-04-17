@@ -368,8 +368,21 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
     }
 
     fn analyze_binary_expr(&mut self, lhs: ExprId, op: BinaryOp, rhs: ExprId) -> Result<Ty<'tcx>> {
-        let lhs_ty = self.analyze_expr(lhs)?.fully_deref();
-        let rhs_ty = self.analyze_expr(rhs)?.fully_deref();
+        let mut lhs_ty = self.analyze_expr(lhs)?;
+        let mut rhs_ty = self.analyze_expr(rhs)?;
+
+        match op.kind {
+            BinOpKind::Assign => {}
+            BinOpKind::AddAssign
+            | BinOpKind::SubAssign
+            | BinOpKind::MulAssign
+            | BinOpKind::DivAssign
+            | BinOpKind::ModAssign => rhs_ty = rhs_ty.fully_deref(),
+            _ => {
+                lhs_ty = lhs_ty.fully_deref();
+                rhs_ty = rhs_ty.fully_deref();
+            }
+        }
 
         self.enforce_valid_binop(lhs_ty, op, rhs_ty)?;
 
