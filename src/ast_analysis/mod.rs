@@ -420,7 +420,6 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         }
 
         let lhs = self.tcx.infer_shallow(lhs);
-        let rhs = self.tcx.infer_shallow(rhs);
 
         let matches = match lhs {
             TyKind::Int => op.is_op_assign() | op.is_arithmetic() | op.is_compare() | op.is_range(),
