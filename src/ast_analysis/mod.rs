@@ -203,7 +203,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         if let Some(&ty) = self.bodies.iter().rev().find_map(|body| body.ty_names.get(&name)) {
             return Ok(ty);
         }
-        Err(self.unknown_type_err(span))
+        Err(self.unknown_type_err(name, span))
     }
 
     fn eq(&self, lhs: Ty<'tcx>, rhs: Ty<'tcx>, expr: ExprId) -> Result<()> {

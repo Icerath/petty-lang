@@ -65,12 +65,15 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
     }
     pub fn ident_not_found(&self, ident: Symbol, span: Span) -> Error {
         self.raw_error(
-            &format!("identifer '{ident}' not found"),
+            &format!("cannot find '{ident}' in this scope"),
             [(span, format!("'{ident}' not found"))],
         )
     }
-    pub fn unknown_type_err(&self, span: Span) -> Error {
-        self.raw_error("unknown type", [(span, "here")])
+    pub fn unknown_type_err(&self, name: Symbol, span: Span) -> Error {
+        self.raw_error(
+            &format!("cannot find type `{name}` in this scope"),
+            [(span, format!("type `{name}` not found"))],
+        )
     }
     #[cold]
     #[inline(never)]
