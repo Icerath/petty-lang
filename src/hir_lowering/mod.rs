@@ -342,7 +342,19 @@ impl Lowering<'_, '_> {
         }
     }
 
-    fn binary_op(&mut self, lhs: RValue, op: hir::BinaryOp, rhs: RValue, ty: Ty) -> RValue {
+    fn binary_op(
+        &mut self,
+        mut lhs: RValue,
+        op: hir::BinaryOp,
+        mut rhs: RValue,
+        mut ty: Ty,
+    ) -> RValue {
+        while let TyKind::Ref(of) = ty {
+            ty = of;
+            lhs = self.deref_operand(lhs).into();
+            rhs = self.deref_operand(rhs).into();
+        }
+
         let op = match (ty, op) {
             (TyKind::Int, op) => match op {
                 hir::BinaryOp::Add => mir::BinaryOp::IntAdd,
@@ -370,15 +382,6 @@ impl Lowering<'_, '_> {
                 hir::BinaryOp::Add => mir::BinaryOp::StrAdd,
                 _ => unreachable!("str - {op:?}"),
             },
-            (TyKind::Ref(of), op) => match op {
-                hir::BinaryOp::Eq => {
-                    let lhs = self.deref_operand(lhs);
-                    let rhs = self.deref_operand(rhs);
-                    return self.binary_op(lhs.into(), op, rhs.into(), of);
-                }
-                _ => unreachable!("ref {of:?} - {op:?}"),
-            },
-
             (ty, op) => unreachable!("{ty:?} - {op:?}"),
         };
         let lhs = self.process(lhs, ty);

@@ -368,8 +368,15 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
     }
 
     fn analyze_binary_expr(&mut self, lhs: ExprId, op: BinaryOp, rhs: ExprId) -> Result<Ty<'tcx>> {
-        let lhs_ty = self.analyze_expr(lhs)?;
-        let rhs_ty = self.analyze_expr(rhs)?;
+        let mut lhs_ty = self.analyze_expr(lhs)?;
+        let mut rhs_ty = self.analyze_expr(rhs)?;
+
+        while let (TyKind::Ref(lhs), TyKind::Ref(rhs)) = (lhs_ty, rhs_ty) {
+            // hir lowering will fully deref lhs and rhs.
+            // TODO: Should &T + T be allowed?
+            lhs_ty = lhs;
+            rhs_ty = rhs;
+        }
 
         self.enforce_valid_binop(lhs_ty, op, rhs_ty)?;
 
@@ -412,10 +419,6 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
 
         let lhs = self.tcx.infer_shallow(lhs);
         let rhs = self.tcx.infer_shallow(rhs);
-
-        if let (TyKind::Ref(lhs), TyKind::Ref(rhs)) = (lhs, rhs) {
-            return self.enforce_valid_binop(lhs, op, rhs);
-        }
 
         macro_rules! filter {
             ($([$ty:ident => $($op:ident)|+])+) => {
