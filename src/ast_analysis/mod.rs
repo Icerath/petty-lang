@@ -368,15 +368,8 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
     }
 
     fn analyze_binary_expr(&mut self, lhs: ExprId, op: BinaryOp, rhs: ExprId) -> Result<Ty<'tcx>> {
-        let mut lhs_ty = self.analyze_expr(lhs)?;
-        let mut rhs_ty = self.analyze_expr(rhs)?;
-
-        while let (TyKind::Ref(lhs), TyKind::Ref(rhs)) = (lhs_ty, rhs_ty) {
-            // hir lowering will fully deref lhs and rhs.
-            // TODO: Should &T + T be allowed?
-            lhs_ty = lhs;
-            rhs_ty = rhs;
-        }
+        let lhs_ty = self.analyze_expr(lhs)?.fully_deref();
+        let rhs_ty = self.analyze_expr(rhs)?.fully_deref();
 
         self.enforce_valid_binop(lhs_ty, op, rhs_ty)?;
 

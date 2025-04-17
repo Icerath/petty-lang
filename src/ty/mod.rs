@@ -210,3 +210,13 @@ impl<'tcx> TyCtxInner<'tcx> {
         }
     }
 }
+
+impl<'tcx> TyKind<'tcx> {
+    pub fn fully_deref(&'tcx self) -> Ty<'tcx> {
+        let mut ty = self;
+        while let TyKind::Ref(of) = ty {
+            ty = of;
+        }
+        ty
+    }
+}

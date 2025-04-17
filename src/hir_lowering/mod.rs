@@ -299,12 +299,7 @@ impl Lowering<'_, '_> {
                 self.assign(place, rvalue);
                 RValue::Use(Operand::Constant(Constant::Unit))
             }
-            ExprKind::Binary { lhs, op, rhs } => {
-                let ty = self.hir.exprs[lhs].ty;
-                let lhs = self.lower_rvalue(lhs);
-                let rhs = self.lower_rvalue(rhs);
-                self.binary_op(lhs, op, rhs, ty)
-            }
+            ExprKind::Binary { lhs, op, rhs } => self.binary_op(lhs, op, rhs),
             ExprKind::Ident(ident) => match self.load_ident(ident) {
                 RValue::Use(operand) => RValue::Use(operand),
                 rvalue => rvalue,
@@ -342,20 +337,23 @@ impl Lowering<'_, '_> {
         }
     }
 
-    fn binary_op(
-        &mut self,
-        mut lhs: RValue,
-        op: hir::BinaryOp,
-        mut rhs: RValue,
-        mut ty: Ty,
-    ) -> RValue {
-        while let TyKind::Ref(of) = ty {
-            ty = of;
+    fn binary_op(&mut self, lhs: ExprId, op: hir::BinaryOp, rhs: ExprId) -> RValue {
+        let mut lhs_ty = self.hir.exprs[lhs].ty;
+        let mut rhs_ty = self.hir.exprs[rhs].ty;
+        let mut lhs = self.lower_rvalue(lhs);
+        let mut rhs = self.lower_rvalue(rhs);
+
+        while let TyKind::Ref(of) = lhs_ty {
+            lhs_ty = of;
             lhs = self.deref_operand(lhs).into();
+        }
+
+        while let TyKind::Ref(of) = rhs_ty {
+            rhs_ty = of;
             rhs = self.deref_operand(rhs).into();
         }
 
-        let op = match (ty, op) {
+        let op = match (lhs_ty, op) {
             (TyKind::Int, op) => match op {
                 hir::BinaryOp::Add => mir::BinaryOp::IntAdd,
                 hir::BinaryOp::Sub => mir::BinaryOp::IntSub,
@@ -384,8 +382,8 @@ impl Lowering<'_, '_> {
             },
             (ty, op) => unreachable!("{ty:?} - {op:?}"),
         };
-        let lhs = self.process(lhs, ty);
-        let rhs = self.process(rhs, ty);
+        let lhs = self.process(lhs, lhs_ty);
+        let rhs = self.process(rhs, rhs_ty);
         RValue::BinaryExpr { lhs, op, rhs }
     }
 
