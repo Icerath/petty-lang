@@ -1,6 +1,6 @@
 mod display;
 
-use std::fmt;
+use std::{fmt, ops::Deref};
 
 use index_vec::IndexVec;
 use thin_vec::ThinVec;
@@ -227,5 +227,36 @@ impl BinOpKind {
             Self::SubAssign => "-=",
             Self::Assign => "=",
         }
+    }
+}
+
+impl BinOpKind {
+    pub fn is_op_assign(self) -> bool {
+        matches!(
+            self,
+            Self::AddAssign | Self::SubAssign | Self::MulAssign | Self::DivAssign | Self::ModAssign
+        )
+    }
+    pub fn is_arithmetic(self) -> bool {
+        matches!(self, Self::Add | Self::Sub | Self::Mul | Self::Div | Self::Mod)
+    }
+    pub fn is_compare(self) -> bool {
+        matches!(self, Self::Less | Self::Greater | Self::LessEq | Self::GreaterEq) || self.is_eq()
+    }
+    pub fn is_eq(self) -> bool {
+        matches!(self, Self::Eq | Self::Neq)
+    }
+    pub fn is_range(self) -> bool {
+        matches!(self, Self::Range | Self::RangeInclusive)
+    }
+    pub fn is_add(self) -> bool {
+        matches!(self, Self::Add | Self::AddAssign)
+    }
+}
+
+impl Deref for BinaryOp {
+    type Target = BinOpKind;
+    fn deref(&self) -> &Self::Target {
+        &self.kind
     }
 }

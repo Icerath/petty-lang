@@ -373,11 +373,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
 
         match op.kind {
             BinOpKind::Assign => {}
-            BinOpKind::AddAssign
-            | BinOpKind::SubAssign
-            | BinOpKind::MulAssign
-            | BinOpKind::DivAssign
-            | BinOpKind::ModAssign => rhs_ty = rhs_ty.fully_deref(),
+            kind if kind.is_op_assign() => rhs_ty = rhs_ty.fully_deref(),
             _ => {
                 lhs_ty = lhs_ty.fully_deref();
                 rhs_ty = rhs_ty.fully_deref();
@@ -426,21 +422,13 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         let lhs = self.tcx.infer_shallow(lhs);
         let rhs = self.tcx.infer_shallow(rhs);
 
-        macro_rules! filter {
-            ($([$ty:ident => $($op:ident)|+])+) => {
-                $((matches!(lhs, TyKind::$ty) && matches!(op.kind, $(BinOpKind::$op)|+))) || +
-            };
-        }
-
-        let matches = filter! {
-            [Int => Add | Sub | Mul | Div | Mod | AddAssign | SubAssign | MulAssign | DivAssign | ModAssign
-                | Eq | Neq | Less | LessEq | Greater | GreaterEq | Range | RangeInclusive
-            ]
-            [Str => Add | AddAssign | Less | Greater | LessEq | GreaterEq | Eq | Neq]
-            [Bool => Eq | Neq]
-            [Char => Eq | Neq]
-            [Unit => Eq | Neq]
+        let matches = match lhs {
+            TyKind::Int => op.is_op_assign() | op.is_arithmetic() | op.is_compare() | op.is_range(),
+            TyKind::Str => op.is_compare() | op.is_add(),
+            TyKind::Bool | TyKind::Char | TyKind::Unit => op.is_eq(),
+            _ => false,
         };
+
         if matches { Ok(()) } else { Err(self.binop_err(op, lhs, rhs)) }
     }
 
