@@ -14,7 +14,7 @@ pub fn optimize(mir: &mut Mir, body_id: BodyId) {
         for statement in &block.statements {
             let Statement::Assign { place, rvalue } = statement;
             rvalue.with_locals(&mut incr);
-            place.projections.iter().for_each(|proj| proj.with_locals(&mut incr));
+            place.with_locals(&mut incr);
         }
         block.terminator.with_locals(incr);
     }
@@ -22,7 +22,7 @@ pub fn optimize(mir: &mut Mir, body_id: BodyId) {
     for block in blocks_mut(body) {
         block.statements.retain(|statement| {
             let Statement::Assign { place, rvalue } = statement;
-            if access_counts[place.local] > 0
+            if access_counts[place.local] > 1
                 || rvalue.side_effect()
                 || !place.projections.is_empty()
             {
