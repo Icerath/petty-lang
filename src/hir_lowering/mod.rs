@@ -433,7 +433,7 @@ impl Lowering<'_, '_> {
     }
 
     fn read_ident(&self, ident: Symbol) -> Local {
-        self.current().scopes.last().unwrap().variables[&ident]
+        *self.current().scopes.iter().rev().find_map(|scope| scope.variables.get(&ident)).unwrap()
     }
 
     fn lower_place(&mut self, expr: hir::ExprId) -> Place {
