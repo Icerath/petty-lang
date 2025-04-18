@@ -470,9 +470,9 @@ fn parse_atom_with(stream: &mut Stream, tok: Token) -> Result<ExprId> {
     Ok(stream.ast.exprs.push(expr?))
 }
 
-fn parse_string(stream: &mut Stream, span: Span) -> Result<Expr> {
+fn parse_string(stream: &mut Stream, outer_span: Span) -> Result<Expr> {
     // FIXME: Bring a cross.
-    let span = span.shrink(1); // remove double quotes.
+    let span = outer_span.shrink(1); // remove double quotes.
     let raw = &stream.lexer.src()[span];
     let lexer_offset = stream.lexer.offset();
     stream.lexer.set_offset(span.start() as usize);
@@ -514,7 +514,7 @@ fn parse_string(stream: &mut Stream, span: Span) -> Result<Expr> {
     }
     if segments.is_empty() {
         stream.lexer.set_offset(lexer_offset);
-        return Ok(ExprKind::Lit(Lit::Str(current.into())).with_span(span));
+        return Ok(ExprKind::Lit(Lit::Str(current.into())).with_span(outer_span));
     }
     if !current.is_empty() {
         let current_span = Span::from(current_start..(current_start + raw.len()));
@@ -522,5 +522,5 @@ fn parse_string(stream: &mut Stream, span: Span) -> Result<Expr> {
         segments.push(stream.ast.exprs.push(expr));
     }
     stream.lexer.set_offset(lexer_offset);
-    Ok(ExprKind::Lit(Lit::FStr(segments)).with_span(span))
+    Ok(ExprKind::Lit(Lit::FStr(segments)).with_span(outer_span))
 }
