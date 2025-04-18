@@ -27,13 +27,24 @@ pub struct TyInfo<'tcx> {
 #[derive(Debug)]
 struct Body<'tcx> {
     ty_names: HashMap<Symbol, Ty<'tcx>>,
-    variables: HashMap<Symbol, Ty<'tcx>>,
     ret: Ty<'tcx>,
+    scopes: Vec<Scope<'tcx>>,
+}
+
+impl<'tcx> Body<'tcx> {
+    pub fn scope(&mut self) -> &mut Scope<'tcx> {
+        self.scopes.last_mut().unwrap()
+    }
+}
+
+#[derive(Debug, Default)]
+struct Scope<'tcx> {
+    variables: HashMap<Symbol, Ty<'tcx>>,
 }
 
 impl<'tcx> Body<'tcx> {
     pub fn new(ret: Ty<'tcx>) -> Self {
-        Self { ty_names: HashMap::default(), variables: HashMap::default(), ret }
+        Self { ty_names: HashMap::default(), ret, scopes: vec![Scope::default()] }
     }
 }
 
@@ -109,7 +120,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
             self.current().ty_names.insert(*ident, struct_ty);
             self.ty_info.struct_types.insert(*span, struct_ty);
 
-            body.variables.insert(
+            body.scope().variables.insert(
                 *ident,
                 self.tcx.intern(TyKind::Function(Function { params, ret: struct_ty })),
             );
@@ -130,7 +141,8 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 .iter()
                 .map(|param| self.read_ast_ty_with(param.ty, generics))
                 .collect::<Result<_>>()?;
-            body.variables
+            body.scope()
+                .variables
                 .insert(*ident, self.tcx.intern(TyKind::Function(Function { params, ret })));
         }
         self.bodies.push(body);
@@ -148,10 +160,12 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
     }
 
     fn analyze_block_inner(&mut self, block: &Block) -> Result<Ty<'tcx>> {
+        self.current().scopes.push(Scope::default());
         let mut ty = None;
         for &id in &block.stmts {
             ty = Some(self.analyze_expr(id)?);
         }
+        self.current().scopes.pop().unwrap();
         Ok(if block.is_expr {
             ty.unwrap_or(&TyKind::Unit)
         } else if ty.is_some_and(TyKind::is_never) {
@@ -289,7 +303,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 } else {
                     expr_ty
                 };
-                let prev = self.current().variables.insert(ident, ty);
+                let prev = self.current().scope().variables.insert(ident, ty);
                 if prev.is_some() {
                     return Err(self.shadow_error(ident, ident_span));
                 }
@@ -299,7 +313,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 // for now only allow ranges
                 let iter_ty = self.analyze_expr(iter)?;
                 self.subtype(iter_ty, &TyKind::Range, iter)?;
-                self.current().variables.insert(ident, &TyKind::Int);
+                self.current().scope().variables.insert(ident, &TyKind::Int);
                 let out = self.analyze_block(body)?;
                 self.subtype_block(out, &TyKind::Unit, body)?;
                 &TyKind::Unit
@@ -442,13 +456,15 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         _ = generics;
         _ = ret;
         let block_id = block.unwrap();
-        let fn_ty = self.current().variables[&ident];
+        let fn_ty = self
+            .read_ident(ident, Span::ZERO)
+            .expect("fndecl ident should have been inserted already");
         let TyKind::Function(Function { params: param_tys, ret, .. }) = fn_ty else {
             unreachable!()
         };
         let mut body = Body::new(ret);
         for (param, ty) in std::iter::zip(params, param_tys) {
-            body.variables.insert(param.ident, *ty);
+            body.scope().variables.insert(param.ident, *ty);
         }
         let block = &self.ast.blocks[block_id];
         let body_ret = self.analyze_body_with(block, body)?.0;
@@ -478,8 +494,13 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
     }
 
     fn read_ident(&self, ident: Symbol, span: Span) -> Result<Ty<'tcx>> {
-        (self.bodies.iter().rev().find_map(|body| body.variables.get(&ident)).copied())
-            .ok_or_else(|| self.ident_not_found(ident, span))
+        (self
+            .bodies
+            .iter()
+            .rev()
+            .find_map(|body| body.scopes.iter().rev().find_map(|scope| scope.variables.get(&ident)))
+            .copied())
+        .ok_or_else(|| self.ident_not_found(ident, span))
     }
 
     fn analyze_lit(&mut self, lit: &Lit) -> Result<Ty<'tcx>> {

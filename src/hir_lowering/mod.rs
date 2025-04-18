@@ -39,9 +39,20 @@ struct Lowering<'hir, 'tcx> {
 struct BodyInfo {
     body: BodyId,
     functions: HashMap<Symbol, BodyId>,
-    variables: HashMap<Symbol, Local>,
     stmts: Vec<Statement>,
     breaks: Vec<BlockId>,
+    scopes: Vec<Scope>,
+}
+
+impl BodyInfo {
+    pub fn scope(&mut self) -> &mut Scope {
+        self.scopes.last_mut().unwrap()
+    }
+}
+
+#[derive(Debug, Default)]
+struct Scope {
+    variables: HashMap<Symbol, Local>,
 }
 
 impl BodyInfo {
@@ -49,7 +60,7 @@ impl BodyInfo {
         Self {
             body,
             functions: HashMap::default(),
-            variables: HashMap::default(),
+            scopes: vec![Scope::default()],
             stmts: vec![],
             breaks: vec![],
         }
@@ -58,16 +69,21 @@ impl BodyInfo {
 
 impl Lowering<'_, '_> {
     fn body_ref(&self) -> &Body {
-        &self.mir.bodies[self.bodies.last().unwrap().body]
+        &self.mir.bodies[self.current().body]
     }
     fn body_mut(&mut self) -> &mut Body {
-        &mut self.mir.bodies[self.bodies.last().unwrap().body]
+        let body = self.current().body;
+        &mut self.mir.bodies[body]
     }
-    fn current(&mut self) -> &mut BodyInfo {
+
+    fn current(&self) -> &BodyInfo {
+        self.bodies.last().unwrap()
+    }
+    fn current_mut(&mut self) -> &mut BodyInfo {
         self.bodies.last_mut().unwrap()
     }
     fn finish_with(&mut self, terminator: Terminator) -> BlockId {
-        let prev_block = Block { statements: mem::take(&mut self.current().stmts), terminator };
+        let prev_block = Block { statements: mem::take(&mut self.current_mut().stmts), terminator };
         self.body_mut().blocks.push(prev_block)
     }
     // returns the next block's id
@@ -131,7 +147,7 @@ impl Lowering<'_, '_> {
     fn assign(&mut self, place: impl Into<Place>, rvalue: impl Into<RValue>) {
         let rvalue = rvalue.into();
         let place = place.into();
-        self.current().stmts.push(Statement::Assign { place, rvalue });
+        self.current_mut().stmts.push(Statement::Assign { place, rvalue });
     }
 
     #[must_use]
@@ -163,7 +179,7 @@ impl Lowering<'_, '_> {
                 }))
             }
             ExprKind::StructInit => {
-                let body = self.current().body;
+                let body = self.current_mut().body;
                 let nparams = self.mir.bodies[body].params;
                 let local =
                     self.assign_new(Constant::UninitStruct { size: nparams.try_into().unwrap() });
@@ -196,20 +212,20 @@ impl Lowering<'_, '_> {
             ExprKind::FnDecl(ref decl) => {
                 let hir::FnDecl { ident, ref params, ref body, .. } = **decl;
 
-                assert!(self.current().stmts.is_empty(), "TODO");
+                assert!(self.current_mut().stmts.is_empty(), "TODO");
                 let body_id = self.mir.bodies.push(Body::new(Some(ident), params.len()));
-                self.current().functions.insert(ident, body_id);
+                self.current_mut().functions.insert(ident, body_id);
                 self.bodies.push(BodyInfo::new(body_id));
                 if self.bodies.len() == 2 && ident == "main" {
                     self.mir.main_body = Some(body_id);
                 }
 
                 if self.bodies.len() == 2 && self.try_instrinsic(ident) {
-                    let current = self.current().body;
+                    let current = self.current_mut().body;
                     self.mir.bodies[current].auto = true;
                 } else {
                     for (i, param) in params.iter().enumerate() {
-                        self.current().variables.insert(param.ident, Local::from(i));
+                        self.current_mut().scope().variables.insert(param.ident, Local::from(i));
                     }
                     let mut last = Operand::UNIT;
                     for &expr in body {
@@ -223,7 +239,7 @@ impl Lowering<'_, '_> {
             ExprKind::Let { ident, expr } => {
                 let rvalue = self.lower_rvalue(expr);
                 let local = self.assign_new(rvalue);
-                self.current().variables.insert(ident, local);
+                self.current_mut().scope().variables.insert(ident, local);
                 RValue::Use(Operand::UNIT)
             }
             ExprKind::Return(expr) => {
@@ -234,13 +250,13 @@ impl Lowering<'_, '_> {
             ExprKind::Loop(ref block) => {
                 let loop_block = self.finish_next();
 
-                let prev_loop = mem::take(&mut self.current().breaks);
+                let prev_loop = mem::take(&mut self.current_mut().breaks);
                 for &expr in block {
                     self.lower(expr);
                 }
                 let after_loop = self.finish_with(Terminator::Goto(loop_block)) + 1;
 
-                let breaks = mem::replace(&mut self.current().breaks, prev_loop);
+                let breaks = mem::replace(&mut self.current_mut().breaks, prev_loop);
 
                 for block in breaks {
                     match &mut self.body_mut().blocks[block].terminator {
@@ -314,7 +330,7 @@ impl Lowering<'_, '_> {
             }
             ExprKind::Break => {
                 let block = self.finish_with(Terminator::Goto(BlockId::PLACEHOLDER));
-                self.current().breaks.push(block);
+                self.current_mut().breaks.push(block);
                 RValue::UNIT
             }
             ExprKind::Index { expr, index } => {
@@ -416,6 +432,10 @@ impl Lowering<'_, '_> {
         }
     }
 
+    fn read_ident(&self, ident: Symbol) -> Local {
+        self.current().scopes.last().unwrap().variables[&ident]
+    }
+
     fn lower_place(&mut self, expr: hir::ExprId) -> Place {
         let mut projections = vec![];
         let local = self.lower_place_inner(expr, &mut projections);
@@ -424,7 +444,7 @@ impl Lowering<'_, '_> {
 
     fn lower_place_inner(&mut self, expr: hir::ExprId, proj: &mut Vec<Projection>) -> Local {
         match self.hir.exprs[expr].kind {
-            ExprKind::Ident(ident) => self.current().variables[&ident],
+            ExprKind::Ident(ident) => self.read_ident(ident),
             ExprKind::Index { expr, index } => {
                 let index_local = self.lower_local(index);
                 let local = self.lower_place_inner(expr, proj);
@@ -464,6 +484,7 @@ impl Lowering<'_, '_> {
     }
 
     fn block_expr(&mut self, exprs: &[ExprId]) -> RValue {
+        self.current_mut().scopes.push(Scope::default());
         let mut rvalue = None;
         for (i, &expr) in exprs.iter().enumerate() {
             if i == exprs.len() - 1 {
@@ -472,11 +493,14 @@ impl Lowering<'_, '_> {
                 self.lower(expr);
             }
         }
+        self.current_mut().scopes.pop().unwrap();
         rvalue.unwrap_or(RValue::Use(Operand::UNIT))
     }
 
     fn load_ident(&self, ident: Symbol) -> RValue {
-        if let Some(place) = self.bodies.last().unwrap().variables.get(&ident) {
+        if let Some(place) =
+            self.current().scopes.iter().rev().find_map(|scope| scope.variables.get(&ident))
+        {
             return RValue::Use(Operand::local(*place));
         }
         let Some(location) = self.bodies.iter().rev().find_map(|body| body.functions.get(&ident))

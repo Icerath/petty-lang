@@ -30,6 +30,7 @@ test! { strings }
 test! { format }
 test! { recursion }
 test! { refs }
+test! { variables }
 
 test! { "expected `!`, found `int`" fail_never }
 test! { "expected `int`, found `str`" fail_variables }

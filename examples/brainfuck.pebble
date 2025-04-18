@@ -40,13 +40,13 @@ fn main() {
             }
         } else if instr == ']' {
             if cells[data_ptr] != 0 {
-                let depth_ = 1;
-                while depth_ > 0 {
+                let depth = 1;
+                while depth > 0 {
                     instruction_ptr -= 1;
                     if input[instruction_ptr] == ']' {
-                        depth_ += 1
+                        depth += 1
                     } else if input[instruction_ptr] == '[' {
-                        depth_ -= 1;
+                        depth -= 1;
                     }
                 }
             }
