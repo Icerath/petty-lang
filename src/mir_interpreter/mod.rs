@@ -77,13 +77,20 @@ impl Interpreter<'_> {
     #[allow(clippy::too_many_lines)]
     fn rvalue(&mut self, rvalue: &RValue, locals: &Places) -> Value {
         match rvalue {
-            RValue::Use(operand) => self.operand(operand, locals),
-            RValue::Extend { array, value, repeat } => {
-                let value = self.operand(value, locals);
-                let repeat: usize = self.operand(repeat, locals).unwrap_int().try_into().unwrap();
-                locals[*array].borrow().unwrap_array().extend(value, repeat);
-                Value::Unit
+            RValue::BuildArray(segments) => {
+                let array = Array::default();
+                for (elem, repeat) in segments {
+                    let elem = self.operand(elem, locals);
+                    let repeat = if let Some(repeat) = repeat {
+                        self.operand(repeat, locals).unwrap_int_usize()
+                    } else {
+                        1
+                    };
+                    array.extend(elem, repeat);
+                }
+                Value::Array(array)
             }
+            RValue::Use(operand) => self.operand(operand, locals),
             RValue::Call { function, args } => {
                 let call_body = self.operand(function, locals).unwrap_fn();
                 let args = args.iter().map(|arg| self.operand(arg, locals)).collect();

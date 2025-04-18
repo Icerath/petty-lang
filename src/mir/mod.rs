@@ -132,11 +132,11 @@ pub enum Statement {
 #[must_use]
 #[derive(Debug, Hash, Clone)]
 pub enum RValue {
-    Extend { array: Local, value: Operand, repeat: Operand },
     Use(Operand),
     BinaryExpr { lhs: Operand, op: BinaryOp, rhs: Operand },
     UnaryExpr { op: UnaryOp, operand: Operand },
     Call { function: Operand, args: ThinVec<Operand> },
+    BuildArray(Vec<(Operand, Option<Operand>)>),
 }
 
 impl RValue {
@@ -148,10 +148,10 @@ impl RValue {
 
     pub fn side_effect(&self) -> bool {
         match self {
-            Self::Use(..) => false,
+            Self::BuildArray(..) | Self::Use(..) => false,
             Self::BinaryExpr { op, .. } => op.side_effect(),
             Self::UnaryExpr { op, .. } => op.side_effect(),
-            Self::Call { .. } | Self::Extend { .. } => true,
+            Self::Call { .. } => true,
         }
     }
 }
@@ -276,21 +276,23 @@ impl RValue {
                 function.mentions_place(place) || args.iter().any(|arg| arg.mentions_place(place))
             }
             Self::Use(operand) | Self::UnaryExpr { operand, .. } => operand.mentions_place(place),
-            Self::Extend { array, value, repeat } => {
-                *array == place.local || value.mentions_place(place) || repeat.mentions_place(place)
-            }
+            Self::BuildArray(segments) => segments.iter().any(|(elem, repeat)| {
+                elem.mentions_place(place)
+                    || repeat.as_ref().is_some_and(|repeat| repeat.mentions_place(place))
+            }),
         }
     }
     // could this rvalue potentially mutate local
     pub fn mutates_local(&self, local: Local) -> bool {
         match self {
+            Self::BuildArray(segments) => segments.iter().any(|(elem, repeat)| {
+                elem.mutates_local(local)
+                    || repeat.as_ref().is_some_and(|repeat| repeat.mutates_local(local))
+            }),
             Self::BinaryExpr { lhs, rhs, .. } => {
                 lhs.mutates_local(local) || rhs.mutates_local(local)
             }
             Self::UnaryExpr { operand, .. } | Self::Use(operand) => operand.mutates_local(local),
-            Self::Extend { array, value, repeat } => {
-                *array == local || value.mutates_local(local) || repeat.mutates_local(local)
-            }
             Self::Call { function, args } => {
                 function.mutates_local(local) || args.iter().any(|arg| arg.mutates_local(local))
             }
@@ -299,11 +301,15 @@ impl RValue {
 
     pub fn with_operands_mut(&mut self, f: &mut impl FnMut(&mut Operand)) {
         match self {
-            Self::UnaryExpr { operand, .. } | Self::Use(operand) => f(operand),
-            Self::Extend { value, repeat, .. } => {
-                f(value);
-                f(repeat);
+            Self::BuildArray(arr) => {
+                for (elem, repeat) in arr {
+                    f(elem);
+                    if let Some(repeat) = repeat {
+                        f(repeat);
+                    }
+                }
             }
+            Self::UnaryExpr { operand, .. } | Self::Use(operand) => f(operand),
             Self::BinaryExpr { lhs, rhs, .. } => {
                 f(lhs);
                 f(rhs);

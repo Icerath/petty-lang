@@ -22,6 +22,22 @@ impl fmt::Display for Mir {
                         Statement::Assign { place, rvalue } => {
                             write!(f, "{place} = ")?;
                             match rvalue {
+                                RValue::BuildArray(segments) => {
+                                    let mut debug_list = f.debug_list();
+                                    for (expr, repeat) in segments {
+                                        if let Some(repeat) = repeat {
+                                            debug_list.entry(&format_args!(
+                                                "{}; {}",
+                                                expr.display(self),
+                                                repeat.display(self)
+                                            ));
+                                        } else {
+                                            debug_list
+                                                .entry(&format_args!("{}", expr.display(self)));
+                                        }
+                                    }
+                                    debug_list.finish()
+                                }
                                 RValue::BinaryExpr { lhs, op, rhs } => {
                                     write!(
                                         f,
@@ -39,14 +55,6 @@ impl fmt::Display for Mir {
                                         write!(f, "{sep}{}", arg.display(self))?;
                                     }
                                     write!(f, ")")
-                                }
-                                RValue::Extend { array, value, repeat } => {
-                                    write!(
-                                        f,
-                                        "extend var {array:?}[{}; {}]",
-                                        value.display(self),
-                                        repeat.display(self)
-                                    )
                                 }
                                 RValue::UnaryExpr { op, operand } => {
                                     write!(f, "{op:?}({})", operand.display(self))

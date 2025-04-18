@@ -36,10 +36,13 @@ impl RValue {
                 function.with_locals(copy!(f));
                 args.iter().for_each(|arg| arg.with_locals(copy!(f)));
             }
-            Self::Extend { array, value, repeat } => {
-                f(*array);
-                value.with_locals(copy!(f));
-                repeat.with_locals(f);
+            Self::BuildArray(segments) => {
+                for (elem, repeat) in segments {
+                    elem.with_locals(copy!(f));
+                    if let Some(repeat) = repeat {
+                        repeat.with_locals(copy!(f));
+                    }
+                }
             }
             Self::UnaryExpr { operand, .. } | Self::Use(operand) => operand.with_locals(f),
         }
@@ -54,10 +57,13 @@ impl RValue {
                 function.with_locals_mut(copy!(f));
                 args.iter_mut().for_each(|arg| arg.with_locals_mut(copy!(f)));
             }
-            Self::Extend { array, value, repeat } => {
-                f(array);
-                value.with_locals_mut(copy!(f));
-                repeat.with_locals_mut(f);
+            Self::BuildArray(segments) => {
+                for (elem, repeat) in segments {
+                    elem.with_locals_mut(copy!(f));
+                    if let Some(repeat) = repeat {
+                        repeat.with_locals_mut(copy!(f));
+                    }
+                }
             }
             Self::UnaryExpr { operand, .. } | Self::Use(operand) => operand.with_locals_mut(f),
         }

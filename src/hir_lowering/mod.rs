@@ -526,31 +526,14 @@ impl Lowering<'_, '_> {
         if segments.is_empty() {
             return RValue::Use(Operand::Constant(Constant::EmptyArray { cap: 0 }));
         }
-        let throwaway = self.new_local();
 
-        let cap = {
-            segments
-                .iter()
-                .map(|seg| match seg.repeated {
-                    None => 1,
-                    Some(expr) => match self.hir.exprs[expr].kind {
-                        ExprKind::Literal(Lit::Int(int)) => int.try_into().unwrap(),
-                        _ => 1,
-                    },
-                })
-                .sum()
-        };
-
-        let array = self.assign_new(Constant::EmptyArray { cap });
-        for seg in segments {
-            let value = self.lower(seg.expr);
-            let repeat = match seg.repeated {
-                Some(repeated) => self.lower(repeated),
-                None => Operand::Constant(Constant::Int(1)),
-            };
-            self.assign(throwaway, RValue::Extend { array, value, repeat });
+        let mut mir_segments = Vec::with_capacity(segments.len());
+        for hir::ArraySeg { expr, repeated } in segments {
+            let elem = self.lower(*expr);
+            let repeated = repeated.map(|repeat| self.lower(repeat));
+            mir_segments.push((elem, repeated));
         }
-        RValue::local(array)
+        RValue::BuildArray(mir_segments)
     }
 
     fn lower_fstrings(&mut self, segments: &[ExprId]) -> RValue {
