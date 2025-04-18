@@ -7,21 +7,23 @@ use std::{
 use miette::IntoDiagnostic;
 
 use crate::{
-    Args, ast_analysis, ast_lowering, hir_lowering, mir_interpreter, mir_optimizations,
+    Args, ast_analysis, ast_lowering,
+    cli::Command,
+    hir_lowering, mir_interpreter, mir_optimizations,
     parse::parse,
     ty::{TyCtx, TyInterner},
 };
 
 #[cfg(test)]
 pub fn compile_test(path: impl Into<std::path::PathBuf>) -> miette::Result<()> {
+    use crate::cli::Command;
+
     let path = path.into();
     let mut args = Args {
-        command: crate::Command::Run,
+        command: Command::Run,
         path: path.clone(),
         verbose: 0,
-        no_default_optimizations: false,
-        dump: false,
-        target: "target".into(),
+        dump: None,
         codegen: crate::CodegenOpts::all(true),
     };
     compile(&args)?;
@@ -31,16 +33,15 @@ pub fn compile_test(path: impl Into<std::path::PathBuf>) -> miette::Result<()> {
 
 pub fn compile(args: &Args) -> miette::Result<()> {
     let src = fs::read_to_string(&args.path).into_diagnostic()?;
-    if args.dump {
-        create_new_dir(&args.target).into_diagnostic()?;
+    if let Some(target) = &args.dump {
+        create_new_dir(target).into_diagnostic()?;
     }
     macro_rules! dump {
         ($name:ident, $what:ident) => {
-            if args.dump {
+            if let Some(target) = &args.dump {
                 let filename = concat!("dump-", stringify!($name), ".txt");
                 let content = $what.to_string();
-                let path: PathBuf =
-                    [args.target.as_path(), filename.as_ref()].into_iter().collect();
+                let path: PathBuf = [target.as_path(), filename.as_ref()].into_iter().collect();
                 fs::write(path, content).into_diagnostic()?;
             }
         };
@@ -69,7 +70,7 @@ pub fn compile(args: &Args) -> miette::Result<()> {
     if args.verbose > 0 {
         crate::log!("compile time: {:?}", start.elapsed());
     }
-    if args.command == crate::Command::Run {
+    if args.command == Command::Run {
         if args.verbose > 0 {
             crate::log!();
         }

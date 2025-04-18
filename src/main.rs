@@ -1,13 +1,10 @@
-use std::path::PathBuf;
-
-use clap::Parser;
-
 #[cfg(test)]
 mod tests;
 
 mod ast;
 mod ast_analysis;
 mod ast_lowering;
+mod cli;
 mod codegen_opts;
 mod compile;
 mod errors;
@@ -22,42 +19,21 @@ mod source;
 mod symbol;
 mod ty;
 
+pub use cli::Args;
 pub use codegen_opts::CodegenOpts;
 use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
 use source::span;
 
 const STD: &str = concat!(include_str!("std.pebble"), "\n\n");
 
-#[derive(Parser)]
-struct Args {
-    command: Command,
-    path: PathBuf,
-    #[arg(short, long, action = clap::ArgAction::Count)]
-    verbose: u8,
-    #[arg(long, help = "Turns off all optimizations unless overriden")]
-    no_default_optimizations: bool,
-    #[arg(long, default_value = "true", help = "Dumps the ast/hir/mir to the target directory ")]
-    dump: bool,
-    #[arg(long, default_value = "target", help = "The target directory")]
-    target: PathBuf,
-    #[command(flatten)]
-    codegen: CodegenOpts,
-}
-
-#[derive(clap::ValueEnum, Clone, PartialEq, Eq, PartialOrd, Ord)]
-enum Command {
-    #[value(alias = "b")]
-    Build,
-    #[value(alias = "r")]
-    Run,
-}
-
 fn main() {
     let args = Args::parse();
     match compile::compile(&args) {
         Ok(()) => {
-            if args.verbose > 0 {
-                log!("mir dumped to {}/dump-mir.txt", args.target.display());
+            if let Some(target) = args.dump {
+                if args.verbose > 0 {
+                    log!("mir dumped to {}/dump-mir.txt", target.display());
+                }
             }
         }
         Err(err) => eprintln!("{err:?}"),
