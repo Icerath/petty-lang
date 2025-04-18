@@ -39,6 +39,12 @@ pub fn try_compute(rvalue: &RValue) -> Option<Operand> {
             }
             Some(Operand::Constant(Constant::Str(fstring.into())))
         }
+        RValue::BuildArray(segments) => {
+            for (_, repeat) in segments {
+                let Value::Int(0) = value_of(repeat.as_ref()?)? else { return None };
+            }
+            Some(Operand::Constant(Constant::EmptyArray { cap: 0 }))
+        }
         _ => None,
     }
 }
