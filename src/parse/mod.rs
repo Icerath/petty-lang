@@ -292,7 +292,7 @@ fn parse_struct(stream: &mut Stream) -> Result<Expr> {
 }
 
 fn parse_let(stream: &mut Stream, let_tok: Token) -> Result<Expr> {
-    let (ident, ident_span) = stream.ident_spanned()?;
+    let ident = stream.expect_ident()?;
     let tok = stream.any(&[TokenKind::Colon, TokenKind::Eq])?;
     let mut ty = None;
     if tok.kind == TokenKind::Colon {
@@ -304,7 +304,7 @@ fn parse_let(stream: &mut Stream, let_tok: Token) -> Result<Expr> {
         let_tok.span.start() as _..stream.lexer.current_pos() as _,
         let_tok.span.source(),
     );
-    Ok((ExprKind::Let { ident, ident_span, ty, expr }).with_span(span))
+    Ok((ExprKind::Let { ident, ty, expr }).with_span(span))
 }
 
 fn parse_while(stream: &mut Stream) -> Result<Expr> {

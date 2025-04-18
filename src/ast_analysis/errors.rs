@@ -9,13 +9,6 @@ use crate::{
 };
 
 impl<'tcx> Collector<'_, '_, 'tcx> {
-    pub fn shadow_error(&self, ident: Symbol, span: Span) -> Error {
-        self.raw_error(
-            &format!("variable `{ident}` is already declared"),
-            [(span, format!("`{ident}` is already declared"))],
-        )
-    }
-
     pub fn binop_err(&self, op: BinaryOp, lhs: Ty, rhs: Ty) -> Error {
         let op_name = op.kind.name();
         let msg = if lhs == rhs {

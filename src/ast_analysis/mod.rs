@@ -294,7 +294,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
             }
             ExprKind::FnDecl(ref decl) => self.analyze_fndecl(decl)?,
             ExprKind::Struct { .. } => &TyKind::Unit,
-            ExprKind::Let { ident, ident_span, ty, expr } => {
+            ExprKind::Let { ident, ty, expr } => {
                 let expr_ty = self.analyze_expr(expr)?;
                 let ty = if let Some(ty) = ty {
                     let ty = self.read_ast_ty(ty)?;
@@ -303,10 +303,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 } else {
                     expr_ty
                 };
-                let prev = self.current().scope().variables.insert(ident, ty);
-                if prev.is_some() {
-                    return Err(self.shadow_error(ident, ident_span));
-                }
+                self.current().scope().variables.insert(ident, ty);
                 &TyKind::Unit
             }
             ExprKind::For { ident, iter, body } => {
