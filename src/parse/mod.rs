@@ -481,6 +481,7 @@ fn parse_string(stream: &mut Stream, outer_span: Span) -> Result<Expr> {
     let mut segments = thin_vec![];
 
     let mut chars = raw.char_indices();
+
     let mut escaped = false;
     while let Some((_, char)) = chars.next() {
         match char {
@@ -502,7 +503,7 @@ fn parse_string(stream: &mut Stream, outer_span: Span) -> Result<Expr> {
                 chars = chars.as_str()[diff..].char_indices();
                 let next = chars.next().unwrap();
                 assert_eq!(next.1, '}');
-                current_start = next.0;
+                current_start = next.0 + span.start() as usize;
             }
             '/' if !escaped => escaped = true,
             _ if escaped => panic!(),
