@@ -30,18 +30,11 @@ pub fn optimize(mir: &mut Mir, opts: &CodegenOpts, v: u8) {
 }
 
 pub fn optimize_body(mir: &mut Mir, body: BodyId, opts: &CodegenOpts, v: u8) {
-    const MAX_ITERS: usize = 16;
-    let mut current_hash = FxBuildHasher.hash_one(&mir.bodies[body]);
-    let mut num_iters = 0;
-    for iter in 0..MAX_ITERS {
-        num_iters = iter;
+    let mut num_iters = -1;
+    repeat_hashed(16, mir, body, |mir, body| {
+        num_iters += 1;
         optimize_body_once(mir, body, opts);
-        let new_hash = FxBuildHasher.hash_one(&mir.bodies[body]);
-        if current_hash == new_hash {
-            break;
-        }
-        current_hash = new_hash;
-    }
+    });
     // log required opt len
     if v > 1 {
         if let Some(name) = mir.bodies[body].name {
@@ -80,11 +73,21 @@ pub fn optimize_body_once(mir: &mut Mir, body: BodyId, opts: &CodegenOpts) {
 }
 
 fn const_prop_fold(mir: &mut Mir, body: BodyId) {
-    const MAX_ITERS: usize = 16;
-    let mut current_hash = FxBuildHasher.hash_one(&mir.bodies[body]);
-    for _ in 0..MAX_ITERS {
+    repeat_hashed(16, mir, body, |mir, body| {
         const_prop::optimize(mir, body);
         const_fold::optimize(mir, body);
+    });
+}
+
+fn repeat_hashed(
+    max_iters: usize,
+    mir: &mut Mir,
+    body: BodyId,
+    mut f: impl FnMut(&mut Mir, BodyId),
+) {
+    let mut current_hash = FxBuildHasher.hash_one(&mir.bodies[body]);
+    for _ in 0..max_iters {
+        f(mir, body);
         let new_hash = FxBuildHasher.hash_one(&mir.bodies[body]);
         if current_hash == new_hash {
             break;
