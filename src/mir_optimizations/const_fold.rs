@@ -31,6 +31,14 @@ pub fn try_compute(rvalue: &RValue) -> Option<Operand> {
             let value = mir_interpreter::unary_op(*op, operand);
             constant_of(&value)
         }
+        RValue::StrJoin(segments) => {
+            let mut fstring = String::new();
+            for seg in segments {
+                let Value::Str(s) = value_of(seg)? else { unreachable!() };
+                fstring.push_str(&s);
+            }
+            Some(Operand::Constant(Constant::Str(fstring.into())))
+        }
         _ => None,
     }
 }
