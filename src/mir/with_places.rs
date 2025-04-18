@@ -28,6 +28,7 @@ impl Block {
 impl RValue {
     pub fn with_locals(&self, mut f: impl FnMut(Local)) {
         match self {
+            Self::StrJoin(operands) => operands.iter().for_each(|o| o.with_locals(copy!(f))),
             Self::BinaryExpr { lhs, rhs, .. } => {
                 lhs.with_locals(copy!(f));
                 rhs.with_locals(copy!(f));
@@ -49,6 +50,9 @@ impl RValue {
     }
     pub fn with_locals_mut(&mut self, mut f: impl FnMut(&mut Local)) {
         match self {
+            Self::StrJoin(operands) => {
+                operands.iter_mut().for_each(|o| o.with_locals_mut(copy!(f)));
+            }
             Self::BinaryExpr { lhs, rhs, .. } => {
                 lhs.with_locals_mut(copy!(f));
                 rhs.with_locals_mut(copy!(f));

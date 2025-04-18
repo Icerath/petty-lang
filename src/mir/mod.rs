@@ -137,6 +137,7 @@ pub enum RValue {
     UnaryExpr { op: UnaryOp, operand: Operand },
     Call { function: Operand, args: ThinVec<Operand> },
     BuildArray(Vec<(Operand, Option<Operand>)>),
+    StrJoin(Vec<Operand>),
 }
 
 impl RValue {
@@ -148,7 +149,7 @@ impl RValue {
 
     pub fn side_effect(&self) -> bool {
         match self {
-            Self::BuildArray(..) | Self::Use(..) => false,
+            Self::StrJoin(..) | Self::BuildArray(..) | Self::Use(..) => false,
             Self::BinaryExpr { op, .. } => op.side_effect(),
             Self::UnaryExpr { op, .. } => op.side_effect(),
             Self::Call { .. } => true,
@@ -269,6 +270,7 @@ impl Statement {
 impl RValue {
     pub fn mentions_place(&self, place: &Place) -> bool {
         match self {
+            Self::StrJoin(operands) => operands.iter().any(|o| o.mentions_place(place)),
             Self::BinaryExpr { lhs, rhs, .. } => {
                 lhs.mentions_place(place) || rhs.mentions_place(place)
             }
@@ -285,6 +287,7 @@ impl RValue {
     // could this rvalue potentially mutate local
     pub fn mutates_local(&self, local: Local) -> bool {
         match self {
+            Self::StrJoin(operands) => operands.iter().any(|o| o.mutates_local(local)),
             Self::BuildArray(segments) => segments.iter().any(|(elem, repeat)| {
                 elem.mutates_local(local)
                     || repeat.as_ref().is_some_and(|repeat| repeat.mutates_local(local))
@@ -301,6 +304,7 @@ impl RValue {
 
     pub fn with_operands_mut(&mut self, f: &mut impl FnMut(&mut Operand)) {
         match self {
+            Self::StrJoin(operands) => operands.iter_mut().for_each(f),
             Self::BuildArray(arr) => {
                 for (elem, repeat) in arr {
                     f(elem);

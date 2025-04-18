@@ -77,6 +77,13 @@ impl Interpreter<'_> {
     #[allow(clippy::too_many_lines)]
     fn rvalue(&mut self, rvalue: &RValue, locals: &Places) -> Value {
         match rvalue {
+            RValue::StrJoin(segments) => {
+                let mut s = String::new();
+                for seg in segments {
+                    s.push_str(&self.operand(seg, locals).unwrap_str());
+                }
+                Value::Str(s.into())
+            }
             RValue::BuildArray(segments) => {
                 let array = Array::default();
                 for (elem, repeat) in segments {

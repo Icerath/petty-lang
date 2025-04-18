@@ -541,20 +541,12 @@ impl Lowering<'_, '_> {
             return self.format_expr(single);
         }
 
-        let builder = self.assign_new(Constant::EmptyArray { cap: segments.len() as _ });
+        let mut mir_segments = vec![];
         for &segment in segments {
-            let segment_str = self.format_expr(segment);
-            let rhs = self.process(segment_str, self.hir.exprs[segment].ty);
-            self.process(
-                RValue::BinaryExpr {
-                    lhs: Operand::Ref(Place::local(builder)),
-                    op: mir::BinaryOp::ArrayPush,
-                    rhs,
-                },
-                &TyKind::Unit,
-            );
+            let seg_rvalue = self.format_expr(segment);
+            mir_segments.push(self.process(seg_rvalue, &TyKind::Str));
         }
-        RValue::UnaryExpr { op: UnaryOp::StrJoin, operand: Operand::local(builder) }
+        RValue::StrJoin(mir_segments)
     }
 
     fn format_expr(&mut self, id: ExprId) -> RValue {

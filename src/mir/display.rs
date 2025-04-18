@@ -22,6 +22,14 @@ impl fmt::Display for Mir {
                         Statement::Assign { place, rvalue } => {
                             write!(f, "{place} = ")?;
                             match rvalue {
+                                RValue::StrJoin(segments) => {
+                                    let mut debug_tuple = f.debug_tuple("StrJoin");
+                                    for segment in segments {
+                                        debug_tuple
+                                            .field(&format_args!("{}", segment.display(self)));
+                                    }
+                                    debug_tuple.finish()
+                                }
                                 RValue::BuildArray(segments) => {
                                     let mut debug_list = f.debug_list();
                                     for (expr, repeat) in segments {
