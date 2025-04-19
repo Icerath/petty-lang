@@ -370,20 +370,17 @@ impl Lowering<'_, '_> {
     }
 
     fn binary_op(&mut self, lhs: ExprId, op: hir::BinaryOp, rhs: ExprId) -> RValue {
-        let mut lhs_ty = self.hir.exprs[lhs].ty;
-        let mut rhs_ty = self.hir.exprs[rhs].ty;
-        let mut lhs = self.lower_rvalue(lhs);
-        let mut rhs = self.lower_rvalue(rhs);
-
-        while let TyKind::Ref(of) = lhs_ty {
-            lhs_ty = of;
-            lhs = self.deref_operand(lhs).into();
+        let lhs_ty = self.hir.exprs[lhs].ty;
+        let rhs_ty = self.hir.exprs[rhs].ty;
+        if let hir::BinaryOp::And | hir::BinaryOp::Or = op {
+            return self.logical_op(op, lhs, rhs);
         }
 
-        while let TyKind::Ref(of) = rhs_ty {
-            rhs_ty = of;
-            rhs = self.deref_operand(rhs).into();
-        }
+        let lhs = self.lower_rvalue(lhs);
+        let rhs = self.lower_rvalue(rhs);
+
+        let (lhs, lhs_ty) = self.fully_deref(lhs, lhs_ty);
+        let (rhs, rhs_ty) = self.fully_deref(rhs, rhs_ty);
 
         let op = match (lhs_ty, op) {
             (TyKind::Int, op) => match op {
@@ -413,11 +410,36 @@ impl Lowering<'_, '_> {
                 hir::BinaryOp::Add => mir::BinaryOp::StrAdd,
                 _ => unreachable!("str - {op:?}"),
             },
-            (ty, op) => unreachable!("{ty:?} - {op:?}"),
+            (ty, op) => unreachable!("{ty} - {op:?}"),
         };
         let lhs = self.process(lhs, lhs_ty);
         let rhs = self.process(rhs, rhs_ty);
         RValue::BinaryExpr { lhs, op, rhs }
+    }
+
+    #[expect(unused)]
+    fn logical_op(&mut self, op: hir::BinaryOp, lhs: ExprId, rhs: ExprId) -> RValue {
+        let is_and = match op {
+            hir::BinaryOp::And => true,
+            hir::BinaryOp::Or => false,
+            _ => unreachable!(),
+        };
+        let lhs_ty = self.hir.exprs[lhs].ty;
+        let rhs_ty = self.hir.exprs[rhs].ty;
+
+        let lhs = self.lower_rvalue(lhs);
+
+        let (lhs, _) = self.fully_deref(lhs, lhs_ty);
+
+        todo!()
+    }
+
+    fn fully_deref<'tcx>(&mut self, mut rvalue: RValue, mut ty: Ty<'tcx>) -> (RValue, Ty<'tcx>) {
+        while let TyKind::Ref(of) = ty {
+            rvalue = self.deref_operand(rvalue).into();
+            ty = of;
+        }
+        (rvalue, ty)
     }
 
     fn index_array(&mut self, expr: ExprId, index: ExprId) -> RValue {
@@ -573,11 +595,9 @@ impl Lowering<'_, '_> {
     }
 
     fn format_rvalue(&mut self, rvalue: RValue, ty: Ty) -> RValue {
+        let (rvalue, ty) = self.fully_deref(rvalue, ty);
         if ty.is_str() {
             return rvalue;
-        }
-        if let TyKind::Ref(_) = ty {
-            return self.format_ref(rvalue, ty);
         }
         let operand = self.process(rvalue, ty);
         match ty {
@@ -606,14 +626,6 @@ impl Lowering<'_, '_> {
                 Operand::Place(Place { local, projections: vec![Projection::Deref] })
             }
         }
-    }
-
-    fn format_ref(&mut self, mut rvalue: RValue, mut ty: Ty) -> RValue {
-        while let TyKind::Ref(of) = ty {
-            rvalue = RValue::Use(self.deref_operand(rvalue));
-            ty = of;
-        }
-        self.format_rvalue(rvalue, ty)
     }
 
     fn format_struct(
