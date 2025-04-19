@@ -7,6 +7,9 @@ fn ret_true() -> bool {
 }
 
 fn main() {
-    assert!(ret_false() and ret_true());
+    assert !(ret_false() and ret_false());
+    assert !(ret_false() and ret_true());
+    assert !(ret_true() and ret_false());
+    assert ret_true() and ret_true();
 }
 
