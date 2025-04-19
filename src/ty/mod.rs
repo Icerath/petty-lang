@@ -39,6 +39,7 @@ impl<'tcx> Function<'tcx> {
     }
 }
 
+#[derive(Debug)]
 pub struct TyCtx<'tcx> {
     inner: RefCell<TyCtxInner<'tcx>>,
     interner: &'tcx TyInterner,

@@ -1,6 +1,6 @@
 use std::{
     cell::{Cell, RefCell},
-    mem,
+    fmt, mem,
 };
 
 use super::{Ty, TyKind};
@@ -10,13 +10,23 @@ use crate::HashSet;
 pub struct TyInterner {
     // drop artificial statics first.
     set: RefCell<HashSet<&'static TyKind<'static>>>,
-    allocator: typed_arena::Arena<TyKind<'static>>,
+    arena: typed_arena::Arena<TyKind<'static>>,
     cache_hits: Cell<usize>,
+}
+
+impl fmt::Debug for TyInterner {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("TyInterner")
+            .field("set", &self.set)
+            .field("cache_hits", &self.cache_hits)
+            .field("arena", &"Arena { ... }")
+            .finish()
+    }
 }
 
 impl TyInterner {
     pub fn len(&self) -> usize {
-        self.allocator.len()
+        self.arena.len()
     }
     pub fn cache_hits(&self) -> usize {
         self.cache_hits.get()
@@ -28,7 +38,7 @@ impl TyInterner {
             return ty;
         }
         let kind = unsafe { mem::transmute::<TyKind<'_>, TyKind<'static>>(kind) };
-        let ty = self.allocator.alloc(kind);
+        let ty = self.arena.alloc(kind);
         let ty = unsafe { mem::transmute::<Ty<'_>, Ty<'static>>(ty) };
         set.insert(ty);
         ty
