@@ -1,15 +1,22 @@
-fn ret_false() -> bool {
+fn ret_false(evals: &int) -> bool {
+    *evals += 1;
     false
 }
 
-fn ret_true() -> bool {
+fn ret_true(evals: &int) -> bool {
+    *evals += 1;
     true
 }
 
 fn main() {
-    assert !(ret_false() and ret_false());
-    assert !(ret_false() and ret_true());
-    assert !(ret_true() and ret_false());
-    assert ret_true() and ret_true();
+    let evals = 0;
+    assert !(ret_false(&evals) and ret_false(&evals));
+    assert evals == 1;
+    assert !(ret_false(&evals) and ret_true(&evals));
+    assert evals == 2;
+    assert !(ret_true(&evals) and ret_false(&evals));
+    assert evals == 4;
+    assert ret_true(&evals) and ret_true(&evals);
+    assert evals == 6;
 }
 
