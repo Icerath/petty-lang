@@ -3,6 +3,7 @@ mod with_places;
 
 use std::ops::Range;
 
+use arcstr::ArcStr;
 use index_vec::IndexVec;
 use thin_vec::ThinVec;
 
@@ -186,7 +187,7 @@ pub enum Constant {
     Int(i64),
     Range(Range<i64>),
     Char(char),
-    Str(Symbol),
+    Str(ArcStr),
     Func(BodyId),
 }
 
@@ -357,5 +358,11 @@ impl From<Constant> for RValue {
 impl From<Local> for Place {
     fn from(local: Local) -> Self {
         Self::local(local)
+    }
+}
+
+impl From<Constant> for Operand {
+    fn from(value: Constant) -> Self {
+        Self::Constant(value)
     }
 }

@@ -2,6 +2,7 @@ mod intrinsics;
 
 use std::mem;
 
+use arcstr::ArcStr;
 use index_vec::IndexVec;
 
 use crate::{
@@ -20,7 +21,13 @@ pub fn lower(hir: &Hir) -> Mir {
     let root_body = mir.bodies.push(Body::new(None, 0).with_auto(true));
     let bodies = vec![BodyInfo::new(root_body)];
 
-    let mut lowering = Lowering { hir, mir, bodies, struct_display_bodies: IndexVec::default() };
+    let mut lowering = Lowering {
+        hir,
+        mir,
+        bodies,
+        struct_display_bodies: IndexVec::default(),
+        strings: HashMap::default(),
+    };
     for &expr in &hir.root {
         lowering.lower(expr);
     }
@@ -34,6 +41,16 @@ struct Lowering<'hir, 'tcx> {
     mir: Mir,
     bodies: Vec<BodyInfo>,
     struct_display_bodies: IndexVec<StructId, Option<BodyId>>,
+    strings: HashMap<Symbol, ArcStr>,
+}
+
+macro_rules! str {
+    ($s: literal) => {
+        Constant::Str(arcstr::literal!($s)).into()
+    };
+    ($self:expr, $s: ident) => {
+        Constant::Str($self.strings.entry($s).or_insert($s.as_str().into()).clone()).into()
+    };
 }
 
 struct BodyInfo {
@@ -189,10 +206,9 @@ impl Lowering<'_, '_> {
                 }
                 RValue::local(local)
             }
-            ExprKind::PrintStr(str) => RValue::UnaryExpr {
-                op: UnaryOp::Println,
-                operand: Operand::Constant(Constant::Str(str)),
-            },
+            ExprKind::PrintStr(str) => {
+                RValue::UnaryExpr { op: UnaryOp::Println, operand: str!(self, str) }
+            }
             ExprKind::Literal(ref lit) => self.lit_rvalue(lit),
             ExprKind::Unary { op, expr } => 'outer: {
                 if let hir::UnaryOp::Ref = op {
@@ -516,7 +532,7 @@ impl Lowering<'_, '_> {
             Lit::Bool(bool) => RValue::Use(Operand::Constant(Constant::Bool(bool))),
             Lit::Int(int) => RValue::Use(Operand::Constant(Constant::Int(int))),
             Lit::Char(char) => RValue::Use(Operand::Constant(Constant::Char(char))),
-            Lit::String(str) => RValue::Use(Operand::Constant(Constant::Str(str))),
+            Lit::String(str) => str!(self, str),
             Lit::Array { ref segments } => self.lower_array_lit(segments),
             Lit::FStr { ref segments } => self.lower_fstrings(segments),
         }
@@ -565,8 +581,8 @@ impl Lowering<'_, '_> {
         let operand = self.process(rvalue, ty);
         match ty {
             TyKind::Infer(_) | TyKind::Str => unreachable!(),
-            TyKind::Never => RValue::from(Constant::Str("!".into())),
-            TyKind::Unit => RValue::from(Constant::Str("()".into())),
+            TyKind::Never => str!("!"),
+            TyKind::Unit => str!("()"),
             TyKind::Bool => RValue::UnaryExpr { op: UnaryOp::BoolToStr, operand },
             TyKind::Int => RValue::UnaryExpr { op: UnaryOp::IntToStr, operand },
             TyKind::Char => RValue::UnaryExpr { op: UnaryOp::CharToStr, operand },
@@ -631,7 +647,7 @@ impl Lowering<'_, '_> {
             RValue::BinaryExpr {
                 lhs: Operand::Ref(strings.into()),
                 op: BinaryOp::ArrayPush,
-                rhs: Operand::Constant(Constant::Str("(".into())),
+                rhs: str!("("),
             },
             &TyKind::Unit,
         );
@@ -642,7 +658,7 @@ impl Lowering<'_, '_> {
                     RValue::BinaryExpr {
                         lhs: Operand::Ref(strings.into()),
                         op: BinaryOp::ArrayPush,
-                        rhs: Operand::Constant(Constant::Str(", ".into())),
+                        rhs: str!(", "),
                     },
                     &TyKind::Unit,
                 );
@@ -666,7 +682,7 @@ impl Lowering<'_, '_> {
             RValue::BinaryExpr {
                 lhs: Operand::Ref(strings.into()),
                 op: BinaryOp::ArrayPush,
-                rhs: Operand::Constant(Constant::Str(")".into())),
+                rhs: str!(")"),
             },
             &TyKind::Unit,
         );

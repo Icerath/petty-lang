@@ -232,7 +232,7 @@ pub fn const_value(constant: &Constant) -> Value {
         Constant::Int(int) => Value::Int(int),
         Constant::Range(ref range) => Value::Range(Box::new(range.clone())),
         Constant::Char(char) => Value::Char(char),
-        Constant::Str(str) => Value::Str(str.as_str().into()),
+        Constant::Str(ref str) => Value::Str(str.clone()),
         Constant::Func(body) => Value::Fn(body),
     }
 }
