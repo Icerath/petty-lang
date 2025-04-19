@@ -415,11 +415,6 @@ impl Lowering<'_, '_> {
     }
 
     fn logical_op(&mut self, op: hir::BinaryOp, lhs: ExprId, rhs: ExprId) -> RValue {
-        let is_and = match op {
-            hir::BinaryOp::And => true,
-            hir::BinaryOp::Or => false,
-            _ => unreachable!(),
-        };
         let lhs_ty = self.hir.exprs[lhs].ty;
         let rhs_ty = self.hir.exprs[rhs].ty;
 
@@ -431,10 +426,14 @@ impl Lowering<'_, '_> {
 
         let next = self.current_block() + 1;
         let condition = Operand::local(output);
-        let terminator = if is_and {
-            Terminator::Branch { condition, fals: BlockId::PLACEHOLDER, tru: next }
-        } else {
-            Terminator::Branch { condition, fals: next, tru: BlockId::PLACEHOLDER }
+        let terminator = match op {
+            hir::BinaryOp::And => {
+                Terminator::Branch { condition, fals: BlockId::PLACEHOLDER, tru: next }
+            }
+            hir::BinaryOp::Or => {
+                Terminator::Branch { condition, fals: next, tru: BlockId::PLACEHOLDER }
+            }
+            _ => unreachable!(),
         };
         let to_fix = self.finish_with(terminator);
 
