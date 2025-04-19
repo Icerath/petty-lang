@@ -102,6 +102,8 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
                     BinOpKind::Neq => hir::BinaryOp::Neq,
                     BinOpKind::Range => hir::BinaryOp::Range,
                     BinOpKind::RangeInclusive => hir::BinaryOp::RangeInclusive,
+                    BinOpKind::And => hir::BinaryOp::And,
+                    BinOpKind::Or => hir::BinaryOp::Or,
                     _ => unreachable!("{op:?}"),
                 };
                 (hir::ExprKind::Binary { lhs: self.lower(lhs), op, rhs: self.lower(rhs) })

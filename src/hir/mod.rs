@@ -82,6 +82,9 @@ pub enum BinaryOp {
     GreaterEq,
     Eq,
     Neq,
+
+    And,
+    Or,
 }
 
 pub type UnaryOp = crate::ast::UnaryOp;

@@ -183,6 +183,8 @@ impl Dump for BinaryOp {
     fn write(&self, w: &mut Writer) {
         use BinaryOp as B;
         w.f.push_str(match self {
+            B::And => "and",
+            B::Or => "or",
             B::Add => "+",
             B::Div => "/",
             B::Eq => "==",
