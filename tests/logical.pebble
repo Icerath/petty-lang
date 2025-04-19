@@ -1,0 +1,12 @@
+fn ret_false() -> bool {
+    false
+}
+
+fn ret_true() -> bool {
+    true
+}
+
+fn main() {
+    assert!(ret_false() and ret_true());
+}
+
