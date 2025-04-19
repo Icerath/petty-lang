@@ -547,7 +547,16 @@ impl Lowering<'_, '_, '_> {
         match self.hir.exprs[expr].kind {
             ExprKind::Ident(ident) => self.read_ident(ident),
             ExprKind::Index { expr, index, span } => {
-                let index_local = self.lower_local(index);
+                let index_rvalue = self.lower_rvalue(index);
+
+                let const_index = match index_rvalue {
+                    RValue::Use(Operand::Constant(Constant::Int(int))) => {
+                        Some(int.try_into().unwrap())
+                    }
+                    _ => None,
+                };
+                let index_local = self.process_to_local(index_rvalue);
+
                 let local = self.lower_place_inner(expr, proj);
                 let mut expr_ty = self.hir.exprs[expr].ty;
                 while let TyKind::Ref(of) = expr_ty {
@@ -561,7 +570,11 @@ impl Lowering<'_, '_, '_> {
                     span,
                 );
 
-                proj.push(Projection::Index(index_local));
+                let projection = match const_index {
+                    Some(index) => Projection::ConstantIndex(index),
+                    _ => Projection::Index(index_local),
+                };
+                proj.push(projection);
                 local
             }
             ExprKind::Unary { op: hir::UnaryOp::Deref, expr } => {
