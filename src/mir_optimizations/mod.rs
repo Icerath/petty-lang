@@ -7,6 +7,7 @@ use crate::{
     mir::{BodyId, Mir},
 };
 
+mod combine_blocks;
 mod const_fold;
 mod const_prop;
 mod fix_entry_block;
@@ -64,6 +65,7 @@ pub fn optimize_body_once(mir: &mut Mir, body: BodyId, opts: &CodegenOpts) {
         not_branch,
         redundant_branch,
         redundant_blocks,
+        combine_blocks,
         remove_goto_terminator,
         remove_dead_blocks,
         remove_dead_assignments,

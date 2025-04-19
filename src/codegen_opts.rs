@@ -37,6 +37,7 @@ opts! {
     const_prop,
     not_branch,
     redundant_blocks,
+    combine_blocks,
     redundant_branch,
     fix_entry_block,
     remove_dead_assignments,
