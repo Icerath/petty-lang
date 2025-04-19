@@ -5,7 +5,7 @@ use super::{
     token::{Token, TokenKind},
 };
 use crate::{
-    ast::{BinOpKind, BinaryOp, ExprId, ExprKind, Lit, UnaryOp},
+    ast::{BinOpKind, BinaryOp, ExprId, ExprKind, UnaryOp},
     source::span::Span,
 };
 
@@ -107,7 +107,6 @@ fn parse_leaf_expr(stream: &mut Stream, next: Token) -> Result<ExprId> {
 
 fn parse_unary_expr(stream: &mut Stream) -> Result<ExprId> {
     let token = stream.next()?;
-    let start = token.span.start();
     let expr = match token.kind {
         kind @ (TokenKind::Minus | TokenKind::Not | TokenKind::Ampersand | TokenKind::Star) => {
             let op = match kind {
@@ -121,10 +120,6 @@ fn parse_unary_expr(stream: &mut Stream) -> Result<ExprId> {
             (ExprKind::Unary { op, expr })
                 .with_span(Span::join([token.span, stream.ast.exprs[expr].span]))
         }
-        TokenKind::LBracket => ExprKind::Lit(Lit::Array {
-            segments: stream.parse_separated(TokenKind::Comma, TokenKind::RBracket)?,
-        })
-        .with_span(start..stream.lexer.current_pos()),
         _ => return parse_leaf_expr(stream, token),
     };
     Ok(stream.ast.exprs.push(expr))

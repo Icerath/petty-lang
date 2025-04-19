@@ -437,6 +437,10 @@ fn parse_atom_with(stream: &mut Stream, tok: Token) -> Result<ExprId> {
                 expr
             });
         }
+        TokenKind::LBracket => Ok(ExprKind::Lit(Lit::Array {
+            segments: stream.parse_separated(TokenKind::Comma, TokenKind::RBracket)?,
+        })
+        .with_span(tok.span.start()..stream.lexer.current_pos())),
         TokenKind::LBrace => Ok(ExprKind::Block(stream.parse()?).with_span(all!())),
         TokenKind::Break => Ok(ExprKind::Break.todo_span()),
         TokenKind::Assert => {
