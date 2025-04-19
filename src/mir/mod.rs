@@ -35,6 +35,12 @@ pub enum Projection {
 
 impl BlockId {
     pub const PLACEHOLDER: Self = Self { _raw: u16::MAX };
+
+    pub fn complete(&mut self, new: BlockId) {
+        if *self == BlockId::PLACEHOLDER {
+            *self = new;
+        }
+    }
 }
 
 #[derive(Default, Debug)]
@@ -82,6 +88,13 @@ pub enum Terminator {
 }
 
 impl Terminator {
+    pub fn complete(&mut self, block: BlockId) {
+        match self {
+            Self::Abort | Self::Unreachable | Self::Return(..) => {}
+            Self::Goto(placeholder) => placeholder.complete(block),
+            Self::Branch { fals, tru, .. } => _ = (fals.complete(block), tru.complete(block)),
+        }
+    }
     pub fn with_operands_mut(&mut self, f: &mut impl FnMut(&mut Operand)) {
         match self {
             Self::Branch { condition: operand, .. } | Self::Return(operand) => f(operand),

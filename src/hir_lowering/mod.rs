@@ -275,10 +275,7 @@ impl Lowering<'_, '_> {
                 let breaks = mem::replace(&mut self.current_mut().breaks, prev_loop);
 
                 for block in breaks {
-                    match &mut self.body_mut().blocks[block].terminator {
-                        Terminator::Goto(block @ BlockId::PLACEHOLDER) => *block = after_loop,
-                        _ => unreachable!(),
-                    }
+                    self.body_mut().blocks[block].terminator.complete(after_loop);
                 }
                 RValue::Use(Operand::UNIT)
             }
@@ -300,10 +297,7 @@ impl Lowering<'_, '_> {
                     }
                     jump_to_ends.push(self.finish_with(Terminator::Goto(BlockId::PLACEHOLDER)));
                     let current_block = self.body_ref().blocks.next_idx();
-                    match &mut self.body_mut().blocks[to_fix].terminator {
-                        Terminator::Branch { fals, .. } => *fals = current_block,
-                        _ => unreachable!(),
-                    }
+                    self.body_mut().blocks[to_fix].terminator.complete(current_block);
                 }
                 let els_out = self.block_expr(els);
                 if is_unit {
@@ -314,10 +308,7 @@ impl Lowering<'_, '_> {
 
                 let current = self.finish_next();
                 for block in jump_to_ends {
-                    match &mut self.body_mut().blocks[block].terminator {
-                        Terminator::Goto(block @ BlockId::PLACEHOLDER) => *block = current,
-                        _ => unreachable!(),
-                    }
+                    self.body_mut().blocks[block].terminator.complete(current);
                 }
                 if is_unit {
                     RValue::Use(Operand::Constant(Constant::Unit))
@@ -450,16 +441,8 @@ impl Lowering<'_, '_> {
         self.finish_next();
 
         let current_block = self.body_ref().blocks.next_idx();
-        match &mut self.body_mut().blocks[to_fix].terminator {
-            Terminator::Branch { fals, tru, .. } => {
-                if *fals == BlockId::PLACEHOLDER {
-                    *fals = current_block;
-                } else if *tru == BlockId::PLACEHOLDER {
-                    *tru = current_block;
-                }
-            }
-            _ => unreachable!(),
-        }
+
+        self.body_mut().blocks[to_fix].terminator.complete(current_block);
         RValue::local(output)
     }
 
