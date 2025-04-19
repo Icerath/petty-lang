@@ -427,6 +427,16 @@ fn parse_atom_with(stream: &mut Stream, tok: Token) -> Result<ExprId> {
 
     let expr = match tok.kind {
         TokenKind::Unreachable => Ok(ExprKind::Unreachable.with_span(tok.span)),
+        TokenKind::LParen => {
+            return Ok(if stream.peek()?.kind == TokenKind::RParen {
+                _ = stream.next();
+                stream.ast.exprs.push(ExprKind::Lit(Lit::Unit).todo_span())
+            } else {
+                let expr = stream.parse()?;
+                stream.expect(TokenKind::RParen)?;
+                expr
+            });
+        }
         TokenKind::LBrace => Ok(ExprKind::Block(stream.parse()?).with_span(all!())),
         TokenKind::Break => Ok(ExprKind::Break.todo_span()),
         TokenKind::Assert => {

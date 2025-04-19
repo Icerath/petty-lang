@@ -60,7 +60,7 @@ fn parse_expr(stream: &mut Stream, precedence: u8) -> Result<ExprId> {
 }
 
 fn parse_leaf_expr(stream: &mut Stream, next: Token) -> Result<ExprId> {
-    let mut expr = parse_paren_expr(stream, next)?;
+    let mut expr = parse_atom_with(stream, next)?;
 
     loop {
         let Some(token) = stream.lexer.clone().next().transpose()? else { break };
@@ -128,17 +128,4 @@ fn parse_unary_expr(stream: &mut Stream) -> Result<ExprId> {
         _ => return parse_leaf_expr(stream, token),
     };
     Ok(stream.ast.exprs.push(expr))
-}
-
-fn parse_paren_expr(stream: &mut Stream, token: Token) -> Result<ExprId> {
-    if token.kind == TokenKind::LParen {
-        if stream.peek()?.kind == TokenKind::RParen {
-            _ = stream.next();
-            return Ok(stream.ast.exprs.push(ExprKind::Lit(Lit::Unit).todo_span()));
-        }
-        let expr = stream.parse()?;
-        stream.expect(TokenKind::RParen)?;
-        return Ok(expr);
-    }
-    parse_atom_with(stream, token)
 }
