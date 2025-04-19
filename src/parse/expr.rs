@@ -107,7 +107,7 @@ fn parse_leaf_expr(stream: &mut Stream, next: Token) -> Result<ExprId> {
 
 fn parse_unary_expr(stream: &mut Stream) -> Result<ExprId> {
     let token = stream.next()?;
-    let expr = match token.kind {
+    match token.kind {
         kind @ (TokenKind::Minus | TokenKind::Not | TokenKind::Ampersand | TokenKind::Star) => {
             let op = match kind {
                 TokenKind::Minus => UnaryOp::Neg,
@@ -117,10 +117,11 @@ fn parse_unary_expr(stream: &mut Stream) -> Result<ExprId> {
                 _ => unreachable!(),
             };
             let expr = parse_unary_expr(stream)?;
-            (ExprKind::Unary { op, expr })
-                .with_span(Span::join([token.span, stream.ast.exprs[expr].span]))
+            Ok(stream.ast.exprs.push(
+                (ExprKind::Unary { op, expr })
+                    .with_span(Span::join([token.span, stream.ast.exprs[expr].span])),
+            ))
         }
-        _ => return parse_leaf_expr(stream, token),
-    };
-    Ok(stream.ast.exprs.push(expr))
+        _ => parse_leaf_expr(stream, token),
+    }
 }
