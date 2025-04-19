@@ -88,11 +88,9 @@ impl Interpreter<'_> {
                 let array = Array::default();
                 for (elem, repeat) in segments {
                     let elem = self.operand(elem, locals);
-                    let repeat = if let Some(repeat) = repeat {
-                        self.operand(repeat, locals).unwrap_int_usize()
-                    } else {
-                        1
-                    };
+                    let repeat = repeat
+                        .as_ref()
+                        .map_or(1, |repeat| self.operand(repeat, locals).unwrap_int_usize());
                     array.extend(elem, repeat);
                 }
                 Value::Array(array)

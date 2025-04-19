@@ -135,7 +135,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
     }
     fn block_span(&self, block: BlockId) -> Vec<Span> {
         let block = &self.ast.blocks[block];
-        block.stmts.last().map_or(vec![block.span], |&last| self.invalid_type_span(last))
+        block.stmts.last().map_or_else(|| vec![block.span], |&last| self.invalid_type_span(last))
     }
 
     fn raw_error<S>(&self, msg: &str, labels: impl IntoIterator<Item = (Span, S)>) -> Error

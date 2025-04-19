@@ -215,9 +215,9 @@ impl Lowering<'_, '_> {
             }
             ExprKind::Literal(ref lit) => self.lit_rvalue(lit),
             ExprKind::Unary { op, expr } => 'outer: {
-                if let hir::UnaryOp::Ref = op {
+                if op == hir::UnaryOp::Ref {
                     break 'outer RValue::Use(self.ref_expr(expr));
-                } else if let hir::UnaryOp::Deref = op {
+                } else if op == hir::UnaryOp::Deref {
                     let rvalue = self.lower_rvalue(expr);
                     break 'outer RValue::Use(self.deref_operand(rvalue));
                 }
@@ -422,7 +422,7 @@ impl Lowering<'_, '_> {
 
         let lhs = self.lower_rvalue(lhs);
         let (lhs, _) = self.fully_deref(lhs, lhs_ty);
-        self.assign(output, lhs.clone());
+        self.assign(output, lhs);
 
         let next = self.current_block() + 1;
         let condition = Operand::local(output);

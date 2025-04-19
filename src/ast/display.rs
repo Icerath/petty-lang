@@ -150,13 +150,13 @@ impl Dump for Generics<'_> {
 impl Dump for Lit {
     fn write(&self, w: &mut Writer) {
         match self {
-            Lit::Unit => w.f.push_str("()"),
-            Lit::Bool(bool) => _ = write!(w.f, "{bool}"),
-            Lit::Int(int) => _ = write!(w.f, "{int}"),
-            Lit::Str(str) => _ = write!(w.f, "{:?}", &**str),
-            Lit::FStr(segments) => FStr(segments).write(w),
-            Lit::Char(char) => _ = write!(w.f, "{char:?}"),
-            Lit::Array { segments } => ("[", Sep(segments, ", "), "]").write(w),
+            Self::Unit => w.f.push_str("()"),
+            Self::Bool(bool) => _ = write!(w.f, "{bool}"),
+            Self::Int(int) => _ = write!(w.f, "{int}"),
+            Self::Str(str) => _ = write!(w.f, "{:?}", &**str),
+            Self::FStr(segments) => FStr(segments).write(w),
+            Self::Char(char) => _ = write!(w.f, "{char:?}"),
+            Self::Array { segments } => ("[", Sep(segments, ", "), "]").write(w),
         }
     }
 }
@@ -183,7 +183,7 @@ impl Dump for FStr<'_> {
 impl Dump for FnDecl {
     fn write(&self, w: &mut Writer) {
         let current = w.inside_expr;
-        let FnDecl { ident, ref generics, ref params, ret, block } = *self;
+        let Self { ident, ref generics, ref params, ret, block } = *self;
         ("fn ", ident, Generics(generics), params, ret.map(|ret| (" -> ", ret))).write(w);
         match block {
             Some(block) => block.write(w),
@@ -250,10 +250,10 @@ impl Dump for BinaryOp {
 impl Dump for UnaryOp {
     fn write(&self, w: &mut Writer) {
         w.f.push_str(match self {
-            UnaryOp::Not => "!",
-            UnaryOp::Neg => "-",
-            UnaryOp::Ref => "&",
-            UnaryOp::Deref => "*",
+            Self::Not => "!",
+            Self::Neg => "-",
+            Self::Ref => "&",
+            Self::Deref => "*",
         });
     }
 }

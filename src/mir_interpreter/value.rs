@@ -104,7 +104,7 @@ impl Value {
     }
     pub fn unwrap_range(&self) -> Range<i64> {
         match self {
-            Value::Range(out) => Range::clone(out),
+            Self::Range(out) => Range::clone(out),
             other => unreachable!("expected {}, found {other:?}", stringify!($ty)),
         }
     }
@@ -123,6 +123,6 @@ impl Value {
         value!(Struct, self)
     }
     pub fn unwrap_ref_array(&self) -> Array {
-        self.unwrap_ref().borrow().unwrap_array().clone()
+        self.unwrap_ref().borrow().unwrap_array()
     }
 }

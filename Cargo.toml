@@ -6,6 +6,7 @@ edition = "2024"
 [lints.clippy]
 pedantic = { level = "warn", priority = -1 }
 unit_arg = "allow"
+redundant_clone = "warn"
 
 [dependencies]
 arcstr = "1.2.0"

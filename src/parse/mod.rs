@@ -221,7 +221,7 @@ impl Parse for Ty {
             _ => unreachable!(),
         };
         let end = stream.lexer.current_pos();
-        Ok(Ty { kind, span: Span::from(start..end) })
+        Ok(Self { kind, span: Span::from(start..end) })
     }
 }
 
@@ -262,11 +262,12 @@ impl Parse for FnDecl {
     fn parse(stream: &mut Stream) -> Result<Self> {
         let ident = stream.expect_ident()?;
         let peek = stream.clone().any(&[TokenKind::Less, TokenKind::LParen])?;
-        let mut generics = ThinVec::new();
-        if peek.kind == TokenKind::Less {
+        let generics = if peek.kind == TokenKind::Less {
             _ = stream.next();
-            generics = stream.parse_separated(TokenKind::Comma, TokenKind::Greater)?;
-        }
+            stream.parse_separated(TokenKind::Comma, TokenKind::Greater)?
+        } else {
+            ThinVec::new()
+        };
 
         stream.expect(TokenKind::LParen)?;
         let params = stream.parse_separated(TokenKind::Comma, TokenKind::RParen)?;

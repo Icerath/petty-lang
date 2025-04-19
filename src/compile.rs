@@ -21,7 +21,7 @@ pub fn compile_test(path: impl Into<std::path::PathBuf>) -> miette::Result<()> {
     let path = path.into();
     let mut args = Args {
         command: Command::Run,
-        path: path.clone(),
+        path,
         verbose: 0,
         dump: None,
         codegen: crate::CodegenOpts::all(true),

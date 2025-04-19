@@ -131,13 +131,13 @@ impl Dump for [Param<'_>] {
 impl Dump for Lit {
     fn write(&self, w: &mut Writer) {
         match self {
-            Lit::Unit => w.f.push_str("()"),
-            Lit::Bool(bool) => _ = write!(w.f, "{bool}"),
-            Lit::Int(int) => _ = write!(w.f, "{int}"),
-            Lit::String(str) => _ = write!(w.f, "{:?}", &**str),
-            Lit::Char(char) => _ = write!(w.f, "{char:?}"),
-            Lit::Array { segments } => ("[", Sep(segments, ", "), "]").write(w),
-            Lit::FStr { segments } => FStr(segments).write(w),
+            Self::Unit => w.f.push_str("()"),
+            Self::Bool(bool) => _ = write!(w.f, "{bool}"),
+            Self::Int(int) => _ = write!(w.f, "{int}"),
+            Self::String(str) => _ = write!(w.f, "{:?}", &**str),
+            Self::Char(char) => _ = write!(w.f, "{char:?}"),
+            Self::Array { segments } => ("[", Sep(segments, ", "), "]").write(w),
+            Self::FStr { segments } => FStr(segments).write(w),
         }
     }
 }
@@ -181,23 +181,22 @@ impl Dump for ArraySeg {
 
 impl Dump for BinaryOp {
     fn write(&self, w: &mut Writer) {
-        use BinaryOp as B;
         w.f.push_str(match self {
-            B::And => "and",
-            B::Or => "or",
-            B::Add => "+",
-            B::Div => "/",
-            B::Eq => "==",
-            B::Greater => ">",
-            B::GreaterEq => ">=",
-            B::Less => "<",
-            B::LessEq => "<=",
-            B::Mod => "%",
-            B::Mul => "*",
-            B::Neq => "!=",
-            B::Range => "..",
-            B::RangeInclusive => "..=",
-            B::Sub => "-",
+            Self::And => "and",
+            Self::Or => "or",
+            Self::Add => "+",
+            Self::Div => "/",
+            Self::Eq => "==",
+            Self::Greater => ">",
+            Self::GreaterEq => ">=",
+            Self::Less => "<",
+            Self::LessEq => "<=",
+            Self::Mod => "%",
+            Self::Mul => "*",
+            Self::Neq => "!=",
+            Self::Range => "..",
+            Self::RangeInclusive => "..=",
+            Self::Sub => "-",
         });
     }
 }
@@ -205,10 +204,10 @@ impl Dump for BinaryOp {
 impl Dump for UnaryOp {
     fn write(&self, w: &mut Writer) {
         w.f.push_str(match self {
-            UnaryOp::Not => "!",
-            UnaryOp::Neg => "-",
-            UnaryOp::Ref => "&",
-            UnaryOp::Deref => "*",
+            Self::Not => "!",
+            Self::Neg => "-",
+            Self::Ref => "&",
+            Self::Deref => "*",
         });
     }
 }

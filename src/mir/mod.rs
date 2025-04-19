@@ -36,8 +36,8 @@ pub enum Projection {
 impl BlockId {
     pub const PLACEHOLDER: Self = Self { _raw: u16::MAX };
 
-    pub fn complete(&mut self, new: BlockId) {
-        if *self == BlockId::PLACEHOLDER {
+    pub fn complete(&mut self, new: Self) {
+        if *self == Self::PLACEHOLDER {
             *self = new;
         }
     }
@@ -204,7 +204,7 @@ pub enum Constant {
     Func(BodyId),
 }
 
-#[derive(Debug, PartialEq, PartialOrd, Hash, Clone, Copy)]
+#[derive(Debug, PartialEq, PartialOrd, Eq, Hash, Clone, Copy)]
 pub enum BinaryOp {
     IntAdd,
     IntSub,

@@ -423,7 +423,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         lhs_expr: ExprId,
         rhs_expr: ExprId,
     ) -> Result<()> {
-        if let BinOpKind::Assign = op.kind {
+        if op.kind == BinOpKind::Assign {
             return Ok(());
         }
 

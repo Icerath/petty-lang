@@ -13,14 +13,14 @@ pub struct Span {
 }
 
 impl Span {
-    pub fn join(spans: impl IntoIterator<Item = Span>) -> Span {
+    pub fn join(spans: impl IntoIterator<Item = Self>) -> Self {
         let mut start = u32::MAX;
         let mut end = 0;
         spans.into_iter().for_each(|span| {
             start = start.min(span.start());
             end = start.max(span.end());
         });
-        Span::from(start..end)
+        Self::from(start..end)
     }
     pub fn source(self) -> SourceId {
         self.source
