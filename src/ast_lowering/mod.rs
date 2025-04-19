@@ -177,7 +177,7 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
     fn assert_failed_error(&self, expr: ast::ExprId) -> Symbol {
         let span = self.ast.exprs[expr].span;
         let report = errors::error("assertion failed", self.path, self.src, [(span, "")]);
-        Symbol::from(format!("{report:?}").as_str())
+        Symbol::from(format!("{report:?}"))
     }
 
     fn lower_fn_call(
