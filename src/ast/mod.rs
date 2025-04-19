@@ -259,6 +259,9 @@ impl BinOpKind {
     pub fn is_add(self) -> bool {
         matches!(self, Self::Add | Self::AddAssign)
     }
+    pub fn is_logical(self) -> bool {
+        matches!(self, Self::And | Self::Or)
+    }
 }
 
 impl Deref for BinaryOp {

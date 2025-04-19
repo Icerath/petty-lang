@@ -425,7 +425,8 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         let matches = match lhs {
             TyKind::Int => op.is_op_assign() | op.is_arithmetic() | op.is_compare() | op.is_range(),
             TyKind::Str => op.is_compare() | op.is_add(),
-            TyKind::Bool | TyKind::Char | TyKind::Unit => op.is_eq(),
+            TyKind::Bool => op.is_eq() | op.is_logical(),
+            TyKind::Char | TyKind::Unit => op.is_eq(),
             _ => false,
         };
 
