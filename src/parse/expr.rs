@@ -117,10 +117,8 @@ fn parse_unary_expr(stream: &mut Stream) -> Result<ExprId> {
                 _ => unreachable!(),
             };
             let expr = parse_unary_expr(stream)?;
-            Ok(stream.ast.exprs.push(
-                (ExprKind::Unary { op, expr })
-                    .with_span(Span::join([token.span, stream.ast.exprs[expr].span])),
-            ))
+            let span = Span::join([token.span, stream.ast.exprs[expr].span]);
+            Ok(stream.ast.exprs.push((ExprKind::Unary { op, expr }).with_span(span)))
         }
         _ => parse_leaf_expr(stream, token),
     }
