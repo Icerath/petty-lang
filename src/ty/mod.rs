@@ -18,7 +18,6 @@ define_id!(pub TyVid = u32);
 define_id!(pub GenericId = u32);
 define_id!(pub StructId = u32);
 
-// TODO: We shouldn't actually need to keep track of a function's generics.
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Function<'tcx> {
     pub params: ThinVec<Ty<'tcx>>,
