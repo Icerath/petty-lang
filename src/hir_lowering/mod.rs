@@ -417,7 +417,6 @@ impl Lowering<'_, '_> {
         RValue::BinaryExpr { lhs, op, rhs }
     }
 
-    #[expect(unused)]
     fn logical_op(&mut self, op: hir::BinaryOp, lhs: ExprId, rhs: ExprId) -> RValue {
         let is_and = match op {
             hir::BinaryOp::And => true,
@@ -427,11 +426,41 @@ impl Lowering<'_, '_> {
         let lhs_ty = self.hir.exprs[lhs].ty;
         let rhs_ty = self.hir.exprs[rhs].ty;
 
+        let output = self.new_local();
+
         let lhs = self.lower_rvalue(lhs);
-
         let (lhs, _) = self.fully_deref(lhs, lhs_ty);
+        self.assign(output, lhs.clone());
 
-        todo!()
+        let to_fix;
+        if is_and {
+            let next = self.body_ref().blocks.next_idx() + 1;
+            to_fix = self.finish_with(Terminator::Branch {
+                condition: Operand::local(output),
+                fals: BlockId::PLACEHOLDER,
+                tru: next,
+            });
+        } else {
+            todo!()
+        }
+
+        let rhs = self.lower_rvalue(rhs);
+        let (rhs, _) = self.fully_deref(rhs, rhs_ty);
+        self.assign(output, rhs);
+        self.finish_next();
+
+        let current_block = self.body_ref().blocks.next_idx();
+        match &mut self.body_mut().blocks[to_fix].terminator {
+            Terminator::Branch { fals, tru, .. } => {
+                if *fals == BlockId::PLACEHOLDER {
+                    *fals = current_block;
+                } else if *tru == BlockId::PLACEHOLDER {
+                    *tru = current_block;
+                }
+            }
+            _ => unreachable!(),
+        }
+        RValue::local(output)
     }
 
     fn fully_deref<'tcx>(&mut self, mut rvalue: RValue, mut ty: Ty<'tcx>) -> (RValue, Ty<'tcx>) {

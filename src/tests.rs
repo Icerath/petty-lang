@@ -36,6 +36,7 @@ test! {
     recursion
     refs
     variables
+    logical
     // should panic
     "expected `!`, found `int`" fail_never
     "expected `int`, found `str`" fail_variables
