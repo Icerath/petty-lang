@@ -9,6 +9,30 @@ use crate::{
 };
 
 impl<'tcx> Collector<'_, '_, 'tcx> {
+    pub fn logical_op_err(
+        &self,
+        lhs: Ty<'tcx>,
+        rhs: Ty<'tcx>,
+        lhs_expr: ExprId,
+        rhs_expr: ExprId,
+    ) -> Error {
+        let mut errors = vec![];
+        let lhs_error = format!("expected `bool`, found `{lhs}`");
+        let rhs_error = format!("expected `bool`, found `{rhs}`");
+
+        if !lhs.is_bool() {
+            errors.extend(
+                self.invalid_type_span(lhs_expr).into_iter().map(|span| (span, &lhs_error)),
+            );
+        }
+        if !rhs.is_bool() {
+            errors.extend(
+                self.invalid_type_span(rhs_expr).into_iter().map(|span| (span, &rhs_error)),
+            );
+        }
+
+        self.raw_error("mismatched types", errors)
+    }
     pub fn binop_err(&self, op: BinaryOp, lhs: Ty, rhs: Ty) -> Error {
         let op_name = op.kind.name();
         let msg = if lhs == rhs {

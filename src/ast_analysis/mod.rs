@@ -396,7 +396,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
             }
         }
 
-        self.enforce_valid_binop(lhs_ty, op, rhs_ty)?;
+        self.enforce_valid_binop(lhs_ty, op, rhs_ty, lhs, rhs)?;
         self.subtype(rhs_ty, lhs_ty, rhs)?;
 
         Ok(match op.kind {
@@ -415,7 +415,14 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         })
     }
 
-    fn enforce_valid_binop(&self, lhs: Ty<'tcx>, op: BinaryOp, rhs: Ty<'tcx>) -> Result<()> {
+    fn enforce_valid_binop(
+        &self,
+        lhs: Ty<'tcx>,
+        op: BinaryOp,
+        rhs: Ty<'tcx>,
+        lhs_expr: ExprId,
+        rhs_expr: ExprId,
+    ) -> Result<()> {
         if let BinOpKind::Assign = op.kind {
             return Ok(());
         }
@@ -430,7 +437,15 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
             _ => false,
         };
 
-        if matches { Ok(()) } else { Err(self.binop_err(op, lhs, rhs)) }
+        if matches {
+            Ok(())
+        } else {
+            Err(if op.is_logical() {
+                self.logical_op_err(lhs, rhs, lhs_expr, rhs_expr)
+            } else {
+                self.binop_err(op, lhs, rhs)
+            })
+        }
     }
 
     fn index(&mut self, expr: ExprId, index: ExprId, span: Span) -> Result<Ty<'tcx>> {
