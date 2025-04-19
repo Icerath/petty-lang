@@ -99,15 +99,19 @@ impl Lowering<'_, '_> {
     fn current_mut(&mut self) -> &mut BodyInfo {
         self.bodies.last_mut().unwrap()
     }
+
     fn finish_with(&mut self, terminator: Terminator) -> BlockId {
         let prev_block = Block { statements: mem::take(&mut self.current_mut().stmts), terminator };
         self.body_mut().blocks.push(prev_block)
     }
-    // returns the next block's id
-    fn finish_next(&mut self) -> BlockId {
-        let next_block = self.body_mut().blocks.next_idx() + 1;
+
+    fn current_block(&self) -> BlockId {
+        self.body_ref().blocks.next_idx()
+    }
+
+    fn finish_next(&mut self) {
+        let next_block = self.current_block() + 1;
         self.finish_with(Terminator::Goto(next_block));
-        next_block
     }
 
     fn new_local(&mut self) -> Local {
@@ -264,15 +268,16 @@ impl Lowering<'_, '_> {
                 RValue::UNIT
             }
             ExprKind::Loop(ref block) => {
-                let loop_block = self.finish_next();
+                self.finish_next();
+                let loop_block = self.current_block();
 
                 let prev_loop = mem::take(&mut self.current_mut().breaks);
                 for &expr in block {
                     self.lower(expr);
                 }
-                let after_loop = self.finish_with(Terminator::Goto(loop_block)) + 1;
-
                 let breaks = mem::replace(&mut self.current_mut().breaks, prev_loop);
+
+                let after_loop = self.finish_with(Terminator::Goto(loop_block)) + 1;
 
                 for block in breaks {
                     self.body_mut().blocks[block].terminator.complete(after_loop);
@@ -287,7 +292,7 @@ impl Lowering<'_, '_> {
                     let to_fix = self.finish_with(Terminator::Branch {
                         condition,
                         fals: BlockId::PLACEHOLDER,
-                        tru: self.body_ref().blocks.next_idx() + 1,
+                        tru: self.current_block() + 1,
                     });
                     let block_out = self.block_expr(&arm.body);
                     if is_unit {
@@ -296,7 +301,7 @@ impl Lowering<'_, '_> {
                         self.assign(out_local, block_out);
                     }
                     jump_to_ends.push(self.finish_with(Terminator::Goto(BlockId::PLACEHOLDER)));
-                    let current_block = self.body_ref().blocks.next_idx();
+                    let current_block = self.current_block();
                     self.body_mut().blocks[to_fix].terminator.complete(current_block);
                 }
                 let els_out = self.block_expr(els);
@@ -306,7 +311,8 @@ impl Lowering<'_, '_> {
                     self.assign(out_local, els_out);
                 }
 
-                let current = self.finish_next();
+                self.finish_next();
+                let current = self.current_block();
                 for block in jump_to_ends {
                     self.body_mut().blocks[block].terminator.complete(current);
                 }
@@ -423,7 +429,7 @@ impl Lowering<'_, '_> {
         let (lhs, _) = self.fully_deref(lhs, lhs_ty);
         self.assign(output, lhs.clone());
 
-        let next = self.body_ref().blocks.next_idx() + 1;
+        let next = self.current_block() + 1;
         let condition = Operand::local(output);
         let terminator = if is_and {
             Terminator::Branch { condition, fals: BlockId::PLACEHOLDER, tru: next }
@@ -437,7 +443,7 @@ impl Lowering<'_, '_> {
         self.assign(output, rhs);
         self.finish_next();
 
-        let current_block = self.body_ref().blocks.next_idx();
+        let current_block = self.current_block();
 
         self.body_mut().blocks[to_fix].terminator.complete(current_block);
         RValue::local(output)
