@@ -47,7 +47,7 @@ impl Writer<'_> {
             ExprKind::FnCall { function, ref args } => {
                 (function, "(", Sep(args, ", "), ")").write(self);
             }
-            ExprKind::Index { expr, index } => (expr, "[", index, "]").write(self),
+            ExprKind::Index { expr, index, .. } => (expr, "[", index, "]").write(self),
             ExprKind::Unary { op, expr } => {
                 (inside_expr.then_some("("), op, expr, inside_expr.then_some(")")).write(self);
             }

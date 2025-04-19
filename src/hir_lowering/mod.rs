@@ -1,22 +1,23 @@
 mod intrinsics;
 
-use std::mem;
+use std::{mem, path::Path};
 
 use arcstr::ArcStr;
 use index_vec::IndexVec;
 
 use crate::{
-    HashMap,
+    HashMap, errors,
     hir::{self, ArraySeg, ExprId, ExprKind, Hir, Lit},
     mir::{
         self, BinaryOp, Block, BlockId, Body, BodyId, Constant, Local, Mir, Operand, Place,
         Projection, RValue, Statement, Terminator, UnaryOp,
     },
+    source::span::Span,
     symbol::Symbol,
     ty::{StructId, Ty, TyKind},
 };
 
-pub fn lower(hir: &Hir) -> Mir {
+pub fn lower(hir: &Hir, path: Option<&Path>, src: &str) -> Mir {
     let mut mir = Mir::default();
     let root_body = mir.bodies.push(Body::new(None, 0).with_auto(true));
     let bodies = vec![BodyInfo::new(root_body)];
@@ -27,6 +28,8 @@ pub fn lower(hir: &Hir) -> Mir {
         bodies,
         struct_display_bodies: IndexVec::default(),
         strings: HashMap::default(),
+        src,
+        path,
     };
     for &expr in &hir.root {
         lowering.lower(expr);
@@ -36,12 +39,14 @@ pub fn lower(hir: &Hir) -> Mir {
     lowering.mir
 }
 
-struct Lowering<'hir, 'tcx> {
+struct Lowering<'hir, 'tcx, 'src> {
     hir: &'hir Hir<'tcx>,
     mir: Mir,
     bodies: Vec<BodyInfo>,
     struct_display_bodies: IndexVec<StructId, Option<BodyId>>,
     strings: HashMap<Symbol, ArcStr>,
+    src: &'src str,
+    path: Option<&'src Path>,
 }
 
 macro_rules! str {
@@ -84,7 +89,7 @@ impl BodyInfo {
     }
 }
 
-impl Lowering<'_, '_> {
+impl Lowering<'_, '_, '_> {
     fn body_ref(&self) -> &Body {
         &self.mir.bodies[self.current().body]
     }
@@ -346,7 +351,7 @@ impl Lowering<'_, '_> {
                 self.current_mut().breaks.push(block);
                 RValue::UNIT
             }
-            ExprKind::Index { expr, index } => {
+            ExprKind::Index { expr, index, span } => {
                 let op = if self.hir.exprs[expr].ty.is_str() {
                     if self.hir.exprs[index].ty.is_range() {
                         mir::BinaryOp::StrIndexSlice
@@ -356,7 +361,7 @@ impl Lowering<'_, '_> {
                 } else if self.hir.exprs[index].ty.is_range() {
                     mir::BinaryOp::ArrayIndexRange
                 } else {
-                    return self.index_array(expr, index);
+                    return self.index_array(expr, index, span);
                 };
                 let lhs = self.lower(expr);
                 let rhs = self.lower(index);
@@ -376,6 +381,15 @@ impl Lowering<'_, '_> {
         let lhs = self.lower_rvalue(lhs);
         let rhs = self.lower_rvalue(rhs);
 
+        self.binary_op_inner((lhs, lhs_ty), op, (rhs, rhs_ty))
+    }
+
+    fn binary_op_inner(
+        &mut self,
+        (lhs, lhs_ty): (RValue, Ty),
+        op: hir::BinaryOp,
+        (rhs, rhs_ty): (RValue, Ty),
+    ) -> RValue {
         let (lhs, lhs_ty) = self.fully_deref(lhs, lhs_ty);
         let (rhs, rhs_ty) = self.fully_deref(rhs, rhs_ty);
 
@@ -456,20 +470,67 @@ impl Lowering<'_, '_> {
         (rvalue, ty)
     }
 
-    fn index_array(&mut self, expr: ExprId, index: ExprId) -> RValue {
+    fn index_array(&mut self, expr: ExprId, index: ExprId, span: Span) -> RValue {
         let expr_ty = self.hir.exprs[expr].ty;
+        let index_ty = self.hir.exprs[index].ty;
 
         let expr = self.lower_rvalue(expr);
         let expr = self.array_index_derefs(expr, expr_ty);
         let mut place = self.process_to_place(expr);
+        let index_local = self.lower_local(index);
+
+        self.bounds_check((index_local, index_ty), (place.clone(), index_ty), span);
+
         let projection = match self.hir.exprs[index].kind {
             ExprKind::Literal(Lit::Int(int)) if u32::try_from(int).is_ok() => {
                 Projection::ConstantIndex(int.try_into().unwrap())
             }
-            _ => Projection::Index(self.lower_local(index)),
+            _ => Projection::Index(index_local),
         };
         place.projections.push(projection);
         RValue::Use(Operand::Place(place))
+    }
+
+    fn bounds_check(
+        &mut self,
+        (index, index_ty): (Local, Ty),
+        (rhs, rhs_ty): (Place, Ty),
+        span: Span,
+    ) {
+        let array_len = self
+            .assign_new(RValue::UnaryExpr { op: UnaryOp::ArrayLen, operand: Operand::Ref(rhs) });
+        let binary_op = self.binary_op_inner(
+            (RValue::local(index), index_ty),
+            hir::BinaryOp::GreaterEq,
+            (RValue::local(array_len), rhs_ty),
+        );
+        let condition = self.process(binary_op, &TyKind::Bool);
+        let next = self.current_block() + 1;
+        let to_fix = self.finish_with(Terminator::Branch {
+            condition,
+            fals: BlockId::PLACEHOLDER,
+            tru: next,
+        });
+
+        let error_report = errors::error(
+            "index out of bounds",
+            self.path,
+            self.src,
+            [(span, "index out of bounds")],
+        );
+        let error_str = format!("{error_report:?}").into();
+
+        self.process(
+            RValue::UnaryExpr {
+                op: UnaryOp::Println,
+                operand: Operand::from(Constant::Str(error_str)),
+            },
+            &TyKind::Unit,
+        );
+        self.finish_with(Terminator::Abort);
+
+        let current = self.current_block();
+        self.body_mut().blocks[to_fix].terminator.complete(current);
     }
 
     fn array_index_derefs(&mut self, mut rvalue: RValue, mut ty: Ty) -> RValue {
@@ -498,7 +559,7 @@ impl Lowering<'_, '_> {
     fn lower_place_inner(&mut self, expr: hir::ExprId, proj: &mut Vec<Projection>) -> Local {
         match self.hir.exprs[expr].kind {
             ExprKind::Ident(ident) => self.read_ident(ident),
-            ExprKind::Index { expr, index } => {
+            ExprKind::Index { expr, index, .. } => {
                 let index_local = self.lower_local(index);
                 let local = self.lower_place_inner(expr, proj);
                 proj.push(Projection::Index(index_local));

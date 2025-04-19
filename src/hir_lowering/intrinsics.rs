@@ -6,7 +6,7 @@ use crate::{
     symbol::Symbol,
 };
 
-impl Lowering<'_, '_> {
+impl Lowering<'_, '_, '_> {
     pub fn try_instrinsic(&mut self, ident: Symbol) -> bool {
         let Some(rvalue) = Self::intrinsic_rvalue(&ident, &[]) else { return false };
         let local = self.assign_new(rvalue);

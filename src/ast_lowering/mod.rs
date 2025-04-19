@@ -120,9 +120,12 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
             ast::ExprKind::FnCall { function, ref args } => {
                 self.lower_fn_call(function, args, expr_id)
             }
-            ast::ExprKind::Index { expr, index } => {
-                (ExprKind::Index { expr: self.lower(expr), index: self.lower(index) }).with(expr_ty)
-            }
+            ast::ExprKind::Index { expr, index } => (ExprKind::Index {
+                expr: self.lower(expr),
+                index: self.lower(index),
+                span: self.ast.exprs[expr_id].span,
+            })
+            .with(expr_ty),
             ast::ExprKind::Return(expr) => {
                 let inner = match expr {
                     Some(expr) => self.lower(expr),

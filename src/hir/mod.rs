@@ -5,6 +5,7 @@ use thin_vec::ThinVec;
 
 use crate::{
     define_id,
+    source::span::Span,
     symbol::Symbol,
     ty::{Ty, TyKind},
 };
@@ -42,7 +43,7 @@ pub enum ExprKind<'tcx> {
     Literal(Lit),
     Block(ThinVec<ExprId>),
     FnCall { function: ExprId, args: ThinVec<ExprId> },
-    Index { expr: ExprId, index: ExprId },
+    Index { expr: ExprId, index: ExprId, span: Span },
     FnDecl(Box<FnDecl<'tcx>>),
     Let { ident: Symbol, expr: ExprId },
     If { arms: ThinVec<IfStmt>, els: ThinVec<ExprId> },

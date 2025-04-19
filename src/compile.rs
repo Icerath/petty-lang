@@ -58,7 +58,7 @@ pub fn compile(args: &Args) -> miette::Result<()> {
     let analysis = ast_analysis::analyze(Some(&args.path), &src, &ast, &tcx)?;
     let hir = ast_lowering::lower(&src, Some(&args.path), ast, analysis);
     dump!(hir);
-    let mut mir = hir_lowering::lower(&hir);
+    let mut mir = hir_lowering::lower(&hir, Some(&args.path), &src);
     drop(hir);
     dump!(unoptimized_mir, mir);
     mir_optimizations::optimize(&mut mir, &args.codegen, args.verbose);
