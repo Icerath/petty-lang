@@ -423,17 +423,20 @@ impl Lowering<'_, '_> {
         let (lhs, _) = self.fully_deref(lhs, lhs_ty);
         self.assign(output, lhs.clone());
 
-        let to_fix;
-        if is_and {
-            let next = self.body_ref().blocks.next_idx() + 1;
-            to_fix = self.finish_with(Terminator::Branch {
+        let next = self.body_ref().blocks.next_idx() + 1;
+        let to_fix = if is_and {
+            self.finish_with(Terminator::Branch {
                 condition: Operand::local(output),
                 fals: BlockId::PLACEHOLDER,
                 tru: next,
-            });
+            })
         } else {
-            todo!()
-        }
+            self.finish_with(Terminator::Branch {
+                condition: Operand::local(output),
+                fals: next,
+                tru: BlockId::PLACEHOLDER,
+            })
+        };
 
         let rhs = self.lower_rvalue(rhs);
         let (rhs, _) = self.fully_deref(rhs, rhs_ty);

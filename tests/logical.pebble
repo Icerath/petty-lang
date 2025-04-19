@@ -18,5 +18,16 @@ fn main() {
     assert evals == 4;
     assert ret_true(&evals) and ret_true(&evals);
     assert evals == 6;
+
+    let evals = 0;
+    assert !(ret_false(&evals) or ret_false(&evals));
+    assert evals == 2;
+    assert ret_false(&evals) or ret_true(&evals);
+    assert evals == 4;
+    assert ret_true(&evals) or ret_false(&evals);
+    assert evals == 5;
+    assert ret_true(&evals) or ret_true(&evals);
+    assert evals == 6;
+
 }
 
