@@ -546,7 +546,7 @@ impl Lowering<'_, '_, '_> {
     fn lower_place_inner(&mut self, expr: hir::ExprId, proj: &mut Vec<Projection>) -> Local {
         match self.hir.exprs[expr].kind {
             ExprKind::Ident(ident) => self.read_ident(ident),
-            ExprKind::Index { expr, index, .. } => {
+            ExprKind::Index { expr, index, span } => {
                 let index_local = self.lower_local(index);
                 let local = self.lower_place_inner(expr, proj);
                 let mut expr_ty = self.hir.exprs[expr].ty;
@@ -554,6 +554,13 @@ impl Lowering<'_, '_, '_> {
                     expr_ty = of;
                     proj.push(Projection::Deref);
                 }
+
+                self.bounds_check(
+                    (index_local, self.hir.exprs[index].ty),
+                    (Place { local, projections: proj.clone() }, expr_ty),
+                    span,
+                );
+
                 proj.push(Projection::Index(index_local));
                 local
             }
