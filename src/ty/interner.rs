@@ -39,11 +39,10 @@ impl TyInterner {
         self.intern_new(kind)
     }
     pub fn intern_new<'tcx>(&'tcx self, kind: TyKind<'tcx>) -> Ty<'tcx> {
-        let mut set = self.set.borrow_mut();
         let kind = unsafe { mem::transmute::<TyKind<'_>, TyKind<'static>>(kind) };
         let ty = self.arena.alloc(kind);
         let ty = unsafe { mem::transmute::<Ty<'_>, Ty<'static>>(ty) };
-        set.insert(ty);
+        self.set.borrow_mut().insert(ty);
         ty
     }
 }
