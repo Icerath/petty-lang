@@ -549,6 +549,11 @@ impl Lowering<'_, '_, '_> {
             ExprKind::Index { expr, index, .. } => {
                 let index_local = self.lower_local(index);
                 let local = self.lower_place_inner(expr, proj);
+                let mut expr_ty = self.hir.exprs[expr].ty;
+                while let TyKind::Ref(of) = expr_ty {
+                    expr_ty = of;
+                    proj.push(Projection::Deref);
+                }
                 proj.push(Projection::Index(index_local));
                 local
             }
