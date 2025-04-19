@@ -475,7 +475,7 @@ impl Lowering<'_, '_, '_> {
         let index_ty = self.hir.exprs[index].ty;
 
         let expr = self.lower_rvalue(expr);
-        let expr = self.array_index_derefs(expr, expr_ty);
+        let (expr, _) = self.fully_deref(expr, expr_ty);
         let mut place = self.process_to_place(expr);
         let index_local = self.lower_local(index);
 
@@ -531,19 +531,6 @@ impl Lowering<'_, '_, '_> {
 
         let current = self.current_block();
         self.body_mut().blocks[to_fix].terminator.complete(current);
-    }
-
-    fn array_index_derefs(&mut self, mut rvalue: RValue, mut ty: Ty) -> RValue {
-        loop {
-            match ty {
-                TyKind::Array(_) => return rvalue,
-                TyKind::Ref(of) => {
-                    ty = of;
-                    rvalue = RValue::Use(self.deref_operand(rvalue));
-                }
-                _ => unreachable!(),
-            }
-        }
     }
 
     fn read_ident(&self, ident: Symbol) -> Local {
