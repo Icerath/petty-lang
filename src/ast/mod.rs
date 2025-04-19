@@ -159,6 +159,9 @@ pub enum BinOpKind {
 
     Range,
     RangeInclusive,
+
+    And,
+    Or,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -202,6 +205,8 @@ impl BinOpKind {
             Self::Neq | Self::Eq => "s",
             Self::Assign => "assign",
             Self::Range | Self::RangeInclusive => "produce a range of",
+            Self::And => "and",
+            Self::Or => "or",
         }
     }
 
@@ -226,6 +231,8 @@ impl BinOpKind {
             Self::Sub => "-",
             Self::SubAssign => "-=",
             Self::Assign => "=",
+            Self::And => "and",
+            Self::Or => "or",
         }
     }
 }

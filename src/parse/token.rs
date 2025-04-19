@@ -42,6 +42,8 @@ pub enum TokenKind {
     Greater,
     Less,
     // Keywords
+    And,
+    Or,
     Assert,
     Break,
     Else,
@@ -74,6 +76,8 @@ pub struct Token {
 impl TokenKind {
     pub const fn repr(self) -> &'static str {
         match self {
+            Self::And => "and",
+            Self::Or => "or",
             Self::Trait => "trait",
             Self::Impl => "impl",
             Self::Ampersand => "&",

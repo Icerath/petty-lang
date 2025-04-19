@@ -406,7 +406,9 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
             | B::MulAssign
             | B::DivAssign
             | B::ModAssign => &TyKind::Unit,
-            B::Less | B::Greater | B::LessEq | B::GreaterEq | B::Eq | B::Neq => &TyKind::Bool,
+            B::And | B::Or | B::Less | B::Greater | B::LessEq | B::GreaterEq | B::Eq | B::Neq => {
+                &TyKind::Bool
+            }
             B::Range => &TyKind::Range,
             B::RangeInclusive => &TyKind::RangeInclusive,
             B::Add | B::Sub | B::Mul | B::Div | B::Mod => lhs_ty,

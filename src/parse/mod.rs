@@ -400,6 +400,9 @@ impl TryFrom<TokenKind> for BinOpKind {
 
             TokenKind::DotDot => Self::Range,
             TokenKind::DotDotEq => Self::RangeInclusive,
+
+            TokenKind::And => Self::And,
+            TokenKind::Or => Self::Or,
             _ => return Err(()),
         })
     }

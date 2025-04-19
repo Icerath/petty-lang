@@ -25,8 +25,8 @@ fn parse_expr(stream: &mut Stream, precedence: u8) -> Result<ExprId> {
             BinOpKind::DivAssign,
             BinOpKind::ModAssign,
         ],
-        // &[BinOpKind::Or],
-        // &[BinOpKind::And],
+        &[BinOpKind::Or],
+        &[BinOpKind::And],
         &[
             BinOpKind::Eq,
             BinOpKind::Neq,
