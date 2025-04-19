@@ -121,7 +121,7 @@ impl<'tcx> TyCtxInner<'tcx> {
 
     fn vid(&mut self, intern: &'tcx TyInterner) -> TyVid {
         let id = self.subs.next_idx();
-        self.subs.push(intern.intern(TyKind::Infer(id)))
+        self.subs.push(intern.intern_new(TyKind::Infer(id)))
     }
 
     fn try_infer_shallow(&self, ty: Ty<'tcx>) -> Result<Ty<'tcx>, Ty<'tcx>> {
