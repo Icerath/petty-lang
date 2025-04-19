@@ -323,7 +323,7 @@ fn parse_for(stream: &mut Stream) -> Result<Expr> {
     Ok((ExprKind::For { ident, iter, body }).todo_span())
 }
 
-fn parse_ifchain(stream: &mut Stream) -> Result<Expr> {
+fn parse_ifchain(stream: &mut Stream, if_tok: Token) -> Result<Expr> {
     let mut arms = thin_vec![];
     let els = loop {
         let condition = stream.parse()?;
@@ -341,7 +341,9 @@ fn parse_ifchain(stream: &mut Stream) -> Result<Expr> {
             break Some(stream.parse()?);
         }
     };
-    Ok((ExprKind::If { arms, els }).todo_span())
+    let end = stream.lexer.current_pos() as usize;
+    let span = Span::new(if_tok.span.start() as usize..end, if_tok.span.source());
+    Ok((ExprKind::If { arms, els }).with_span(span))
 }
 
 impl Parse for ArraySeg {
@@ -448,7 +450,7 @@ fn parse_atom_with(stream: &mut Stream, tok: Token) -> Result<ExprId> {
         TokenKind::Let => parse_let(stream, tok),
         TokenKind::While => parse_while(stream),
         TokenKind::For => parse_for(stream),
-        TokenKind::If => parse_ifchain(stream),
+        TokenKind::If => parse_ifchain(stream, tok),
         TokenKind::True => lit!(Lit::Bool(true)),
         TokenKind::False => lit!(Lit::Bool(false)),
         TokenKind::Int => lit!(Lit::Int(stream.lexer.src()[tok.span].parse::<i64>().unwrap())),
