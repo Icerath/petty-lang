@@ -32,7 +32,7 @@ impl Expr<'_> {
 #[derive(Debug)]
 pub enum ExprKind<'tcx> {
     Unreachable,
-    Abort,
+    Abort { msg: Symbol },
     StructInit,
     Field { expr: ExprId, field: usize },
     PrintStr(Symbol), // temporary

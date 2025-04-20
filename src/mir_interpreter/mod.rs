@@ -62,10 +62,7 @@ impl Interpreter<'_, '_> {
             }
             match block.terminator {
                 Terminator::Unreachable => unreachable!(),
-                #[cfg(test)]
-                Terminator::Abort => std::panic::panic_any("assertion failed"),
-                #[cfg(not(test))]
-                Terminator::Abort => std::process::exit(1),
+                Terminator::Abort { msg } => panic!("{}", msg),
                 Terminator::Goto(block) => block_id = block,
                 Terminator::Branch { ref condition, fals, tru } => {
                     let condition = self.operand(condition, &locals).unwrap_bool();

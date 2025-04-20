@@ -40,7 +40,7 @@ pub fn recurse(
             }
             false
         }
-        Terminator::Return(_) | Terminator::Abort => false,
+        Terminator::Return(_) | Terminator::Abort { .. } => false,
     };
     let block = &mut body.blocks[block_id];
     if is_unreachable {

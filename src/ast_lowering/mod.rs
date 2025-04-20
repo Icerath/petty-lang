@@ -150,13 +150,10 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
                 (hir::FnDecl { ident, params: fields.clone().into(), ret: struct_ty, body }).into()
             }
             ast::ExprKind::Assert(expr) => {
-                let display =
-                    ExprKind::PrintStr(self.assert_failed_error(expr)).with(&TyKind::Unit);
-                let display = self.hir.exprs.push(display);
+                let msg = self.assert_failed_error(expr);
+                let abort = (self.hir.exprs).push(ExprKind::Abort { msg }.with(&TyKind::Never));
 
-                let abort = (self.hir.exprs).push(ExprKind::Abort.with(&TyKind::Never));
-
-                let body = ThinVec::from([display, abort]);
+                let body = ThinVec::from([abort]);
                 let condition = self.lower_then_not(expr);
                 let arms = thin_vec![IfStmt { condition, body }];
                 (hir::ExprKind::If { arms, els: ThinVec::new() }).with(&TyKind::Unit)

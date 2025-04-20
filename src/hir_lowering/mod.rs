@@ -193,8 +193,8 @@ impl Lowering<'_, '_, '_> {
                 let _ = self.finish_with(Terminator::Unreachable);
                 RValue::UNIT
             }
-            ExprKind::Abort => {
-                let _ = self.finish_with(Terminator::Abort);
+            ExprKind::Abort { msg } => {
+                let _ = self.finish_with(Terminator::Abort { msg });
                 RValue::UNIT
             }
             ExprKind::Field { expr, field } => {
@@ -519,15 +519,7 @@ impl Lowering<'_, '_, '_> {
             [(span, "index out of bounds")],
         );
         let error_str = format!("{error_report:?}").into();
-
-        self.process(
-            RValue::UnaryExpr {
-                op: UnaryOp::Println,
-                operand: Operand::from(Constant::Str(error_str)),
-            },
-            &TyKind::Unit,
-        );
-        self.finish_with(Terminator::Abort);
+        self.finish_with(Terminator::Abort { msg: error_str });
 
         let current = self.current_block();
         self.body_mut().blocks[to_fix].terminator.complete(current);

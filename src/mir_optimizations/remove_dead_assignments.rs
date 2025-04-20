@@ -35,7 +35,7 @@ pub fn optimize(mir: &mut Mir, body_id: BodyId) {
     for block in blocks_mut(body) {
         let term_op = match &block.terminator {
             Terminator::Return(operand) => Some(operand),
-            Terminator::Abort => None,
+            Terminator::Abort { .. } => None,
             _ => continue,
         };
         let statements = block.statements.clone();

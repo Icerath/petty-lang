@@ -34,7 +34,7 @@ impl Writer<'_> {
             ExprKind::StructInit => "<struct init>".write(self),
             ExprKind::PrintStr(str) => ("print ", format!("{str:?}").as_str()).write(self),
             ExprKind::Assignment { lhs, expr } => (lhs, " = ", expr).write(self),
-            ExprKind::Abort => "abort".write(self),
+            ExprKind::Abort { msg } => ("abort(", msg, ")").write(self),
             ExprKind::Unreachable => "unreachable".write(self),
             ExprKind::Break => "break".write(self),
             ExprKind::Return(expr) => ("return ", expr).write(self),

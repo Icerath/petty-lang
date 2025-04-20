@@ -94,14 +94,14 @@ impl Terminator {
         match self {
             Self::Branch { condition, .. } => condition.with_locals(f),
             Self::Return(operand) => operand.with_locals(f),
-            Self::Goto(..) | Self::Abort | Self::Unreachable => {}
+            Self::Goto(..) | Self::Abort { .. } | Self::Unreachable => {}
         }
     }
     pub fn with_locals_mut(&mut self, f: impl FnMut(&mut Local)) {
         match self {
             Self::Branch { condition, .. } => condition.with_locals_mut(f),
             Self::Return(operand) => operand.with_locals_mut(f),
-            Self::Goto(..) | Self::Abort | Self::Unreachable => {}
+            Self::Goto(..) | Self::Abort { .. } | Self::Unreachable => {}
         }
     }
 }
