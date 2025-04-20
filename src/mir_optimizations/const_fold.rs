@@ -28,7 +28,7 @@ pub fn try_compute(rvalue: &RValue) -> Option<Operand> {
         }
         RValue::UnaryExpr { op, operand } => {
             let operand = value_of(operand)?;
-            let value = mir_interpreter::unary_op(*op, operand);
+            let value = mir_interpreter::unary_op(*op, operand, &mut std::io::sink());
             constant_of(&value)
         }
         RValue::StrJoin(segments) => {

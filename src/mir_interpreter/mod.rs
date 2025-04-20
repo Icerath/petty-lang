@@ -1,6 +1,8 @@
 mod array;
 mod value;
 
+use std::io::Write;
+
 use arcstr::ArcStr;
 use array::Array;
 use index_vec::{IndexSlice, IndexVec};
@@ -16,16 +18,18 @@ type Places = IndexSlice<Local, [Allocation]>;
 
 pub fn interpret(mir: &Mir) {
     let Some(main) = mir.main_body else { return };
-    let mut interpreter = Interpreter { mir, allocs: vec![] };
+    let w = &mut std::io::stdout().lock();
+    let mut interpreter = Interpreter { mir, allocs: vec![], w };
     interpreter.run(main, vec![]);
 }
 
-struct Interpreter<'mir> {
+struct Interpreter<'mir, 'w> {
     mir: &'mir Mir,
     allocs: Vec<Allocation>,
+    w: &'w mut dyn Write,
 }
 
-impl Interpreter<'_> {
+impl Interpreter<'_, '_> {
     pub fn alloc_locals(&mut self, size: usize) -> IndexVec<Local, Allocation> {
         std::iter::repeat_with(|| {
             self.allocs.pop().unwrap_or_else(|| Allocation::from(Value::Unit))
@@ -106,7 +110,9 @@ impl Interpreter<'_> {
                 let rhs = self.operand(rhs, locals);
                 binary_op(lhs, *op, rhs)
             }
-            RValue::UnaryExpr { op, operand } => unary_op(*op, self.operand(operand, locals)),
+            RValue::UnaryExpr { op, operand } => {
+                unary_op(*op, self.operand(operand, locals), self.w)
+            }
         }
     }
 
@@ -139,7 +145,7 @@ impl Interpreter<'_> {
 }
 
 #[expect(clippy::needless_pass_by_value)]
-pub fn unary_op(op: UnaryOp, operand: Value) -> Value {
+pub fn unary_op(op: UnaryOp, operand: Value, w: &mut dyn Write) -> Value {
     match op {
         UnaryOp::StrJoin => {
             let mut string = String::new();
@@ -160,12 +166,12 @@ pub fn unary_op(op: UnaryOp, operand: Value) -> Value {
         UnaryOp::CharToStr => Value::Str(operand.unwrap_char().to_string().into()),
 
         UnaryOp::Print => {
-            print!("{}", operand.unwrap_str());
+            _ = write!(w, "{}", operand.unwrap_str());
             Value::Unit
         }
 
         UnaryOp::Println => {
-            println!("{}", operand.unwrap_str());
+            _ = writeln!(w, "{}", operand.unwrap_str());
             Value::Unit
         }
         UnaryOp::StrLen => Value::Int(operand.unwrap_str().len().try_into().unwrap()),
