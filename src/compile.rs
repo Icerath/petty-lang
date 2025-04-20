@@ -16,7 +16,7 @@ use crate::{
 };
 
 #[cfg(test)]
-pub fn compile_test(path: impl Into<std::path::PathBuf>) -> miette::Result<()> {
+pub fn compile_test(path: impl Into<std::path::PathBuf>) -> miette::Result<Vec<u8>> {
     use crate::cli::Command;
 
     let path = path.into();
@@ -27,10 +27,13 @@ pub fn compile_test(path: impl Into<std::path::PathBuf>) -> miette::Result<()> {
         dump: None,
         codegen: crate::CodegenOpts::all(true),
     };
-    let w = &mut std::io::stdout().lock();
-    compile(&args, w)?;
+    let mut w = vec![];
+    compile(&args, &mut w)?;
+    let mut w2 = Vec::with_capacity(w.len());
     args.codegen = crate::CodegenOpts::all(false);
-    compile(&args, w)
+    compile(&args, &mut w2)?;
+    assert_eq!(w, w2);
+    Ok(w2)
 }
 
 pub fn compile(args: &Args, w: &mut dyn Write) -> miette::Result<()> {
