@@ -1,5 +1,6 @@
 use std::{
-    fs, io,
+    fs,
+    io::{self, Write},
     path::{Path, PathBuf},
     time::Instant,
 };
@@ -26,12 +27,13 @@ pub fn compile_test(path: impl Into<std::path::PathBuf>) -> miette::Result<()> {
         dump: None,
         codegen: crate::CodegenOpts::all(true),
     };
-    compile(&args)?;
+    let w = &mut std::io::stdout().lock();
+    compile(&args, w)?;
     args.codegen = crate::CodegenOpts::all(false);
-    compile(&args)
+    compile(&args, w)
 }
 
-pub fn compile(args: &Args) -> miette::Result<()> {
+pub fn compile(args: &Args, w: &mut dyn Write) -> miette::Result<()> {
     let src = fs::read_to_string(&args.path).into_diagnostic()?;
     if let Some(target) = &args.dump {
         create_new_dir(target).into_diagnostic()?;
@@ -74,7 +76,7 @@ pub fn compile(args: &Args) -> miette::Result<()> {
         if args.verbose > 0 {
             crate::log!();
         }
-        mir_interpreter::interpret(&mir);
+        mir_interpreter::interpret(&mir, w);
         if args.verbose > 0 {
             crate::log!();
             crate::log!("total time: {:?}", start.elapsed());

@@ -16,9 +16,8 @@ use crate::mir::{
 
 type Places = IndexSlice<Local, [Allocation]>;
 
-pub fn interpret(mir: &Mir) {
+pub fn interpret(mir: &Mir, w: &mut dyn Write) {
     let Some(main) = mir.main_body else { return };
-    let w = &mut std::io::stdout().lock();
     let mut interpreter = Interpreter { mir, allocs: vec![], w };
     interpreter.run(main, vec![]);
 }

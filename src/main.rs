@@ -28,7 +28,8 @@ const STD: &str = concat!(include_str!("std.pebble"), "\n\n");
 
 fn main() {
     let args = Args::parse();
-    match compile::compile(&args) {
+    let mut stdout = std::io::stdout().lock();
+    match compile::compile(&args, &mut stdout) {
         Ok(()) => {
             if let Some(target) = args.dump {
                 if args.verbose > 0 {
