@@ -103,10 +103,7 @@ impl Value {
         value!(Str, self).clone()
     }
     pub fn unwrap_range(&self) -> Range<i64> {
-        match self {
-            Self::Range(out) => Range::clone(out),
-            other => unreachable!("expected {}, found {other:?}", stringify!($ty)),
-        }
+        Range::clone(value!(Range, self))
     }
     pub fn unwrap_range_usize(&self) -> Range<usize> {
         let range = self.unwrap_range();
