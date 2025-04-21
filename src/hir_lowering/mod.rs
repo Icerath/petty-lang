@@ -277,6 +277,8 @@ impl Lowering<'_, '_, '_> {
                 RValue::UNIT
             }
             ExprKind::Loop(ref block) => {
+                self.current_mut().scopes.push(Scope::default());
+
                 self.finish_next();
                 let loop_block = self.current_block();
 
@@ -291,6 +293,9 @@ impl Lowering<'_, '_, '_> {
                 for block in breaks {
                     self.body_mut().blocks[block].terminator.complete(after_loop);
                 }
+
+                self.current_mut().scopes.pop().unwrap();
+
                 RValue::Use(Operand::UNIT)
             }
             ExprKind::If { ref arms, ref els } => {
