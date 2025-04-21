@@ -411,10 +411,6 @@ impl Lowering<'_, '_, '_> {
         let ident_var = self.assign_new(Operand::local(lo));
         self.current_mut().scope().variables.insert(ident, ident_var);
 
-        for expr in body {
-            self.lower(*expr);
-        }
-
         self.assign(
             lo,
             RValue::BinaryExpr {
@@ -423,6 +419,10 @@ impl Lowering<'_, '_, '_> {
                 rhs: Constant::Int(1).into(),
             },
         );
+
+        for expr in body {
+            self.lower(*expr);
+        }
 
         self.finish_with(Terminator::Goto(condition_block));
 
