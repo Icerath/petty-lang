@@ -444,6 +444,7 @@ fn parse_atom_with(stream: &mut Stream, tok: Token) -> Result<ExprId> {
         .with_span(tok.span.start()..stream.lexer.current_pos())),
         TokenKind::LBrace => Ok(ExprKind::Block(stream.parse()?).with_span(all!())),
         TokenKind::Break => Ok(ExprKind::Break.todo_span()),
+        TokenKind::Continue => Ok(ExprKind::Continue.with_span(tok.span)),
         TokenKind::Assert => {
             let expr: ExprId = stream.parse()?;
             Ok(ExprKind::Assert(expr).with_span(stream.ast.exprs[expr].span))

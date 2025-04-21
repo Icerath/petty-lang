@@ -134,6 +134,7 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
                 ExprKind::Return(inner).with(&TyKind::Never)
             }
             ast::ExprKind::Unary { op, expr } => self.lower(expr).unary(op).with(expr_ty),
+            ast::ExprKind::Continue => todo!(),
             ast::ExprKind::Break => hir::Expr::BREAK,
             ast::ExprKind::Struct { ident, ref fields, span } => {
                 let struct_ty = self.ty_info.struct_types[&span];

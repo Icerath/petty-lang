@@ -78,6 +78,7 @@ pub enum ExprKind {
     Return(Option<ExprId>),
     Assert(ExprId),
     Break,
+    Continue,
     Trait(Trait),
     Impl(Impl),
     FnDecl(FnDecl),

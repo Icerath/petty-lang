@@ -363,7 +363,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 self.subtype(ty, expected, expr.unwrap_or(id))?;
                 &TyKind::Never
             }
-            ExprKind::Break | ExprKind::Unreachable => &TyKind::Never,
+            ExprKind::Continue | ExprKind::Break | ExprKind::Unreachable => &TyKind::Never,
             ExprKind::FieldAccess { expr, field, span } => {
                 let expr = self.tcx.infer_shallow(self.analyze_expr(expr)?);
                 let TyKind::Struct { symbols, fields, .. } = expr else {

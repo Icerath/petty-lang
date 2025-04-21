@@ -201,6 +201,7 @@ fn ident_kind(str: &str) -> TokenKind {
         "for" => TokenKind::For,
         "assert" => TokenKind::Assert,
         "break" => TokenKind::Break,
+        "continue" => TokenKind::Continue,
         "else" => TokenKind::Else,
         "false" => TokenKind::False,
         "fn" => TokenKind::Fn,

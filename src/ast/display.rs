@@ -40,6 +40,7 @@ impl Writer<'_> {
             ExprKind::Assert(expr) => ("assert ", expr).write(self),
             ExprKind::Struct { ident, ref fields, .. } => ("struct ", ident, fields).write(self),
             ExprKind::Break => "break".write(self),
+            ExprKind::Continue => "continue".write(self),
             ExprKind::Return(expr) => ("return", expr.map(|expr| (" ", expr))).write(self),
             ExprKind::Lit(ref lit) => lit.write(self),
             ExprKind::Binary { lhs, op, rhs } => {
