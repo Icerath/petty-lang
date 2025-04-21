@@ -19,7 +19,7 @@ pub fn optimize(mir: &mut Mir, body_id: mir::BodyId) {
             let Statement::Assign { place, rvalue } = statement;
             mutated_locals[place.local] += 1;
 
-            if let RValue::Use(operand) = rvalue {
+            if let RValue::Use(operand @ Operand::Constant(..)) = rvalue {
                 if place.projections.is_empty() {
                     local_rvalues[place.local] = Some(operand.clone());
                 }
@@ -71,6 +71,7 @@ pub fn optimize(mir: &mut Mir, body_id: mir::BodyId) {
 
         for statement in &mut block.statements {
             let Statement::Assign { place, rvalue } = statement;
+            cache[place.local] = None;
 
             rvalue.with_operands_mut(replace!());
             rvalue.with_locals(|local| {
@@ -78,8 +79,8 @@ pub fn optimize(mir: &mut Mir, body_id: mir::BodyId) {
                     cache[local] = None;
                 }
             });
-            cache[place.local] = None;
-            let RValue::Use(operand) = rvalue else { continue };
+
+            let RValue::Use(operand @ Operand::Constant(..)) = rvalue else { continue };
             if !place.projections.is_empty() {
                 continue;
             }
