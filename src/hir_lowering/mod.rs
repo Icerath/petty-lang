@@ -381,18 +381,24 @@ impl Lowering<'_, '_, '_> {
     }
 
     fn range_for(&mut self, ident: Symbol, iter: ExprId, body: &[ExprId]) -> RValue {
-        // TODO: Support continue + break;
+        // TODO: support continue
         let range = self.lower(iter);
+
+        let prev_loop = mem::take(&mut self.current_mut().breaks);
+
         let lo =
             self.assign_new(RValue::UnaryExpr { op: UnaryOp::RangeStart, operand: range.clone() });
         let hi = self.assign_new(RValue::UnaryExpr { op: UnaryOp::RangeEnd, operand: range });
         self.finish_next();
         let condition_block = self.current_block();
+        self.current_mut().breaks.push(condition_block);
+
         let looping = self.assign_new(RValue::BinaryExpr {
             lhs: Operand::local(lo),
             op: BinaryOp::IntLess,
             rhs: Operand::local(hi),
         });
+
         let next = self.current_block() + 1;
         let to_fix = self.finish_with(Terminator::Branch {
             condition: Operand::local(looping),
@@ -408,6 +414,7 @@ impl Lowering<'_, '_, '_> {
         for expr in body {
             self.lower(*expr);
         }
+
         self.assign(
             lo,
             RValue::BinaryExpr {
@@ -421,8 +428,14 @@ impl Lowering<'_, '_, '_> {
 
         self.current_mut().scopes.pop().unwrap();
 
-        let current = self.current_block();
-        self.body_mut().blocks[to_fix].terminator.complete(current);
+        let after_block = self.current_block();
+        self.body_mut().blocks[to_fix].terminator.complete(after_block);
+
+        let breaks = mem::replace(&mut self.current_mut().breaks, prev_loop);
+        for block in breaks {
+            self.body_mut().blocks[block].terminator.complete(after_block);
+        }
+
         RValue::UNIT
     }
 
