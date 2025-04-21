@@ -48,6 +48,7 @@ pub enum ExprKind<'tcx> {
     Let { ident: Symbol, expr: ExprId },
     If { arms: ThinVec<IfStmt>, els: ThinVec<ExprId> },
     Loop(ThinVec<ExprId>),
+    ForLoop { ident: Symbol, iter: ExprId, body: ThinVec<ExprId> },
     Break,
     Return(ExprId),
 }

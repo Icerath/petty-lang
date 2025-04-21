@@ -79,6 +79,10 @@ impl Writer<'_> {
                 }
                 (!els.is_empty()).then_some(("else ", els.as_slice())).write(self);
             }
+            ExprKind::ForLoop { ident, iter, ref body } => {
+                self.inside_expr = inside_expr;
+                ("for ", ident, " in ", iter, body.as_slice()).write(self);
+            }
         }
         self.inside_expr = inside_expr;
     }

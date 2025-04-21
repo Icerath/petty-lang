@@ -176,6 +176,8 @@ pub fn unary_op(op: UnaryOp, operand: Value, w: &mut dyn Write) -> Value {
             let Range { start, end } = operand.unwrap_range();
             Value::Str(arcstr::format!("{start}..{end}"))
         }
+        UnaryOp::RangeStart => Value::Int(operand.unwrap_range().start),
+        UnaryOp::RangeEnd => Value::Int(operand.unwrap_range().end),
     }
 }
 

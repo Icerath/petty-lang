@@ -211,10 +211,9 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
         iter: ast::ExprId,
         body: ast::BlockId,
     ) -> hir::Expr<'tcx> {
-        _ = ident;
-        _ = iter;
-        _ = body;
-        todo!()
+        let iter = self.lower(iter);
+        let body = self.lower_block_inner(body).1;
+        (hir::ExprKind::ForLoop { ident, iter, body }).with(&TyKind::Unit)
     }
 
     fn lower_if_stmt(

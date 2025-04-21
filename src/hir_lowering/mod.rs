@@ -189,6 +189,10 @@ impl Lowering<'_, '_, '_> {
         let is_unit = expr.ty.is_unit();
 
         match expr.kind {
+            ExprKind::ForLoop { ident, iter, ref body } => match self.hir.exprs[iter].ty {
+                TyKind::Range => self.range_for(ident, iter, body),
+                _ => unreachable!(),
+            },
             ExprKind::Unreachable => {
                 let _ = self.finish_with(Terminator::Unreachable);
                 RValue::UNIT
@@ -369,6 +373,52 @@ impl Lowering<'_, '_, '_> {
             }
             ExprKind::Block(ref exprs) => self.block_expr(exprs),
         }
+    }
+
+    fn range_for(&mut self, ident: Symbol, iter: ExprId, body: &[ExprId]) -> RValue {
+        // TODO: Support continue + break;
+        let range = self.lower(iter);
+        let lo =
+            self.assign_new(RValue::UnaryExpr { op: UnaryOp::RangeStart, operand: range.clone() });
+        let hi = self.assign_new(RValue::UnaryExpr { op: UnaryOp::RangeEnd, operand: range });
+        self.finish_next();
+        let condition_block = self.current_block();
+        let looping = self.assign_new(RValue::BinaryExpr {
+            lhs: Operand::local(lo),
+            op: BinaryOp::IntLess,
+            rhs: Operand::local(hi),
+        });
+        let next = self.current_block() + 1;
+        let to_fix = self.finish_with(Terminator::Branch {
+            condition: Operand::local(looping),
+            fals: BlockId::PLACEHOLDER,
+            tru: next,
+        });
+
+        self.current_mut().scopes.push(Scope::default());
+
+        let ident_var = self.assign_new(Operand::local(lo));
+        self.current_mut().scope().variables.insert(ident, ident_var);
+
+        for expr in body {
+            self.lower(*expr);
+        }
+        self.assign(
+            lo,
+            RValue::BinaryExpr {
+                lhs: Operand::local(lo),
+                op: BinaryOp::IntAdd,
+                rhs: Constant::Int(1).into(),
+            },
+        );
+
+        self.finish_with(Terminator::Goto(condition_block));
+
+        self.current_mut().scopes.pop().unwrap();
+
+        let current = self.current_block();
+        self.body_mut().blocks[to_fix].terminator.complete(current);
+        RValue::UNIT
     }
 
     fn binary_op(&mut self, lhs: ExprId, op: hir::BinaryOp, rhs: ExprId) -> RValue {

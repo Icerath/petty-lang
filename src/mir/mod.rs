@@ -262,6 +262,8 @@ pub enum UnaryOp {
     StrJoin,
 
     RangeToStr,
+    RangeStart,
+    RangeEnd,
 }
 
 impl UnaryOp {
