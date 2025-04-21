@@ -63,6 +63,7 @@ struct BodyInfo {
     functions: HashMap<Symbol, BodyId>,
     stmts: Vec<Statement>,
     breaks: Vec<BlockId>,
+    continue_block: Option<BlockId>,
     scopes: Vec<Scope>,
 }
 
@@ -85,6 +86,7 @@ impl BodyInfo {
             scopes: vec![Scope::default()],
             stmts: vec![],
             breaks: vec![],
+            continue_block: None,
         }
     }
 }
@@ -283,10 +285,13 @@ impl Lowering<'_, '_, '_> {
                 let loop_block = self.current_block();
 
                 let prev_loop = mem::take(&mut self.current_mut().breaks);
+                let prev_continue = self.current_mut().continue_block.replace(loop_block);
+
                 for &expr in block {
                     self.lower(expr);
                 }
                 let breaks = mem::replace(&mut self.current_mut().breaks, prev_loop);
+                self.current_mut().continue_block = prev_continue;
 
                 let after_loop = self.finish_with(Terminator::Goto(loop_block)) + 1;
 
@@ -360,7 +365,10 @@ impl Lowering<'_, '_, '_> {
                 self.current_mut().breaks.push(block);
                 RValue::UNIT
             }
-            ExprKind::Continue => todo!(),
+            ExprKind::Continue => {
+                self.finish_with(Terminator::Goto(self.current().continue_block.unwrap()));
+                RValue::UNIT
+            }
             ExprKind::Index { expr, index, span } => {
                 let op = if self.hir.exprs[expr].ty.is_str() {
                     if self.hir.exprs[index].ty.is_range() {
@@ -385,14 +393,15 @@ impl Lowering<'_, '_, '_> {
         // TODO: support continue
         let range = self.lower(iter);
 
-        let prev_loop = mem::take(&mut self.current_mut().breaks);
-
         let lo =
             self.assign_new(RValue::UnaryExpr { op: UnaryOp::RangeStart, operand: range.clone() });
         let hi = self.assign_new(RValue::UnaryExpr { op: UnaryOp::RangeEnd, operand: range });
         self.finish_next();
         let condition_block = self.current_block();
+
+        let prev_loop = mem::take(&mut self.current_mut().breaks);
         self.current_mut().breaks.push(condition_block);
+        let prev_continue = self.current_mut().continue_block.replace(condition_block);
 
         let looping = self.assign_new(RValue::BinaryExpr {
             lhs: Operand::local(lo),
@@ -433,6 +442,7 @@ impl Lowering<'_, '_, '_> {
         self.body_mut().blocks[to_fix].terminator.complete(after_block);
 
         let breaks = mem::replace(&mut self.current_mut().breaks, prev_loop);
+        self.current_mut().continue_block = prev_continue;
         for block in breaks {
             self.body_mut().blocks[block].terminator.complete(after_block);
         }
