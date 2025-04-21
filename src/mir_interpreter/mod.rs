@@ -1,7 +1,7 @@
 mod array;
 mod value;
 
-use std::io::Write;
+use std::{io::Write, ops::Range};
 
 use arcstr::ArcStr;
 use array::Array;
@@ -171,6 +171,11 @@ pub fn unary_op(op: UnaryOp, operand: Value, w: &mut dyn Write) -> Value {
             Value::Unit
         }
         UnaryOp::StrLen => Value::Int(operand.unwrap_str().len().try_into().unwrap()),
+
+        UnaryOp::RangeToStr => {
+            let Range { start, end } = operand.unwrap_range();
+            Value::Str(arcstr::format!("{start}..{end}"))
+        }
     }
 }
 

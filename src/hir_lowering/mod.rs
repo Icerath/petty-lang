@@ -680,7 +680,7 @@ impl Lowering<'_, '_, '_> {
         }
         let operand = self.process(rvalue, ty);
         match ty {
-            TyKind::Infer(_) | TyKind::Str => unreachable!(),
+            TyKind::Ref(..) | TyKind::Infer(_) | TyKind::Str => unreachable!(),
             TyKind::Never => str!("!"),
             TyKind::Unit => str!("()"),
             TyKind::Bool => RValue::UnaryExpr { op: UnaryOp::BoolToStr, operand },
@@ -689,7 +689,12 @@ impl Lowering<'_, '_, '_> {
             TyKind::Struct { id, symbols, fields } => {
                 self.format_struct(*id, symbols, fields, operand)
             }
-            _ => todo!("{}.to_string()", ty),
+            TyKind::RangeInclusive | TyKind::Range => {
+                RValue::UnaryExpr { op: UnaryOp::RangeToStr, operand }
+            }
+            TyKind::Array(..) => todo!(),
+            TyKind::Function(..) => todo!(),
+            TyKind::Generic(..) => todo!(),
         }
     }
 

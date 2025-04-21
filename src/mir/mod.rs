@@ -260,6 +260,8 @@ pub enum UnaryOp {
 
     ArrayLen,
     StrJoin,
+
+    RangeToStr,
 }
 
 impl UnaryOp {
