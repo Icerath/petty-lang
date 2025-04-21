@@ -14,7 +14,6 @@ pub enum TyKind<'tcx> {
     Char,
     Str,
     Range,
-    RangeInclusive,
     Array(Ty<'tcx>),
     Function(Function<'tcx>),
     Struct { id: StructId, symbols: ThinVec<Symbol>, fields: ThinVec<Ty<'tcx>> },
@@ -40,7 +39,6 @@ impl<'tcx> TyKind<'tcx> {
             | Self::Int
             | Self::Never
             | Self::Range
-            | Self::RangeInclusive
             | Self::Str => {}
         }
     }
@@ -71,7 +69,6 @@ impl<'tcx> TyKind<'tcx> {
             | Self::Int
             | Self::Never
             | Self::Range
-            | Self::RangeInclusive
             | Self::Str => self,
         }
     }
@@ -114,7 +111,6 @@ impl fmt::Display for TyKind<'_> {
             Self::Unit => write!(f, "()"),
             Self::Never => write!(f, "!"),
             Self::Range => write!(f, "Range"),
-            Self::RangeInclusive => write!(f, "RangeInclusive"),
             Self::Array(of) => write!(f, "[{of}]"),
             Self::Ref(of) => write!(f, "&{of}"),
             Self::Function(Function { params, ret }) => {

@@ -409,8 +409,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
             B::And | B::Or | B::Less | B::Greater | B::LessEq | B::GreaterEq | B::Eq | B::Neq => {
                 &TyKind::Bool
             }
-            B::Range => &TyKind::Range,
-            B::RangeInclusive => &TyKind::RangeInclusive,
+            B::RangeInclusive | B::Range => &TyKind::Range,
             B::Add | B::Sub | B::Mul | B::Div | B::Mod => lhs_ty,
         })
     }
@@ -457,8 +456,8 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
 
     fn index_ty(&self, lhs: Ty<'tcx>, rhs: Ty<'tcx>, span: Span) -> Result<Ty<'tcx>> {
         Ok(match (lhs, rhs) {
-            (TyKind::Str, TyKind::Range | TyKind::RangeInclusive) => &TyKind::Str,
-            (TyKind::Array(_), TyKind::Range | TyKind::RangeInclusive) => lhs,
+            (TyKind::Str, TyKind::Range) => &TyKind::Str,
+            (TyKind::Array(_), TyKind::Range) => lhs,
             (TyKind::Array(of), TyKind::Int) => *of,
             (TyKind::Str, TyKind::Int) => &TyKind::Char,
             (TyKind::Ref(lhs), rhs) => return self.index_ty(lhs, rhs, span),

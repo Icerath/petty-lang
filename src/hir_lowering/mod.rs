@@ -739,9 +739,7 @@ impl Lowering<'_, '_, '_> {
             TyKind::Struct { id, symbols, fields } => {
                 self.format_struct(*id, symbols, fields, operand)
             }
-            TyKind::RangeInclusive | TyKind::Range => {
-                RValue::UnaryExpr { op: UnaryOp::RangeToStr, operand }
-            }
+            TyKind::Range => RValue::UnaryExpr { op: UnaryOp::RangeToStr, operand },
             TyKind::Array(..) => todo!(),
             TyKind::Function(..) => todo!(),
             TyKind::Generic(..) => todo!(),
