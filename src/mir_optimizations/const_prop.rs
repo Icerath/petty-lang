@@ -24,13 +24,13 @@ pub fn optimize(mir: &mut Mir, body_id: mir::BodyId) {
                     local_rvalues[place.local] = Some(operand.clone());
                 }
             }
-            for local in 0..body.locals.index() {
-                mutated_locals[local] += u32::from(rvalue.mutates_local(local.into()));
-            }
+            rvalue.with_locals(|local| {
+                mutated_locals[local] += u32::from(rvalue.mutates_local(local));
+            });
         }
-        for local in 0..body.locals.index() {
-            mutated_locals[local] += u32::from(block.terminator.mutates_local(local.into()));
-        }
+        block.terminator.with_locals(|local| {
+            mutated_locals[local] += u32::from(block.terminator.mutates_local(local));
+        });
     }
 
     for block in blocks_mut(body) {
