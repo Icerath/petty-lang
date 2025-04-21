@@ -37,6 +37,7 @@ impl Writer<'_> {
             ExprKind::Abort { msg } => ("abort(", msg, ")").write(self),
             ExprKind::Unreachable => "unreachable".write(self),
             ExprKind::Break => "break".write(self),
+            ExprKind::Continue => "continue".write(self),
             ExprKind::Return(expr) => ("return ", expr).write(self),
             ExprKind::Literal(ref lit) => lit.write(self),
             ExprKind::Binary { lhs, op, rhs } => {

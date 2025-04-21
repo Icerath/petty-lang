@@ -360,6 +360,7 @@ impl Lowering<'_, '_, '_> {
                 self.current_mut().breaks.push(block);
                 RValue::UNIT
             }
+            ExprKind::Continue => todo!(),
             ExprKind::Index { expr, index, span } => {
                 let op = if self.hir.exprs[expr].ty.is_str() {
                     if self.hir.exprs[index].ty.is_range() {

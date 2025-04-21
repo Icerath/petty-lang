@@ -27,6 +27,7 @@ pub struct Expr<'tcx> {
 impl Expr<'_> {
     pub const UNIT: Self = Self { ty: &TyKind::Unit, kind: ExprKind::Literal(Lit::Unit) };
     pub const BREAK: Self = Self { ty: &TyKind::Never, kind: ExprKind::Break };
+    pub const CONTINUE: Self = Self { ty: &TyKind::Never, kind: ExprKind::Continue };
 }
 
 #[derive(Debug)]
@@ -50,6 +51,7 @@ pub enum ExprKind<'tcx> {
     Loop(ThinVec<ExprId>),
     ForLoop { ident: Symbol, iter: ExprId, body: ThinVec<ExprId> },
     Break,
+    Continue,
     Return(ExprId),
 }
 
