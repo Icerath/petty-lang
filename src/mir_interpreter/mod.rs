@@ -80,7 +80,7 @@ impl Interpreter<'_, '_> {
             RValue::StrJoin(segments) => {
                 let mut s = String::new();
                 for seg in segments {
-                    s.push_str(&self.operand(seg, locals).unwrap_str());
+                    s.push_str(self.operand(seg, locals).unwrap_str());
                 }
                 Value::Str(s.into())
             }
@@ -146,7 +146,7 @@ pub fn unary_op(op: UnaryOp, operand: Value, w: &mut dyn Write) -> Value {
         UnaryOp::StrJoin => {
             let mut string = String::new();
             let array = operand.unwrap_array();
-            array.for_each(|value| string.push_str(&value.clone_raw().unwrap_str()));
+            array.for_each(|value| string.push_str(value.clone_raw().unwrap_str()));
             Value::Str(string.into())
         }
         UnaryOp::ArrayLen => Value::Int(operand.unwrap_ref_array().len().try_into().unwrap()),
@@ -213,7 +213,7 @@ pub fn binary_op(lhs: Value, op: BinaryOp, rhs: Value) -> Value {
 
         BinaryOp::StrEq => Value::Bool(lhs.unwrap_str() == rhs.unwrap_str()),
         BinaryOp::StrNeq => Value::Bool(lhs.unwrap_str() != rhs.unwrap_str()),
-        BinaryOp::StrAdd => Value::Str((lhs.unwrap_str().to_string() + &*rhs.unwrap_str()).into()),
+        BinaryOp::StrAdd => Value::Str((lhs.unwrap_str().to_string() + rhs.unwrap_str()).into()),
         BinaryOp::StrIndex => {
             Value::Char(lhs.unwrap_str().as_bytes()[rhs.unwrap_int_usize()] as char)
         }

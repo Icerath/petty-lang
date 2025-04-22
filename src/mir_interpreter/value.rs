@@ -99,11 +99,11 @@ impl Value {
     pub fn unwrap_char(&self) -> char {
         *value!(Char, self)
     }
-    pub fn unwrap_str(&self) -> ArcStr {
-        value!(Str, self).clone()
+    pub fn unwrap_str(&self) -> &ArcStr {
+        value!(Str, self)
     }
-    pub fn unwrap_range(&self) -> Range<i64> {
-        Range::clone(value!(Range, self))
+    pub fn unwrap_range(&self) -> &Range<i64> {
+        value!(Range, self)
     }
     pub fn unwrap_range_usize(&self) -> Range<usize> {
         let range = self.unwrap_range();
@@ -113,13 +113,13 @@ impl Value {
         *value!(Fn, self)
     }
     #[track_caller]
-    pub fn unwrap_array(&self) -> Array {
-        value!(Array, self).clone()
+    pub fn unwrap_array(&self) -> &Array {
+        value!(Array, self)
     }
     pub fn unwrap_struct(&self) -> &ThinVec<Allocation> {
         value!(Struct, self)
     }
     pub fn unwrap_ref_array(&self) -> Array {
-        self.unwrap_ref().borrow().unwrap_array()
+        self.unwrap_ref().borrow().unwrap_array().clone()
     }
 }
