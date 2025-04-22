@@ -9,6 +9,13 @@ use crate::{
 };
 
 impl<'tcx> Collector<'_, '_, 'tcx> {
+    pub fn cannot_iter(&self, ty: Ty, span: Span) -> Error {
+        self.raw_error(
+            &format!("type `{ty}` is not iterable"),
+            [(span, format!("type `{ty}` is not iterable"))],
+        )
+    }
+
     pub fn logical_op_err(
         &self,
         lhs: Ty<'tcx>,

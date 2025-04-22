@@ -309,8 +309,14 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
             ExprKind::For { ident, iter, body } => {
                 // for now only allow ranges
                 let iter_ty = self.analyze_expr(iter)?;
-                self.subtype(iter_ty, &TyKind::Range, iter)?;
-                self.current().scope().variables.insert(ident, &TyKind::Int);
+                self.tcx.infer_shallow(iter_ty);
+                let ident_ty = match iter_ty {
+                    TyKind::Range => &TyKind::Int,
+                    _ => return Err(self.cannot_iter(iter_ty, self.ast.exprs[iter].span)),
+                };
+
+                self.current().scope().variables.insert(ident, ident_ty);
+
                 let out = self.analyze_block(body)?;
                 self.subtype_block(out, &TyKind::Unit, body)?;
                 &TyKind::Unit
