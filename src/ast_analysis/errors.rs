@@ -159,6 +159,6 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
     where
         S: Into<String>,
     {
-        crate::errors::error(msg, self.file, self.src, labels)
+        crate::errors::error(msg, self.path, self.src, labels)
     }
 }

@@ -55,7 +55,7 @@ struct Collector<'src, 'ast, 'tcx> {
     ast: &'ast Ast,
     tcx: &'tcx TyCtx<'tcx>,
     src: &'src str,
-    file: Option<&'src Path>,
+    path: Option<&'src Path>,
 }
 
 fn setup_ty_info<'tcx>(ast: &Ast) -> TyInfo<'tcx> {
@@ -75,7 +75,7 @@ pub fn analyze<'tcx>(
 ) -> Result<TyInfo<'tcx>> {
     let ty_info = setup_ty_info(ast);
     let body = global_body();
-    let mut collector = Collector { file, src, ty_info, ast, tcx, bodies: vec![body] };
+    let mut collector = Collector { path: file, src, ty_info, ast, tcx, bodies: vec![body] };
     let top_level_exprs = ast.top_level.iter().copied().collect();
     let top_level = ast::Block { span: Span::ZERO, stmts: top_level_exprs, is_expr: false };
     collector.analyze_body_with(&top_level, Body::new(&TyKind::Never))?;
