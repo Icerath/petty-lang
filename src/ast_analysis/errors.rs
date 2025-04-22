@@ -9,6 +9,16 @@ use crate::{
 };
 
 impl<'tcx> Collector<'_, '_, 'tcx> {
+    pub fn cannot_break(&self, span: Span) -> Error {
+        self.raw_error("`break` outside of a loop", [(span, "cannot `break` outside of a loop")])
+    }
+    pub fn cannot_continue(&self, span: Span) -> Error {
+        self.raw_error(
+            "`continue` while outside of a loop",
+            [(span, "cannot `continue` outside of a loop")],
+        )
+    }
+
     pub fn cannot_iter(&self, ty: Ty, span: Span) -> Error {
         self.raw_error(
             &format!("type `{ty}` is not iterable"),

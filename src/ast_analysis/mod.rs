@@ -29,6 +29,7 @@ struct Body<'tcx> {
     ty_names: HashMap<Symbol, Ty<'tcx>>,
     ret: Ty<'tcx>,
     scopes: Vec<Scope<'tcx>>,
+    loops: usize,
 }
 
 impl<'tcx> Body<'tcx> {
@@ -44,7 +45,7 @@ struct Scope<'tcx> {
 
 impl<'tcx> Body<'tcx> {
     pub fn new(ret: Ty<'tcx>) -> Self {
-        Self { ty_names: HashMap::default(), ret, scopes: vec![Scope::default()] }
+        Self { ty_names: HashMap::default(), ret, scopes: vec![Scope::default()], loops: 0 }
     }
 }
 
@@ -318,14 +319,18 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
 
                 self.current().scope().variables.insert(ident, ident_ty);
 
+                self.current().loops += 1;
                 let out = self.analyze_block(body)?;
+                self.current().loops -= 1;
                 self.subtype_block(out, &TyKind::Unit, body)?;
                 &TyKind::Unit
             }
             ExprKind::While { condition, block } => {
                 let condition_ty = self.analyze_expr(condition)?;
                 self.subtype(condition_ty, &TyKind::Bool, condition)?;
+                self.current().loops += 1;
                 self.analyze_block(block)?;
+                self.current().loops -= 1;
                 &TyKind::Unit
             }
             ExprKind::If { ref arms, els } => {
@@ -370,7 +375,19 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 self.subtype(ty, expected, expr.unwrap_or(id))?;
                 &TyKind::Never
             }
-            ExprKind::Continue | ExprKind::Break | ExprKind::Unreachable => &TyKind::Never,
+            ExprKind::Break => {
+                if self.current().loops == 0 {
+                    return Err(self.cannot_break(self.ast.exprs[id].span));
+                }
+                &TyKind::Never
+            }
+            ExprKind::Continue => {
+                if self.current().loops == 0 {
+                    return Err(self.cannot_continue(self.ast.exprs[id].span));
+                }
+                &TyKind::Never
+            }
+            ExprKind::Unreachable => &TyKind::Never,
             ExprKind::FieldAccess { expr, field, span } => {
                 let expr = self.tcx.infer_shallow(self.analyze_expr(expr)?);
                 let TyKind::Struct { symbols, fields, .. } = expr else {
