@@ -113,10 +113,10 @@ impl Interpreter<'_, '_> {
     }
 
     fn operand(&mut self, operand: &Operand, locals: &Places) -> Value {
-        match *operand {
-            Operand::Ref(ref place) => Value::Ref(self.load_place(place, locals)),
-            Operand::Constant(ref constant) => const_value(constant),
-            Operand::Place(ref place) => self.load_place(place, locals).clone_raw(),
+        match operand {
+            Operand::Ref(place) => Value::Ref(self.load_place(place, locals)),
+            Operand::Constant(constant) => const_value(constant),
+            Operand::Place(place) => self.load_place(place, locals).clone_raw(),
         }
     }
 
