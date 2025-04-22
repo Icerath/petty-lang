@@ -107,6 +107,14 @@ impl Lowering<'_, '_, '_> {
         self.bodies.last_mut().unwrap()
     }
 
+    fn begin_scope(&mut self) {
+        self.current_mut().scopes.push(Scope::default());
+    }
+
+    fn end_scope(&mut self) {
+        self.current_mut().scopes.pop().unwrap();
+    }
+
     fn finish_with(&mut self, terminator: Terminator) -> BlockId {
         let prev_block = Block { statements: mem::take(&mut self.current_mut().stmts), terminator };
         self.body_mut().blocks.push(prev_block)
@@ -279,7 +287,7 @@ impl Lowering<'_, '_, '_> {
                 RValue::UNIT
             }
             ExprKind::Loop(ref block) => {
-                self.current_mut().scopes.push(Scope::default());
+                self.begin_scope();
 
                 self.finish_next();
                 let loop_block = self.current_block();
@@ -299,7 +307,7 @@ impl Lowering<'_, '_, '_> {
                     self.body_mut().blocks[block].terminator.complete(after_loop);
                 }
 
-                self.current_mut().scopes.pop().unwrap();
+                self.end_scope();
 
                 RValue::Use(Operand::UNIT)
             }
@@ -416,7 +424,7 @@ impl Lowering<'_, '_, '_> {
             tru: next,
         });
 
-        self.current_mut().scopes.push(Scope::default());
+        self.begin_scope();
 
         let ident_var = self.assign_new(Operand::local(lo));
         self.current_mut().scope().variables.insert(ident, ident_var);
@@ -436,7 +444,7 @@ impl Lowering<'_, '_, '_> {
 
         self.finish_with(Terminator::Goto(condition_block));
 
-        self.current_mut().scopes.pop().unwrap();
+        self.end_scope();
 
         let after_block = self.current_block();
         self.body_mut().blocks[to_fix].terminator.complete(after_block);
@@ -681,7 +689,7 @@ impl Lowering<'_, '_, '_> {
     }
 
     fn block_expr(&mut self, exprs: &[ExprId]) -> RValue {
-        self.current_mut().scopes.push(Scope::default());
+        self.begin_scope();
         let mut rvalue = None;
         for (i, &expr) in exprs.iter().enumerate() {
             if i == exprs.len() - 1 {
@@ -690,7 +698,7 @@ impl Lowering<'_, '_, '_> {
                 self.lower(expr);
             }
         }
-        self.current_mut().scopes.pop().unwrap();
+        self.end_scope();
         rvalue.unwrap_or(RValue::Use(Operand::UNIT))
     }
 
