@@ -290,29 +290,8 @@ impl Lowering<'_, '_, '_> {
                 RValue::UNIT
             }
             ExprKind::Loop(ref block) => {
-                self.begin_scope();
-
-                self.finish_next();
-                let loop_block = self.current_block();
-
-                let prev_loop = mem::take(&mut self.current_mut().breaks);
-                let prev_continue = self.current_mut().continue_block.replace(loop_block);
-
-                for &expr in block {
-                    self.lower(expr);
-                }
-                let breaks = mem::replace(&mut self.current_mut().breaks, prev_loop);
-                self.current_mut().continue_block = prev_continue;
-
-                let after_loop = self.finish_with(Terminator::Goto(loop_block)) + 1;
-
-                for block in breaks {
-                    self.body_mut().blocks[block].terminator.complete(after_loop);
-                }
-
-                self.end_scope();
-
-                RValue::Use(Operand::UNIT)
+                self.lower_loop(block, |_| None, |_| {});
+                RValue::UNIT
             }
             ExprKind::If { ref arms, ref els } => {
                 let mut jump_to_ends = Vec::with_capacity(arms.len());
@@ -401,12 +380,59 @@ impl Lowering<'_, '_, '_> {
     }
 
     fn range_for(&mut self, ident: Symbol, iter: ExprId, body: &[ExprId]) {
-        // TODO: support continue
         let range = self.lower(iter);
-
         let lo =
             self.assign_new(RValue::UnaryExpr { op: UnaryOp::RangeStart, operand: range.clone() });
         let hi = self.assign_new(RValue::UnaryExpr { op: UnaryOp::RangeEnd, operand: range });
+
+        self.for_loop(
+            ident,
+            body,
+            |lower| {
+                lower.assign_new(RValue::BinaryExpr {
+                    lhs: Operand::local(lo),
+                    op: BinaryOp::IntLess,
+                    rhs: Operand::local(hi),
+                })
+            },
+            |lower| {
+                let ident_var = lower.assign_new(Operand::local(lo));
+                lower.assign(
+                    lo,
+                    RValue::BinaryExpr {
+                        lhs: Operand::local(lo),
+                        op: BinaryOp::IntAdd,
+                        rhs: Constant::Int(1).into(),
+                    },
+                );
+                ident_var
+            },
+        );
+    }
+
+    fn for_loop(
+        &mut self,
+        ident: Symbol,
+        body: &[ExprId],
+        condition: impl FnOnce(&mut Self) -> Local,
+        iter: impl FnOnce(&mut Self) -> Local,
+    ) {
+        self.lower_loop(
+            body,
+            |lower| Some(condition(lower)),
+            |lower| {
+                let ident_var = iter(lower);
+                lower.current_mut().scope().variables.insert(ident, ident_var);
+            },
+        );
+    }
+
+    fn lower_loop(
+        &mut self,
+        body: &[ExprId],
+        condition: impl FnOnce(&mut Self) -> Option<Local>,
+        iter: impl FnOnce(&mut Self),
+    ) {
         self.finish_next();
         let condition_block = self.current_block();
 
@@ -414,32 +440,20 @@ impl Lowering<'_, '_, '_> {
         self.current_mut().breaks.push(condition_block);
         let prev_continue = self.current_mut().continue_block.replace(condition_block);
 
-        let looping = self.assign_new(RValue::BinaryExpr {
-            lhs: Operand::local(lo),
-            op: BinaryOp::IntLess,
-            rhs: Operand::local(hi),
-        });
-
-        let next = self.current_block() + 1;
-        let to_fix = self.finish_with(Terminator::Branch {
-            condition: Operand::local(looping),
-            fals: BlockId::PLACEHOLDER,
-            tru: next,
-        });
+        let to_fix = if let Some(looping) = condition(self) {
+            let next = self.current_block() + 1;
+            Some(self.finish_with(Terminator::Branch {
+                condition: Operand::local(looping),
+                fals: BlockId::PLACEHOLDER,
+                tru: next,
+            }))
+        } else {
+            None
+        };
 
         self.begin_scope();
 
-        let ident_var = self.assign_new(Operand::local(lo));
-        self.current_mut().scope().variables.insert(ident, ident_var);
-
-        self.assign(
-            lo,
-            RValue::BinaryExpr {
-                lhs: Operand::local(lo),
-                op: BinaryOp::IntAdd,
-                rhs: Constant::Int(1).into(),
-            },
-        );
+        iter(self);
 
         for expr in body {
             self.lower(*expr);
@@ -450,8 +464,9 @@ impl Lowering<'_, '_, '_> {
         self.end_scope();
 
         let after_block = self.current_block();
-        self.body_mut().blocks[to_fix].terminator.complete(after_block);
-
+        if let Some(to_fix) = to_fix {
+            self.body_mut().blocks[to_fix].terminator.complete(after_block);
+        }
         let breaks = mem::replace(&mut self.current_mut().breaks, prev_loop);
         self.current_mut().continue_block = prev_continue;
         for block in breaks {
