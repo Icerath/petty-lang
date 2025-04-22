@@ -39,6 +39,7 @@ pub enum ExprKind<'tcx> {
     PrintStr(Symbol), // temporary
     Ident(Symbol),
     Binary { lhs: ExprId, op: BinaryOp, rhs: ExprId },
+    OpAssign { place: ExprId, op: OpAssign, expr: ExprId },
     Assignment { lhs: ExprId, expr: ExprId },
     Unary { op: UnaryOp, expr: ExprId },
     Literal(Lit),
@@ -91,6 +92,15 @@ pub enum BinaryOp {
     Or,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub enum OpAssign {
+    Add,
+    Sub,
+    Mul,
+    Div,
+    Mod,
+}
+
 pub type UnaryOp = crate::ast::UnaryOp;
 
 #[derive(Debug)]
@@ -131,5 +141,31 @@ impl<'tcx> ExprKind<'tcx> {
 impl<'tcx> ExprId {
     pub fn unary(self, op: UnaryOp) -> ExprKind<'tcx> {
         ExprKind::Unary { op, expr: self }
+    }
+}
+
+impl TryFrom<crate::ast::BinOpKind> for OpAssign {
+    type Error = ();
+    fn try_from(op: crate::ast::BinOpKind) -> Result<Self, Self::Error> {
+        Ok(match op {
+            crate::ast::BinOpKind::AddAssign => OpAssign::Add,
+            crate::ast::BinOpKind::SubAssign => OpAssign::Sub,
+            crate::ast::BinOpKind::MulAssign => OpAssign::Mul,
+            crate::ast::BinOpKind::DivAssign => OpAssign::Div,
+            crate::ast::BinOpKind::ModAssign => OpAssign::Mod,
+            _ => return Err(()),
+        })
+    }
+}
+
+impl From<OpAssign> for BinaryOp {
+    fn from(op: OpAssign) -> Self {
+        match op {
+            OpAssign::Add => Self::Add,
+            OpAssign::Sub => Self::Sub,
+            OpAssign::Mul => Self::Mul,
+            OpAssign::Div => Self::Div,
+            OpAssign::Mod => Self::Mod,
+        }
     }
 }

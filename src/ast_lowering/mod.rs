@@ -6,7 +6,7 @@ use crate::{
     ast::{self, Ast, BinOpKind, BinaryOp},
     ast_analysis::TyInfo,
     errors,
-    hir::{self, ExprKind, Hir, IfStmt},
+    hir::{self, ExprKind, Hir, IfStmt, OpAssign},
     symbol::Symbol,
     ty::{Ty, TyKind},
 };
@@ -66,22 +66,10 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
                     },
                 rhs,
             } => {
-                let expr = {
-                    let op = match op.kind {
-                        BinOpKind::AddAssign => hir::BinaryOp::Add,
-                        BinOpKind::SubAssign => hir::BinaryOp::Sub,
-                        BinOpKind::MulAssign => hir::BinaryOp::Mul,
-                        BinOpKind::DivAssign => hir::BinaryOp::Div,
-                        BinOpKind::ModAssign => hir::BinaryOp::Mod,
-                        _ => unreachable!(),
-                    };
-                    let ty = self.get_ty(rhs);
-                    let lhs = self.lower(lhs);
-                    let rhs = self.lower(rhs);
-                    self.hir.exprs.push(ExprKind::Binary { lhs, op, rhs }.with(ty))
-                };
-
-                (hir::ExprKind::Assignment { lhs: self.lower(lhs), expr }).with(expr_ty)
+                let op = OpAssign::try_from(op.kind).unwrap();
+                let place = self.lower(lhs);
+                let expr = self.lower(rhs);
+                ExprKind::OpAssign { place, op, expr }.with(&TyKind::Unit)
             }
             ast::ExprKind::Binary { lhs, op: BinaryOp { kind: BinOpKind::Assign, .. }, rhs } => {
                 (hir::ExprKind::Assignment { lhs: self.lower(lhs), expr: self.lower(rhs) })

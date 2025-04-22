@@ -8,7 +8,7 @@ use index_vec::IndexVec;
 
 use crate::{
     HashMap, errors,
-    hir::{self, ArraySeg, ExprId, ExprKind, Hir, Lit},
+    hir::{self, ArraySeg, ExprId, ExprKind, Hir, Lit, OpAssign},
     mir::{
         self, BinaryOp, Block, BlockId, Body, BodyId, Constant, Local, Mir, Operand, Place,
         Projection, RValue, Statement, Terminator, UnaryOp,
@@ -340,6 +340,7 @@ impl Lowering<'_, '_, '_> {
                 RValue::Use(Operand::Constant(Constant::Unit))
             }
             ExprKind::Binary { lhs, op, rhs } => self.binary_op(lhs, op, rhs),
+            ExprKind::OpAssign { place, op, expr } => self.op_assign(place, op, expr),
             ExprKind::Ident(ident) => match self.load_ident(ident) {
                 RValue::Use(operand) => RValue::Use(operand),
                 rvalue => rvalue,
@@ -403,7 +404,14 @@ impl Lowering<'_, '_, '_> {
         let (lhs, lhs_ty) = self.fully_deref(lhs, lhs_ty);
         let (rhs, rhs_ty) = self.fully_deref(rhs, rhs_ty);
 
-        let op = match (lhs_ty, op) {
+        let op = Self::get_binary_op(lhs_ty, op);
+        let lhs = self.process(lhs, lhs_ty);
+        let rhs = self.process(rhs, rhs_ty);
+        RValue::BinaryExpr { lhs, op, rhs }
+    }
+
+    fn get_binary_op(ty: Ty, op: hir::BinaryOp) -> BinaryOp {
+        match (ty, op) {
             (TyKind::Int, op) => match op {
                 hir::BinaryOp::Add => mir::BinaryOp::IntAdd,
                 hir::BinaryOp::Sub => mir::BinaryOp::IntSub,
@@ -432,10 +440,7 @@ impl Lowering<'_, '_, '_> {
                 _ => unreachable!("str - {op:?}"),
             },
             (ty, op) => unreachable!("{ty} - {op:?}"),
-        };
-        let lhs = self.process(lhs, lhs_ty);
-        let rhs = self.process(rhs, rhs_ty);
-        RValue::BinaryExpr { lhs, op, rhs }
+        }
     }
 
     fn logical_op(&mut self, op: hir::BinaryOp, lhs: ExprId, rhs: ExprId) -> RValue {
@@ -470,6 +475,17 @@ impl Lowering<'_, '_, '_> {
 
         self.body_mut().blocks[to_fix].terminator.complete(current_block);
         RValue::local(output)
+    }
+
+    fn op_assign(&mut self, place: ExprId, op: OpAssign, expr: ExprId) -> RValue {
+        let place_ty = self.hir.exprs[place].ty;
+
+        let operand = self.lower(expr);
+        let place = self.lower_place(place);
+        let op = Self::get_binary_op(place_ty, op.into());
+        let rvalue = RValue::BinaryExpr { lhs: Operand::Place(place.clone()), op, rhs: operand };
+        self.assign(place, rvalue);
+        RValue::UNIT
     }
 
     fn fully_deref<'tcx>(&mut self, mut rvalue: RValue, mut ty: Ty<'tcx>) -> (RValue, Ty<'tcx>) {

@@ -3,7 +3,7 @@ use std::{
     mem,
 };
 
-use super::{ArraySeg, ExprKind, FnDecl, Param};
+use super::{ArraySeg, ExprKind, FnDecl, OpAssign, Param};
 use crate::{
     hir::{BinaryOp, ExprId, Hir, Lit, UnaryOp},
     symbol::Symbol,
@@ -44,6 +44,7 @@ impl Writer<'_> {
                 (inside_expr.then_some("("), lhs, " ", op, " ", rhs, inside_expr.then_some(")"))
                     .write(self);
             }
+            ExprKind::OpAssign { place, op, expr } => (place, op, expr).write(self),
             ExprKind::Ident(ident) => ident.write(self),
             ExprKind::FnCall { function, ref args } => {
                 (function, "(", Sep(args, ", "), ")").write(self);
@@ -203,6 +204,19 @@ impl Dump for BinaryOp {
             Self::RangeInclusive => "..=",
             Self::Sub => "-",
         });
+    }
+}
+
+impl Dump for OpAssign {
+    fn write(&self, w: &mut Writer) {
+        (match self {
+            Self::Add => "+=",
+            Self::Sub => "-=",
+            Self::Mul => "*=",
+            Self::Div => "/=",
+            Self::Mod => "%=",
+        })
+        .write(w);
     }
 }
 
