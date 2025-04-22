@@ -2,7 +2,7 @@ fn main() {
     let array = [0; 8]
     assert (&array)[0] == 0;
     assert len(&array) == 8;
-    let i = 0
+
     for i in 0..8 {
         for j in 0..i {
             array[i] += 1;
