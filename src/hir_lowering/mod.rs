@@ -203,6 +203,7 @@ impl Lowering<'_, '_, '_> {
             ExprKind::ForLoop { ident, iter, ref body } => {
                 match self.hir.exprs[iter].ty {
                     TyKind::Range => self.range_for(ident, iter, body),
+                    TyKind::Array(..) => self.array_for(ident, iter, body),
                     _ => unreachable!(),
                 }
                 RValue::UNIT

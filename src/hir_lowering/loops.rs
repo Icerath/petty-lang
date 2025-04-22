@@ -1,9 +1,10 @@
 use std::mem;
 
 use super::{
-    BinaryOp, BlockId, Constant, ExprId, Local, Lowering, Operand, RValue, Symbol, Terminator,
-    UnaryOp,
+    BinaryOp, BlockId, Constant, ExprId, Local, Lowering, Operand, Place, RValue, Symbol,
+    Terminator, UnaryOp,
 };
+use crate::mir::Projection;
 
 impl Lowering<'_, '_, '_> {
     pub fn lower_loop(
@@ -84,6 +85,42 @@ impl Lowering<'_, '_, '_> {
             },
             |lower| {
                 let ident_var = lower.assign_new(Operand::local(lo));
+                lower.assign(
+                    lo,
+                    RValue::BinaryExpr {
+                        lhs: Operand::local(lo),
+                        op: BinaryOp::IntAdd,
+                        rhs: Constant::Int(1).into(),
+                    },
+                );
+                ident_var
+            },
+        );
+    }
+
+    pub fn array_for(&mut self, ident: Symbol, iter: ExprId, body: &[ExprId]) {
+        let iter_rvalue = self.lower_rvalue(iter);
+        let iter = self.assign_new(iter_rvalue);
+
+        let lo = self.assign_new(Constant::Int(0));
+        let hi = self.assign_new(RValue::UnaryExpr {
+            op: UnaryOp::ArrayLen,
+            operand: Operand::Ref(Place::local(iter)),
+        });
+
+        self.for_loop(
+            ident,
+            body,
+            |lower| {
+                lower.assign_new(RValue::BinaryExpr {
+                    lhs: Operand::local(lo),
+                    op: BinaryOp::IntLess,
+                    rhs: Operand::local(hi),
+                })
+            },
+            |lower| {
+                let place = Place { local: iter, projections: vec![Projection::Index(lo)] };
+                let ident_var = lower.assign_new(RValue::Use(Operand::Place(place)));
                 lower.assign(
                     lo,
                     RValue::BinaryExpr {
