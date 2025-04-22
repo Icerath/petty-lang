@@ -199,10 +199,13 @@ impl Lowering<'_, '_, '_> {
         let is_unit = expr.ty.is_unit();
 
         match expr.kind {
-            ExprKind::ForLoop { ident, iter, ref body } => match self.hir.exprs[iter].ty {
-                TyKind::Range => self.range_for(ident, iter, body),
-                _ => unreachable!(),
-            },
+            ExprKind::ForLoop { ident, iter, ref body } => {
+                match self.hir.exprs[iter].ty {
+                    TyKind::Range => self.range_for(ident, iter, body),
+                    _ => unreachable!(),
+                }
+                RValue::UNIT
+            }
             ExprKind::Unreachable => {
                 let _ = self.finish_with(Terminator::Unreachable);
                 RValue::UNIT
@@ -397,7 +400,7 @@ impl Lowering<'_, '_, '_> {
         }
     }
 
-    fn range_for(&mut self, ident: Symbol, iter: ExprId, body: &[ExprId]) -> RValue {
+    fn range_for(&mut self, ident: Symbol, iter: ExprId, body: &[ExprId]) {
         // TODO: support continue
         let range = self.lower(iter);
 
@@ -454,8 +457,6 @@ impl Lowering<'_, '_, '_> {
         for block in breaks {
             self.body_mut().blocks[block].terminator.complete(after_block);
         }
-
-        RValue::UNIT
     }
 
     fn binary_op(&mut self, lhs: ExprId, op: hir::BinaryOp, rhs: ExprId) -> RValue {
