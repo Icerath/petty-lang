@@ -6,54 +6,6 @@ use super::{
 };
 
 impl Lowering<'_, '_, '_> {
-    pub fn range_for(&mut self, ident: Symbol, iter: ExprId, body: &[ExprId]) {
-        let range = self.lower(iter);
-        let lo =
-            self.assign_new(RValue::UnaryExpr { op: UnaryOp::RangeStart, operand: range.clone() });
-        let hi = self.assign_new(RValue::UnaryExpr { op: UnaryOp::RangeEnd, operand: range });
-
-        self.for_loop(
-            ident,
-            body,
-            |lower| {
-                lower.assign_new(RValue::BinaryExpr {
-                    lhs: Operand::local(lo),
-                    op: BinaryOp::IntLess,
-                    rhs: Operand::local(hi),
-                })
-            },
-            |lower| {
-                let ident_var = lower.assign_new(Operand::local(lo));
-                lower.assign(
-                    lo,
-                    RValue::BinaryExpr {
-                        lhs: Operand::local(lo),
-                        op: BinaryOp::IntAdd,
-                        rhs: Constant::Int(1).into(),
-                    },
-                );
-                ident_var
-            },
-        );
-    }
-
-    pub fn for_loop(
-        &mut self,
-        ident: Symbol,
-        body: &[ExprId],
-        condition: impl FnOnce(&mut Self) -> Local,
-        iter: impl FnOnce(&mut Self) -> Local,
-    ) {
-        self.lower_loop(
-            body,
-            |lower| Some(condition(lower)),
-            |lower| {
-                let ident_var = iter(lower);
-                lower.current_mut().scope().variables.insert(ident, ident_var);
-            },
-        );
-    }
-
     pub fn lower_loop(
         &mut self,
         body: &[ExprId],
@@ -95,5 +47,53 @@ impl Lowering<'_, '_, '_> {
         for block in breaks {
             self.body_mut().blocks[block].terminator.complete(after_block);
         }
+    }
+
+    pub fn for_loop(
+        &mut self,
+        ident: Symbol,
+        body: &[ExprId],
+        condition: impl FnOnce(&mut Self) -> Local,
+        iter: impl FnOnce(&mut Self) -> Local,
+    ) {
+        self.lower_loop(
+            body,
+            |lower| Some(condition(lower)),
+            |lower| {
+                let ident_var = iter(lower);
+                lower.current_mut().scope().variables.insert(ident, ident_var);
+            },
+        );
+    }
+
+    pub fn range_for(&mut self, ident: Symbol, iter: ExprId, body: &[ExprId]) {
+        let range = self.lower(iter);
+        let lo =
+            self.assign_new(RValue::UnaryExpr { op: UnaryOp::RangeStart, operand: range.clone() });
+        let hi = self.assign_new(RValue::UnaryExpr { op: UnaryOp::RangeEnd, operand: range });
+
+        self.for_loop(
+            ident,
+            body,
+            |lower| {
+                lower.assign_new(RValue::BinaryExpr {
+                    lhs: Operand::local(lo),
+                    op: BinaryOp::IntLess,
+                    rhs: Operand::local(hi),
+                })
+            },
+            |lower| {
+                let ident_var = lower.assign_new(Operand::local(lo));
+                lower.assign(
+                    lo,
+                    RValue::BinaryExpr {
+                        lhs: Operand::local(lo),
+                        op: BinaryOp::IntAdd,
+                        rhs: Constant::Int(1).into(),
+                    },
+                );
+                ident_var
+            },
+        );
     }
 }
