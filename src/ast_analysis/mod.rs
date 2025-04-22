@@ -312,6 +312,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 self.tcx.infer_shallow(iter_ty);
                 let ident_ty = match iter_ty {
                     TyKind::Range => &TyKind::Int,
+                    TyKind::Array(of) => of,
                     _ => return Err(self.cannot_iter(iter_ty, self.ast.exprs[iter].span)),
                 };
 
