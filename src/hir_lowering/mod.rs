@@ -440,33 +440,29 @@ impl Lowering<'_, '_, '_> {
         self.current_mut().breaks.push(condition_block);
         let prev_continue = self.current_mut().continue_block.replace(condition_block);
 
-        let to_fix = if let Some(looping) = condition(self) {
+        let to_fix = condition(self).map(|looping| {
             let next = self.current_block() + 1;
-            Some(self.finish_with(Terminator::Branch {
+            self.finish_with(Terminator::Branch {
                 condition: Operand::local(looping),
                 fals: BlockId::PLACEHOLDER,
                 tru: next,
-            }))
-        } else {
-            None
-        };
+            })
+        });
 
         self.begin_scope();
-
         iter(self);
-
         for expr in body {
             self.lower(*expr);
         }
+        self.end_scope();
 
         self.finish_with(Terminator::Goto(condition_block));
-
-        self.end_scope();
 
         let after_block = self.current_block();
         if let Some(to_fix) = to_fix {
             self.body_mut().blocks[to_fix].terminator.complete(after_block);
         }
+
         let breaks = mem::replace(&mut self.current_mut().breaks, prev_loop);
         self.current_mut().continue_block = prev_continue;
         for block in breaks {
