@@ -15,15 +15,16 @@ use crate::{
     },
     source::span::Span,
     symbol::Symbol,
-    ty::{StructId, Ty, TyKind},
+    ty::{StructId, Ty, TyCtx, TyKind},
 };
 
-pub fn lower(hir: &Hir, path: Option<&Path>, src: &str) -> Mir {
+pub fn lower<'tcx>(hir: &Hir<'tcx>, path: Option<&Path>, src: &str, tcx: &'tcx TyCtx<'tcx>) -> Mir {
     let mut mir = Mir::default();
     let root_body = mir.bodies.push(Body::new(None, 0).with_auto(true));
     let bodies = vec![BodyInfo::new(root_body)];
 
     let mut lowering = Lowering {
+        tcx,
         hir,
         mir,
         bodies,
@@ -42,6 +43,7 @@ pub fn lower(hir: &Hir, path: Option<&Path>, src: &str) -> Mir {
 }
 
 struct Lowering<'hir, 'tcx, 'src> {
+    tcx: &'tcx TyCtx<'tcx>,
     hir: &'hir Hir<'tcx>,
     mir: Mir,
     bodies: Vec<BodyInfo>,
@@ -720,7 +722,9 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
             TyKind::Range => RValue::UnaryExpr { op: UnaryOp::RangeToStr, operand },
             TyKind::Struct { id, fields, .. } => self.format_struct(*id, fields, operand),
             TyKind::Array(of) => self.format_array(of, operand),
-            TyKind::Function(..) => todo!(),
+            TyKind::Function(..) => {
+                RValue::from(Constant::Str(self.tcx.display(ty).to_string().into()))
+            }
             TyKind::Generic(..) => todo!(),
         }
     }
