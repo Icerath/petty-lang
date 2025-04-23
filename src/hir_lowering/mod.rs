@@ -279,13 +279,13 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
                     self.finish_with(Terminator::Return(last));
                 }
                 self.bodies.pop().unwrap();
-                RValue::Use(Operand::UNIT)
+                RValue::UNIT
             }
             ExprKind::Let { ident, expr } => {
                 let rvalue = self.lower_rvalue(expr);
                 let local = self.assign_new(rvalue);
                 self.current_mut().scope().variables.insert(ident, local);
-                RValue::Use(Operand::UNIT)
+                RValue::UNIT
             }
             ExprKind::Return(expr) => {
                 let place = self.lower(expr);
@@ -335,17 +335,13 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
                 for block in jump_to_ends {
                     self.body_mut().blocks[block].terminator.complete(current);
                 }
-                if is_unit {
-                    RValue::Use(Operand::Constant(Constant::Unit))
-                } else {
-                    RValue::local(out_local)
-                }
+                if is_unit { RValue::UNIT } else { RValue::local(out_local) }
             }
             ExprKind::Assignment { lhs, expr } => {
                 let rvalue = self.lower_rvalue(expr);
                 let place = self.lower_place(lhs);
                 self.assign(place, rvalue);
-                RValue::Use(Operand::Constant(Constant::Unit))
+                RValue::UNIT
             }
             ExprKind::Binary { lhs, op, rhs } => self.binary_op(lhs, op, rhs),
             ExprKind::OpAssign { place, op, expr } => self.op_assign(place, op, expr),
@@ -496,7 +492,8 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
         RValue::UNIT
     }
 
-    fn fully_deref(&mut self, mut rvalue: RValue, mut ty: Ty<'tcx>) -> (RValue, Ty<'tcx>) {
+    fn fully_deref(&mut self, rvalue: impl Into<RValue>, mut ty: Ty<'tcx>) -> (RValue, Ty<'tcx>) {
+        let mut rvalue = rvalue.into();
         while let TyKind::Ref(of) = ty {
             rvalue = self.deref_operand(rvalue).into();
             ty = of;
@@ -646,28 +643,28 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
             }
         }
         self.end_scope();
-        rvalue.unwrap_or(RValue::Use(Operand::UNIT))
+        rvalue.unwrap_or(RValue::UNIT)
     }
 
     fn load_ident(&self, ident: Symbol) -> RValue {
         if let Some(place) =
             self.current().scopes.iter().rev().find_map(|scope| scope.variables.get(&ident))
         {
-            return RValue::Use(Operand::local(*place));
+            return RValue::local(*place);
         }
         let Some(location) = self.bodies.iter().rev().find_map(|body| body.functions.get(&ident))
         else {
             panic!("{ident}");
         };
-        RValue::Use(Operand::Constant(Constant::Func(*location)))
+        RValue::from(Constant::Func(*location))
     }
 
     fn lit_rvalue(&mut self, lit: &Lit) -> RValue {
         match *lit {
-            Lit::Unit => RValue::Use(Operand::Constant(Constant::Unit)),
-            Lit::Bool(bool) => RValue::Use(Operand::Constant(Constant::Bool(bool))),
-            Lit::Int(int) => RValue::Use(Operand::Constant(Constant::Int(int))),
-            Lit::Char(char) => RValue::Use(Operand::Constant(Constant::Char(char))),
+            Lit::Unit => RValue::UNIT,
+            Lit::Bool(bool) => RValue::from(Constant::Bool(bool)),
+            Lit::Int(int) => RValue::from(Constant::Int(int)),
+            Lit::Char(char) => RValue::from(Constant::Char(char)),
             Lit::String(str) => str!(self, str),
             Lit::Array { ref segments } => self.lower_array_lit(segments),
             Lit::FStr { ref segments } => self.lower_fstrings(segments),
@@ -676,7 +673,7 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
 
     fn lower_array_lit(&mut self, segments: &[ArraySeg]) -> RValue {
         if segments.is_empty() {
-            return RValue::Use(Operand::Constant(Constant::EmptyArray { cap: 0 }));
+            return RValue::from(Constant::EmptyArray { cap: 0 });
         }
 
         let mut mir_segments = Vec::with_capacity(segments.len());
@@ -707,7 +704,7 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
         self.format_rvalue(rvalue, expr.ty)
     }
 
-    fn format_rvalue(&mut self, rvalue: RValue, ty: Ty<'tcx>) -> RValue {
+    fn format_rvalue(&mut self, rvalue: impl Into<RValue>, ty: Ty<'tcx>) -> RValue {
         let (rvalue, ty) = self.fully_deref(rvalue, ty);
         if ty.is_str() {
             return rvalue;
@@ -728,14 +725,14 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
         }
     }
 
-    fn deref_operand(&mut self, rvalue: RValue) -> Operand {
-        match rvalue {
+    fn deref_operand(&mut self, rvalue: impl Into<RValue>) -> Operand {
+        match rvalue.into() {
             RValue::Use(Operand::Place(mut place)) => {
                 place.projections.push(Projection::Deref);
                 Operand::Place(place)
             }
             RValue::Use(Operand::Ref(place)) => Operand::Place(place),
-            _ => {
+            rvalue => {
                 let local = self.assign_new(rvalue);
                 Operand::Place(Place { local, projections: vec![Projection::Deref] })
             }
@@ -801,7 +798,7 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
                     projections: vec![Projection::Deref, Projection::Index(lo)],
                 };
 
-                let formatted_elem = lower.format_rvalue(RValue::Use(Operand::Place(elem)), ty);
+                let formatted_elem = lower.format_rvalue(Operand::Place(elem), ty);
                 let rhs = lower.process(formatted_elem, &TyKind::Str);
 
                 lower.assign_new(RValue::BinaryExpr {
@@ -847,7 +844,7 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
                 segments.push(str!(", "));
             }
             let projections = vec![Projection::Deref, Projection::Field(i as _)];
-            let field = RValue::Use(Operand::Place(Place { local: Local::from(0), projections }));
+            let field = Operand::Place(Place { local: Local::from(0), projections });
             let field_str = self.format_rvalue(field, ty);
             segments.push(Operand::local(self.assign_new(field_str)));
         }
