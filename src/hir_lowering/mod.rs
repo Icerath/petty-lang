@@ -748,7 +748,7 @@ impl Lowering<'_, '_, '_> {
         if let Some(Some(body)) = self.struct_display_bodies.get(id) {
             return *body;
         }
-        let previous = self.bodies.pop().unwrap(); // TODO: We should pop till further up
+        let previous = std::mem::take(&mut self.bodies);
         let body_id = self.mir.bodies.push(Body::new(None, 1).with_auto(true));
         self.bodies.push(BodyInfo::new(body_id));
         let local = Local::from(0);
@@ -813,8 +813,7 @@ impl Lowering<'_, '_, '_> {
         }
         self.struct_display_bodies[id] = Some(body_id);
 
-        self.bodies.pop();
-        self.bodies.push(previous);
+        self.bodies = previous;
         body_id
     }
 }
