@@ -28,6 +28,7 @@ pub fn lower(hir: &Hir, path: Option<&Path>, src: &str) -> Mir {
         mir,
         bodies,
         struct_display_bodies: IndexVec::default(),
+        array_display_bodies: HashMap::default(),
         strings: HashMap::default(),
         src,
         path,
@@ -45,6 +46,7 @@ struct Lowering<'hir, 'tcx, 'src> {
     mir: Mir,
     bodies: Vec<BodyInfo>,
     struct_display_bodies: IndexVec<StructId, Option<BodyId>>,
+    array_display_bodies: HashMap<Ty<'tcx>, BodyId>,
     strings: HashMap<Symbol, ArcStr>,
     src: &'src str,
     path: Option<&'src Path>,
@@ -92,7 +94,7 @@ impl BodyInfo {
     }
 }
 
-impl Lowering<'_, '_, '_> {
+impl<'tcx> Lowering<'_, 'tcx, '_> {
     fn body_ref(&self) -> &Body {
         &self.mir.bodies[self.current().body]
     }
@@ -160,8 +162,8 @@ impl Lowering<'_, '_, '_> {
         }
     }
 
-    fn ref_of(&mut self, rvalue: RValue) -> Operand {
-        match rvalue {
+    fn ref_of(&mut self, rvalue: impl Into<RValue>) -> Operand {
+        match rvalue.into() {
             RValue::Use(Operand::Place(place)) => Operand::Ref(place),
             rvalue => {
                 let local = self.assign_new(rvalue);
@@ -187,7 +189,6 @@ impl Lowering<'_, '_, '_> {
         self.current_mut().stmts.push(Statement::Assign { place, rvalue });
     }
 
-    #[must_use]
     fn assign_new(&mut self, rvalue: impl Into<RValue>) -> Local {
         let local = self.new_local();
         self.assign(local, rvalue);
@@ -292,7 +293,14 @@ impl Lowering<'_, '_, '_> {
                 RValue::UNIT
             }
             ExprKind::Loop(ref block) => {
-                self.lower_loop(block, |_| None, |_| {});
+                self.lower_loop(
+                    |_| None,
+                    |lower| {
+                        for &expr in block {
+                            lower.lower(expr);
+                        }
+                    },
+                );
                 RValue::UNIT
             }
             ExprKind::If { ref arms, ref els } => {
@@ -397,9 +405,9 @@ impl Lowering<'_, '_, '_> {
 
     fn binary_op_inner(
         &mut self,
-        (lhs, lhs_ty): (RValue, Ty),
+        (lhs, lhs_ty): (RValue, Ty<'tcx>),
         op: hir::BinaryOp,
-        (rhs, rhs_ty): (RValue, Ty),
+        (rhs, rhs_ty): (RValue, Ty<'tcx>),
     ) -> RValue {
         let (lhs, lhs_ty) = self.fully_deref(lhs, lhs_ty);
         let (rhs, rhs_ty) = self.fully_deref(rhs, rhs_ty);
@@ -488,7 +496,7 @@ impl Lowering<'_, '_, '_> {
         RValue::UNIT
     }
 
-    fn fully_deref<'tcx>(&mut self, mut rvalue: RValue, mut ty: Ty<'tcx>) -> (RValue, Ty<'tcx>) {
+    fn fully_deref(&mut self, mut rvalue: RValue, mut ty: Ty<'tcx>) -> (RValue, Ty<'tcx>) {
         while let TyKind::Ref(of) = ty {
             rvalue = self.deref_operand(rvalue).into();
             ty = of;
@@ -519,8 +527,8 @@ impl Lowering<'_, '_, '_> {
 
     fn bounds_check(
         &mut self,
-        (index, index_ty): (Local, Ty),
-        (rhs, rhs_ty): (Place, Ty),
+        (index, index_ty): (Local, Ty<'tcx>),
+        (rhs, rhs_ty): (Place, Ty<'tcx>),
         span: Span,
     ) {
         let array_len = self
@@ -699,7 +707,7 @@ impl Lowering<'_, '_, '_> {
         self.format_rvalue(rvalue, expr.ty)
     }
 
-    fn format_rvalue(&mut self, rvalue: RValue, ty: Ty) -> RValue {
+    fn format_rvalue(&mut self, rvalue: RValue, ty: Ty<'tcx>) -> RValue {
         let (rvalue, ty) = self.fully_deref(rvalue, ty);
         if ty.is_str() {
             return rvalue;
@@ -712,9 +720,9 @@ impl Lowering<'_, '_, '_> {
             TyKind::Bool => RValue::UnaryExpr { op: UnaryOp::BoolToStr, operand },
             TyKind::Int => RValue::UnaryExpr { op: UnaryOp::IntToStr, operand },
             TyKind::Char => RValue::UnaryExpr { op: UnaryOp::CharToStr, operand },
-            TyKind::Struct { id, fields, .. } => self.format_struct(*id, fields, operand),
             TyKind::Range => RValue::UnaryExpr { op: UnaryOp::RangeToStr, operand },
-            TyKind::Array(..) => todo!(),
+            TyKind::Struct { id, fields, .. } => self.format_struct(*id, fields, operand),
+            TyKind::Array(of) => self.format_array(of, operand),
             TyKind::Function(..) => todo!(),
             TyKind::Generic(..) => todo!(),
         }
@@ -734,17 +742,65 @@ impl Lowering<'_, '_, '_> {
         }
     }
 
-    fn format_struct(&mut self, id: StructId, fields: &[Ty], val: Operand) -> RValue {
-        // TODO: This should pass the struct by ref
+    fn format_array(&mut self, of: Ty<'tcx>, val: Operand) -> RValue {
+        let body = self.generate_array_func(of);
+        let ref_array = self.ref_of(val);
+        RValue::Call { function: Constant::Func(body).into(), args: [ref_array].into() }
+    }
+
+    fn format_struct(&mut self, id: StructId, fields: &[Ty<'tcx>], val: Operand) -> RValue {
         let body = self.generate_struct_func(id, fields);
-        let ref_struct = self.ref_of(RValue::Use(val));
+        let ref_struct = self.ref_of(val);
         RValue::Call {
             function: Operand::Constant(Constant::Func(body)),
             args: [ref_struct].into(),
         }
     }
 
-    fn generate_struct_func(&mut self, id: StructId, fields: &[Ty]) -> BodyId {
+    fn generate_array_func(&mut self, ty: Ty<'tcx>) -> BodyId {
+        if let Some(body) = self.array_display_bodies.get(ty) {
+            return *body;
+        }
+        let previous = std::mem::take(&mut self.bodies);
+        let body_id = self.mir.bodies.push(Body::new(None, 1).with_auto(true));
+        self.bodies.push(BodyInfo::new(body_id));
+
+        self.array_display_bodies.insert(ty, body_id);
+
+        let out = self.format_array_inner(ty, Local::from(0));
+        self.finish_with(Terminator::Return(out));
+
+        self.bodies = previous;
+        body_id
+    }
+
+    #[expect(unused)]
+    fn format_array_inner(&mut self, ty: Ty<'tcx>, array: Local) -> Operand {
+        let strings = self.assign_new(Constant::EmptyArray { cap: 0 });
+        let mut var_counter = 0;
+
+        self.lower_loop(
+            |_| None,
+            |lower| {
+                let elem = todo!();
+                lower.assign_new(RValue::BinaryExpr {
+                    lhs: Operand::Ref(Place::local(strings)),
+                    op: BinaryOp::ArrayPush,
+                    rhs: elem,
+                });
+
+                todo!();
+            },
+        );
+
+        let out = self.assign_new(RValue::UnaryExpr {
+            op: UnaryOp::StrJoin,
+            operand: Operand::local(strings),
+        });
+        Operand::local(out)
+    }
+
+    fn generate_struct_func(&mut self, id: StructId, fields: &[Ty<'tcx>]) -> BodyId {
         if let Some(Some(body)) = self.struct_display_bodies.get(id) {
             return *body;
         }

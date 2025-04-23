@@ -9,7 +9,6 @@ use crate::mir::Projection;
 impl Lowering<'_, '_, '_> {
     pub fn lower_loop(
         &mut self,
-        body: &[ExprId],
         condition: impl FnOnce(&mut Self) -> Option<Local>,
         iter: impl FnOnce(&mut Self),
     ) {
@@ -31,9 +30,6 @@ impl Lowering<'_, '_, '_> {
 
         self.begin_scope();
         iter(self);
-        for expr in body {
-            self.lower(*expr);
-        }
         self.end_scope();
 
         self.finish_with(Terminator::Goto(condition_block));
@@ -58,11 +54,13 @@ impl Lowering<'_, '_, '_> {
         iter: impl FnOnce(&mut Self) -> Local,
     ) {
         self.lower_loop(
-            body,
             |lower| Some(condition(lower)),
             |lower| {
                 let ident_var = iter(lower);
                 lower.current_mut().scope().variables.insert(ident, ident_var);
+                for expr in body {
+                    lower.lower(*expr);
+                }
             },
         );
     }
