@@ -712,9 +712,7 @@ impl Lowering<'_, '_, '_> {
             TyKind::Bool => RValue::UnaryExpr { op: UnaryOp::BoolToStr, operand },
             TyKind::Int => RValue::UnaryExpr { op: UnaryOp::IntToStr, operand },
             TyKind::Char => RValue::UnaryExpr { op: UnaryOp::CharToStr, operand },
-            TyKind::Struct { id, symbols, fields } => {
-                self.format_struct(*id, symbols, fields, operand)
-            }
+            TyKind::Struct { id, fields, .. } => self.format_struct(*id, fields, operand),
             TyKind::Range => RValue::UnaryExpr { op: UnaryOp::RangeToStr, operand },
             TyKind::Array(..) => todo!(),
             TyKind::Function(..) => todo!(),
@@ -736,15 +734,9 @@ impl Lowering<'_, '_, '_> {
         }
     }
 
-    fn format_struct(
-        &mut self,
-        id: StructId,
-        symbols: &[Symbol],
-        fields: &[Ty],
-        val: Operand,
-    ) -> RValue {
+    fn format_struct(&mut self, id: StructId, fields: &[Ty], val: Operand) -> RValue {
         // TODO: This should pass the struct by ref
-        let body = self.generate_struct_func(id, symbols, fields);
+        let body = self.generate_struct_func(id, fields);
         let ref_struct = self.ref_of(RValue::Use(val));
         RValue::Call {
             function: Operand::Constant(Constant::Func(body)),
@@ -752,8 +744,10 @@ impl Lowering<'_, '_, '_> {
         }
     }
 
-    fn generate_struct_func(&mut self, id: StructId, symbols: &[Symbol], fields: &[Ty]) -> BodyId {
-        _ = symbols;
+    fn generate_struct_func(&mut self, id: StructId, fields: &[Ty]) -> BodyId {
+        if let Some(Some(body)) = self.struct_display_bodies.get(id) {
+            return *body;
+        }
         let previous = self.bodies.pop().unwrap(); // TODO: We should pop till further up
         let body_id = self.mir.bodies.push(Body::new(None, 1).with_auto(false));
         self.bodies.push(BodyInfo::new(body_id));
