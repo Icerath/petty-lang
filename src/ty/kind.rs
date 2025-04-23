@@ -118,12 +118,12 @@ impl TyCtx<'_> {
                     TyKind::Array(of) => write!(f, "[{}]", tcx.display(of)),
                     TyKind::Ref(of) => write!(f, "&{}", tcx.display(of)),
                     TyKind::Function(Function { params, ret }) => {
-                        write!(f, "fn")?;
-                        let mut debug_tuple = f.debug_tuple("");
-                        for param in params {
-                            debug_tuple.field(param);
+                        write!(f, "fn(")?;
+                        for (i, param) in params.iter().enumerate() {
+                            let prefix = if i == 0 { "" } else { ", " };
+                            write!(f, "{prefix}{}", tcx.display(param))?;
                         }
-                        debug_tuple.finish()?;
+                        write!(f, ")")?;
                         write!(f, " -> {}", tcx.display(ret))
                     }
                     TyKind::Infer(_) => write!(f, "_"),
