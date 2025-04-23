@@ -68,6 +68,9 @@ impl<'tcx> TyCtx<'tcx> {
     ) -> Ty<'tcx> {
         self.intern(self.inner.borrow_mut().new_struct(name, symbols, fields))
     }
+    pub fn struct_name(&self, id: StructId) -> Symbol {
+        self.inner.borrow().struct_names[id]
+    }
     pub fn intern(&self, kind: TyKind<'tcx>) -> Ty<'tcx> {
         self.interner.intern(kind)
     }

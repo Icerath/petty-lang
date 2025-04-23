@@ -7,26 +7,27 @@ use super::{ArraySeg, ExprKind, FnDecl, OpAssign, Param};
 use crate::{
     hir::{BinaryOp, ExprId, Hir, Lit, UnaryOp},
     symbol::Symbol,
-    ty::Ty,
+    ty::{Ty, TyCtx},
 };
 
-struct Writer<'a> {
+struct Writer<'a, 'tcx> {
     hir: &'a Hir<'a>,
+    tcx: &'tcx TyCtx<'tcx>,
     f: String,
     indent: usize,
     inside_expr: bool,
 }
 
-impl fmt::Display for Hir<'_> {
-    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+impl Hir<'_> {
+    pub fn display<'tcx>(&self, tcx: &'tcx TyCtx<'tcx>) -> impl fmt::Display {
         let f = String::new();
-        let mut w = Writer { hir: self, f, indent: 0, inside_expr: false };
+        let mut w = Writer { hir: self, f, indent: 0, inside_expr: false, tcx };
         self.root.iter().for_each(|expr| (expr, Line).write(&mut w));
-        fmt.write_str(&w.f)
+        w.f
     }
 }
 
-impl Writer<'_> {
+impl Writer<'_, '_> {
     fn display_expr(&mut self, expr: ExprId) {
         let inside_expr = mem::replace(&mut self.inside_expr, true);
         match self.hir.exprs[expr].kind {
@@ -174,8 +175,8 @@ impl Dump for Param<'_> {
 }
 
 impl Dump for Ty<'_> {
-    fn write(&self, w: &mut Writer) {
-        format!("{self}").as_str().write(w);
+    fn write(&self, w: &mut Writer<'_, '_>) {
+        format!("{}", w.tcx.display(self)).as_str().write(w);
     }
 }
 

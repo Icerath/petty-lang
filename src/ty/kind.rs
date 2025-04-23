@@ -101,30 +101,37 @@ impl TyKind<'_> {
     }
 }
 
-impl fmt::Display for TyKind<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Bool => write!(f, "bool"),
-            Self::Char => write!(f, "char"),
-            Self::Int => write!(f, "int"),
-            Self::Str => write!(f, "str"),
-            Self::Unit => write!(f, "()"),
-            Self::Never => write!(f, "!"),
-            Self::Range => write!(f, "Range"),
-            Self::Array(of) => write!(f, "[{of}]"),
-            Self::Ref(of) => write!(f, "&{of}"),
-            Self::Function(Function { params, ret }) => {
-                write!(f, "fn")?;
-                let mut debug_tuple = f.debug_tuple("");
-                for param in params {
-                    debug_tuple.field(param);
+impl TyCtx<'_> {
+    pub fn display(&self, ty: Ty) -> impl fmt::Display {
+        struct Display<'a, 'b, 'c>(&'a TyCtx<'b>, Ty<'c>);
+        impl fmt::Display for Display<'_, '_, '_> {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                let Self(tcx, ty) = self;
+                match ty {
+                    TyKind::Bool => write!(f, "bool"),
+                    TyKind::Char => write!(f, "char"),
+                    TyKind::Int => write!(f, "int"),
+                    TyKind::Str => write!(f, "str"),
+                    TyKind::Unit => write!(f, "()"),
+                    TyKind::Never => write!(f, "!"),
+                    TyKind::Range => write!(f, "Range"),
+                    TyKind::Array(of) => write!(f, "[{}]", tcx.display(of)),
+                    TyKind::Ref(of) => write!(f, "&{}", tcx.display(of)),
+                    TyKind::Function(Function { params, ret }) => {
+                        write!(f, "fn")?;
+                        let mut debug_tuple = f.debug_tuple("");
+                        for param in params {
+                            debug_tuple.field(param);
+                        }
+                        debug_tuple.finish()?;
+                        write!(f, " -> {}", tcx.display(ret))
+                    }
+                    TyKind::Infer(_) => write!(f, "_"),
+                    TyKind::Generic(id) => write!(f, "<{id:?}>"),
+                    TyKind::Struct { id, .. } => write!(f, "{}", tcx.struct_name(*id)),
                 }
-                debug_tuple.finish()?;
-                write!(f, " -> {ret}")
             }
-            Self::Infer(_) => write!(f, "_"),
-            Self::Generic(id) => write!(f, "<generic {id:?}>"),
-            Self::Struct { .. } => write!(f, "struct"),
         }
+        Display(self, ty)
     }
 }

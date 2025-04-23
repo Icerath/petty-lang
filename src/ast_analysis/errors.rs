@@ -21,8 +21,8 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
 
     pub fn cannot_iter(&self, ty: Ty, span: Span) -> Error {
         self.raw_error(
-            &format!("type `{ty}` is not iterable"),
-            [(span, format!("type `{ty}` is not iterable"))],
+            &format!("type `{}` is not iterable", self.tcx.display(ty)),
+            [(span, format!("type `{}` is not iterable", self.tcx.display(ty)))],
         )
     }
 
@@ -34,8 +34,8 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         rhs_expr: ExprId,
     ) -> Error {
         let mut errors = vec![];
-        let lhs_error = format!("expected `bool`, found `{lhs}`");
-        let rhs_error = format!("expected `bool`, found `{rhs}`");
+        let lhs_error = format!("expected `bool`, found `{}`", self.tcx.display(lhs));
+        let rhs_error = format!("expected `bool`, found `{}`", self.tcx.display(rhs));
 
         if !lhs.is_bool() {
             errors.extend(
@@ -53,29 +53,36 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
     pub fn binop_err(&self, op: BinaryOp, lhs: Ty, rhs: Ty) -> Error {
         let op_name = op.kind.name();
         let msg = if lhs == rhs {
-            format!("cannot {op_name} values of type `{lhs}`",)
+            format!("cannot {op_name} values of type `{}`", self.tcx.display(lhs))
         } else {
-            format!("cannot {op_name} values of type `{lhs}` with `{rhs}`",)
+            format!(
+                "cannot {op_name} values of type `{}` with `{}`",
+                self.tcx.display(lhs),
+                self.tcx.display(rhs)
+            )
         };
         self.raw_error(&msg, [(op.span, format!("`{}` is not valid here", op.kind.symbol()))])
     }
 
     pub fn cannot_index(&self, ty: Ty<'tcx>, span: Span) -> Error {
         self.raw_error(
-            &format!("type `{ty}` cannot be indexed"),
-            [(span, format!("cannot index `{ty}`"))],
+            &format!("type `{}` cannot be indexed", self.tcx.display(ty)),
+            [(span, format!("cannot index `{}`", self.tcx.display(ty)))],
         )
     }
 
     pub fn field_error(&self, ty: Ty<'tcx>, field: Symbol, span: Span) -> Error {
-        self.raw_error(&format!("no field `{field}` on type `{ty}`"), [(span, "unknown field")])
+        self.raw_error(
+            &format!("no field `{field}` on type `{}`", self.tcx.display(ty)),
+            [(span, "unknown field")],
+        )
     }
 
     pub fn expected_function(&self, ty: Ty<'tcx>, span: Span) -> Error {
         let ty = self.tcx.try_infer_deep(ty).unwrap_or_else(|ty| ty);
         self.raw_error(
-            &format!("expected function, found `{ty}`"),
-            [(span, format!("`{ty}` is not callable"))],
+            &format!("expected function, found `{}`", self.tcx.display(ty)),
+            [(span, format!("`{}` is not callable", self.tcx.display(ty)))],
         )
     }
 
@@ -95,13 +102,16 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
     }
 
     pub fn cannot_infer(&self, ty: Ty<'tcx>, span: Span) -> Error {
-        self.raw_error(&format!("cannot infer type {ty}"), [(span, "cannot infer")])
+        self.raw_error(
+            &format!("cannot infer type {}", self.tcx.display(ty)),
+            [(span, "cannot infer")],
+        )
     }
     pub fn cannot_deref(&self, ty: Ty<'tcx>, span: Span) -> Error {
         let ty = self.tcx.try_infer_deep(ty).unwrap_or_else(|ty| ty);
         self.raw_error(
-            &format!("type '{ty}' cannot be dereferenced"),
-            [(span, format!("cannot deref `{ty}`"))],
+            &format!("type '{}' cannot be dereferenced", self.tcx.display(ty)),
+            [(span, format!("cannot deref `{}`", self.tcx.display(ty)))],
         )
     }
     pub fn ident_not_found(&self, ident: Symbol, span: Span) -> Error {
@@ -134,7 +144,16 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         let rhs = self.tcx.try_infer_deep(rhs).unwrap_or_else(|ty| ty);
         self.raw_error(
             "mismatched types",
-            spans.into_iter().map(|span| (span, format!("expected `{rhs}`, found `{lhs}`"))),
+            spans.into_iter().map(|span| {
+                (
+                    span,
+                    format!(
+                        "expected `{}`, found `{}`",
+                        self.tcx.display(rhs),
+                        self.tcx.display(lhs)
+                    ),
+                )
+            }),
         )
     }
     fn invalid_type_span(&self, expr: ExprId) -> Vec<Span> {

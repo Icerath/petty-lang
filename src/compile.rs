@@ -41,28 +41,33 @@ pub fn compile(args: &Args, w: &mut dyn Write) -> miette::Result<()> {
     if let Some(target) = &args.dump {
         create_new_dir(target).into_diagnostic()?;
     }
+
+    let ty_intern = TyInterner::default();
+    let tcx = TyCtx::new(&ty_intern);
+
     macro_rules! dump {
-        ($name:ident, $what:ident) => {
+        ($name:ident, $what: expr) => {
             if let Some(target) = &args.dump {
                 let filename = concat!("dump-", stringify!($name), ".txt");
-                let content = $what.to_string();
+                let content = $what;
                 let path: PathBuf = [target.as_path(), filename.as_ref()].into_iter().collect();
                 fs::write(path, content).into_diagnostic()?;
             }
         };
         ($what:ident) => {
-            dump!($what, $what)
+            dump!($what, $what.to_string())
+        };
+        (@d $what:ident) => {
+            dump!($what, $what.display(&tcx).to_string())
         };
     }
     let start = Instant::now();
     let src = crate::STD.to_string() + &src;
     let ast = parse(&src, Some(&args.path))?;
-    let ty_intern = TyInterner::default();
     dump!(ast);
-    let tcx = TyCtx::new(&ty_intern);
     let analysis = ast_analysis::analyze(Some(&args.path), &src, &ast, &tcx)?;
     let hir = ast_lowering::lower(&src, Some(&args.path), ast, analysis);
-    dump!(hir);
+    dump!(@d hir);
     let mut mir = hir_lowering::lower(&hir, Some(&args.path), &src);
     drop(hir);
     mir_optimizations::optimize(&mut mir, &args.codegen, args.verbose);

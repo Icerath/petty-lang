@@ -439,7 +439,7 @@ impl Lowering<'_, '_, '_> {
                 hir::BinaryOp::Add => mir::BinaryOp::StrAdd,
                 _ => unreachable!("str - {op:?}"),
             },
-            (ty, op) => unreachable!("{ty} - {op:?}"),
+            (ty, op) => unreachable!("{ty:?} - {op:?}",),
         }
     }
 
