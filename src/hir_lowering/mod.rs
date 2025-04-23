@@ -783,12 +783,11 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
 
         self.lower_loop(
             |lower| {
-                let condition = lower.assign_new(RValue::BinaryExpr {
+                Some(lower.assign_new(RValue::BinaryExpr {
                     lhs: Operand::local(lo),
                     op: BinaryOp::IntLess,
                     rhs: Operand::local(hi),
-                });
-                Some(condition)
+                }))
             },
             |lower| {
                 let elem = Place {
