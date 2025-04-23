@@ -762,7 +762,7 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
             return *body;
         }
         let previous = std::mem::take(&mut self.bodies);
-        let body_id = self.mir.bodies.push(Body::new(None, 1).with_auto(true));
+        let body_id = self.mir.bodies.push(Body::new(None, 1).with_auto(false));
         self.bodies.push(BodyInfo::new(body_id));
 
         self.array_display_bodies.insert(ty, body_id);
@@ -774,22 +774,50 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
         body_id
     }
 
+    // `array` must point to `&[T])`
     #[expect(unused)]
     fn format_array_inner(&mut self, ty: Ty<'tcx>, array: Local) -> Operand {
         let strings = self.assign_new(Constant::EmptyArray { cap: 0 });
         let mut var_counter = 0;
 
+        let mut lo = self.assign_new(Constant::Int(0));
+        let mut hi = self.assign_new(RValue::UnaryExpr {
+            op: UnaryOp::ArrayLen,
+            operand: Operand::local(array),
+        });
+
         self.lower_loop(
-            |_| None,
             |lower| {
-                let elem = todo!();
+                let condition = lower.assign_new(RValue::BinaryExpr {
+                    lhs: Operand::local(lo),
+                    op: BinaryOp::IntLess,
+                    rhs: Operand::local(hi),
+                });
+                Some(condition)
+            },
+            |lower| {
+                let elem = Place {
+                    local: array,
+                    projections: vec![Projection::Deref, Projection::Index(lo)],
+                };
+
+                let formatted_elem = lower.format_rvalue(RValue::Use(Operand::Place(elem)), ty);
+                let rhs = lower.process(formatted_elem, &TyKind::Str);
+
                 lower.assign_new(RValue::BinaryExpr {
                     lhs: Operand::Ref(Place::local(strings)),
                     op: BinaryOp::ArrayPush,
-                    rhs: elem,
+                    rhs,
                 });
 
-                todo!();
+                lower.assign(
+                    lo,
+                    RValue::BinaryExpr {
+                        lhs: Operand::local(lo),
+                        op: BinaryOp::IntAdd,
+                        rhs: Constant::Int(1).into(),
+                    },
+                );
             },
         );
 
