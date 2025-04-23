@@ -749,7 +749,7 @@ impl Lowering<'_, '_, '_> {
             return *body;
         }
         let previous = self.bodies.pop().unwrap(); // TODO: We should pop till further up
-        let body_id = self.mir.bodies.push(Body::new(None, 1).with_auto(false));
+        let body_id = self.mir.bodies.push(Body::new(None, 1).with_auto(true));
         self.bodies.push(BodyInfo::new(body_id));
         let local = Local::from(0);
 
