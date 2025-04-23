@@ -775,24 +775,31 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
     fn format_array_inner(&mut self, ty: Ty<'tcx>, array: Local) -> Operand {
         let strings = self.assign_new(Constant::EmptyArray { cap: 0 });
 
-        let lo = self.assign_new(Constant::Int(0));
-        let hi = self.assign_new(RValue::UnaryExpr {
+        let len = self.assign_new(RValue::UnaryExpr {
             op: UnaryOp::ArrayLen,
             operand: Operand::local(array),
+        });
+
+        let index = self.assign_new(Constant::Int(0));
+
+        self.assign_new(RValue::BinaryExpr {
+            lhs: Operand::Ref(Place::local(strings)),
+            op: BinaryOp::ArrayPush,
+            rhs: str!("["),
         });
 
         self.lower_loop(
             |lower| {
                 Some(lower.assign_new(RValue::BinaryExpr {
-                    lhs: Operand::local(lo),
+                    lhs: Operand::local(index),
                     op: BinaryOp::IntLess,
-                    rhs: Operand::local(hi),
+                    rhs: Operand::local(len),
                 }))
             },
             |lower| {
                 let elem = Place {
                     local: array,
-                    projections: vec![Projection::Deref, Projection::Index(lo)],
+                    projections: vec![Projection::Deref, Projection::Index(index)],
                 };
 
                 let formatted_elem = lower.format_rvalue(Operand::Place(elem), ty);
@@ -804,16 +811,30 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
                     rhs,
                 });
 
+                // push ', '
+                lower.assign_new(RValue::BinaryExpr {
+                    lhs: Operand::Ref(Place::local(strings)),
+                    op: BinaryOp::ArrayPush,
+                    rhs: str!(", "),
+                });
+
+                // increment index
                 lower.assign(
-                    lo,
+                    index,
                     RValue::BinaryExpr {
-                        lhs: Operand::local(lo),
+                        lhs: Operand::local(index),
                         op: BinaryOp::IntAdd,
                         rhs: Constant::Int(1).into(),
                     },
                 );
             },
         );
+
+        self.assign_new(RValue::BinaryExpr {
+            lhs: Operand::Ref(Place::local(strings)),
+            op: BinaryOp::ArrayPush,
+            rhs: str!("]"),
+        });
 
         let out = self.assign_new(RValue::UnaryExpr {
             op: UnaryOp::StrJoin,
