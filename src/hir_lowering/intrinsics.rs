@@ -49,7 +49,7 @@ impl Lowering<'_, '_, '_> {
         }
         macro_rules! binary {
             ($name: ident) => {
-                RValue::BinaryExpr { lhs: arg!(0), op: BinaryOp::$name, rhs: arg!(1) }
+                RValue::Binary { lhs: arg!(0), op: BinaryOp::$name, rhs: arg!(1) }
             };
         }
         Some(match name {
