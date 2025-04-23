@@ -233,12 +233,11 @@ pub enum BinaryOp {
 
     ArrayIndexRange,
     ArrayPush,
-    ArrayPop,
 }
 
 impl BinaryOp {
     pub fn side_effect(self) -> bool {
-        matches!(self, Self::ArrayPush | Self::ArrayPop)
+        matches!(self, Self::ArrayPush)
     }
 }
 
@@ -264,11 +263,13 @@ pub enum UnaryOp {
     RangeToStr,
     RangeStart,
     RangeEnd,
+
+    ArrayPop,
 }
 
 impl UnaryOp {
     pub fn side_effect(self) -> bool {
-        matches!(self, Self::Print | Self::Println)
+        matches!(self, Self::Print | Self::Println | Self::ArrayPop)
     }
 }
 

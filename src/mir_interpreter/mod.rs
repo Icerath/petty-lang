@@ -150,6 +150,7 @@ pub fn unary_op(op: UnaryOp, operand: Value, w: &mut dyn Write) -> Value {
             Value::Str(string.into())
         }
         UnaryOp::ArrayLen => Value::Int(operand.unwrap_ref_array().len().try_into().unwrap()),
+        UnaryOp::ArrayPop => operand.unwrap_ref_array().pop(),
 
         UnaryOp::BoolNot => Value::Bool(!operand.unwrap_bool()),
         UnaryOp::BoolToStr => Value::Str(bool_to_str(operand.unwrap_bool())),
@@ -189,7 +190,6 @@ fn bool_to_str(bool: bool) -> ArcStr {
 pub fn binary_op(lhs: Value, op: BinaryOp, rhs: Value) -> Value {
     match op {
         BinaryOp::ArrayPush => lhs.unwrap_ref_array().push(rhs).into(),
-        BinaryOp::ArrayPop => lhs.unwrap_ref_array().pop(),
         BinaryOp::IntAdd => Value::Int(lhs.unwrap_int() + rhs.unwrap_int()),
         BinaryOp::IntSub => Value::Int(lhs.unwrap_int() - rhs.unwrap_int()),
         BinaryOp::IntMul => Value::Int(lhs.unwrap_int() * rhs.unwrap_int()),

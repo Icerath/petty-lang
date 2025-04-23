@@ -62,7 +62,7 @@ impl Lowering<'_, '_, '_> {
             "print" => unary!(Print),
             "len" => unary!(ArrayLen),
             "push" => binary!(ArrayPush),
-            "pop" => binary!(ArrayPop),
+            "pop" => unary!(ArrayPop),
             _ => return None,
         })
     }
