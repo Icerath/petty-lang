@@ -65,7 +65,6 @@ pub fn compile(args: &Args, w: &mut dyn Write) -> miette::Result<()> {
     dump!(hir);
     let mut mir = hir_lowering::lower(&hir, Some(&args.path), &src);
     drop(hir);
-    dump!(unoptimized_mir, mir);
     mir_optimizations::optimize(&mut mir, &args.codegen, args.verbose);
     dump!(mir);
     if args.verbose > 1 {
