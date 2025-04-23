@@ -241,19 +241,6 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
                 RValue::Unary { op: UnaryOp::Println, operand: str!(self, str) }
             }
             ExprKind::Literal(ref lit) => self.lit_rvalue(lit),
-            ExprKind::Unary { op, expr } => match op {
-                hir::UnaryOp::Ref => RValue::Use(self.ref_expr(expr)),
-                hir::UnaryOp::Deref => {
-                    let rvalue = self.lower_rvalue(expr);
-                    RValue::Use(self.deref_operand(rvalue))
-                }
-                hir::UnaryOp::Not => {
-                    RValue::Unary { op: UnaryOp::BoolNot, operand: self.lower(expr) }
-                }
-                hir::UnaryOp::Neg => {
-                    RValue::Unary { op: UnaryOp::IntNeg, operand: self.lower(expr) }
-                }
-            },
             ExprKind::FnDecl(ref decl) => {
                 let hir::FnDecl { ident, ref params, ref body, .. } = **decl;
 
@@ -344,6 +331,7 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
                 RValue::UNIT
             }
             ExprKind::Binary { lhs, op, rhs } => self.binary_op(lhs, op, rhs),
+            ExprKind::Unary { op, expr } => self.unary_op(op, expr),
             ExprKind::OpAssign { place, op, expr } => self.op_assign(place, op, expr),
             ExprKind::Ident(ident) => match self.load_ident(ident) {
                 RValue::Use(operand) => RValue::Use(operand),
@@ -383,6 +371,18 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
                 RValue::Binary { lhs, op, rhs }
             }
             ExprKind::Block(ref exprs) => self.block_expr(exprs),
+        }
+    }
+
+    fn unary_op(&mut self, op: crate::ast::UnaryOp, expr: ExprId) -> RValue {
+        match op {
+            hir::UnaryOp::Ref => RValue::Use(self.ref_expr(expr)),
+            hir::UnaryOp::Deref => {
+                let rvalue = self.lower_rvalue(expr);
+                RValue::Use(self.deref_operand(rvalue))
+            }
+            hir::UnaryOp::Not => RValue::Unary { op: UnaryOp::BoolNot, operand: self.lower(expr) },
+            hir::UnaryOp::Neg => RValue::Unary { op: UnaryOp::IntNeg, operand: self.lower(expr) },
         }
     }
 
