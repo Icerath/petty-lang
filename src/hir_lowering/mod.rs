@@ -772,13 +772,11 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
     }
 
     // `array` must point to `&[T])`
-    #[expect(unused)]
     fn format_array_inner(&mut self, ty: Ty<'tcx>, array: Local) -> Operand {
         let strings = self.assign_new(Constant::EmptyArray { cap: 0 });
-        let mut var_counter = 0;
 
-        let mut lo = self.assign_new(Constant::Int(0));
-        let mut hi = self.assign_new(RValue::UnaryExpr {
+        let lo = self.assign_new(Constant::Int(0));
+        let hi = self.assign_new(RValue::UnaryExpr {
             op: UnaryOp::ArrayLen,
             operand: Operand::local(array),
         });
