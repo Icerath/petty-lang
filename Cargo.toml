@@ -21,3 +21,4 @@ typed-arena = "2.0.2"
 
 [profile.release]
 panic = "abort"
+lto = "fat"

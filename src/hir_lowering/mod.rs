@@ -751,67 +751,32 @@ impl Lowering<'_, '_, '_> {
         let previous = std::mem::take(&mut self.bodies);
         let body_id = self.mir.bodies.push(Body::new(None, 1).with_auto(true));
         self.bodies.push(BodyInfo::new(body_id));
-        let local = Local::from(0);
 
-        // segments + seperators + open/close brackets
-        let num_parts = fields.len() + fields.len().saturating_sub(1) + 2;
+        if self.struct_display_bodies.len() <= id {
+            self.struct_display_bodies.resize(id.index() + 1, None);
+        }
+        self.struct_display_bodies[id] = Some(body_id);
 
-        let strings = self.assign_new(Constant::EmptyArray { cap: num_parts });
-
-        self.process(
-            RValue::BinaryExpr {
-                lhs: Operand::Ref(strings.into()),
-                op: BinaryOp::ArrayPush,
-                rhs: str!("("),
-            },
-            &TyKind::Unit,
-        );
-
+        let mut segments = vec![str!("(")];
         for (i, ty) in (0u32..).zip(fields) {
             if i != 0 {
-                self.process(
-                    RValue::BinaryExpr {
-                        lhs: Operand::Ref(strings.into()),
-                        op: BinaryOp::ArrayPush,
-                        rhs: str!(", "),
-                    },
-                    &TyKind::Unit,
-                );
+                segments.push(str!(", "));
             }
-
             let projections = vec![Projection::Deref, Projection::Field(i as _)];
-            let field = RValue::Use(Operand::Place(Place { local, projections }));
+            let field = RValue::Use(Operand::Place(Place { local: Local::from(0), projections }));
             let field_str = self.format_rvalue(field, ty);
-            let rhs = self.process(field_str, &TyKind::Str);
-            self.process(
-                RValue::BinaryExpr {
-                    lhs: Operand::Ref(strings.into()),
-                    op: BinaryOp::ArrayPush,
-                    rhs,
-                },
-                &TyKind::Unit,
-            );
+            segments.push(Operand::local(self.assign_new(field_str)));
         }
+        segments.push(str!(")"));
 
-        self.process(
-            RValue::BinaryExpr {
-                lhs: Operand::Ref(strings.into()),
-                op: BinaryOp::ArrayPush,
-                rhs: str!(")"),
-            },
-            &TyKind::Unit,
-        );
+        let segments = segments.into_iter().map(|operand| (operand, None)).collect();
+        let strings = self.assign_new(RValue::BuildArray(segments));
 
         let out = self.assign_new(RValue::UnaryExpr {
             op: UnaryOp::StrJoin,
             operand: Operand::local(strings),
         });
         self.finish_with(Terminator::Return(Operand::local(out)));
-
-        if self.struct_display_bodies.len() <= id {
-            self.struct_display_bodies.resize(id.index() + 1, None);
-        }
-        self.struct_display_bodies[id] = Some(body_id);
 
         self.bodies = previous;
         body_id
