@@ -241,21 +241,19 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
                 RValue::UnaryExpr { op: UnaryOp::Println, operand: str!(self, str) }
             }
             ExprKind::Literal(ref lit) => self.lit_rvalue(lit),
-            ExprKind::Unary { op, expr } => 'outer: {
-                if op == hir::UnaryOp::Ref {
-                    break 'outer RValue::Use(self.ref_expr(expr));
-                } else if op == hir::UnaryOp::Deref {
+            ExprKind::Unary { op, expr } => match op {
+                hir::UnaryOp::Ref => RValue::Use(self.ref_expr(expr)),
+                hir::UnaryOp::Deref => {
                     let rvalue = self.lower_rvalue(expr);
-                    break 'outer RValue::Use(self.deref_operand(rvalue));
+                    RValue::Use(self.deref_operand(rvalue))
                 }
-                let operand = self.lower(expr);
-                let op = match op {
-                    hir::UnaryOp::Not => mir::UnaryOp::BoolNot,
-                    hir::UnaryOp::Neg => mir::UnaryOp::IntNeg,
-                    _ => unreachable!(),
-                };
-                RValue::UnaryExpr { op, operand }
-            }
+                hir::UnaryOp::Not => {
+                    RValue::UnaryExpr { op: UnaryOp::BoolNot, operand: self.lower(expr) }
+                }
+                hir::UnaryOp::Neg => {
+                    RValue::UnaryExpr { op: UnaryOp::IntNeg, operand: self.lower(expr) }
+                }
+            },
             ExprKind::FnDecl(ref decl) => {
                 let hir::FnDecl { ident, ref params, ref body, .. } = **decl;
 
