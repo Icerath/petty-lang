@@ -101,14 +101,12 @@ impl Interpreter<'_, '_> {
                 let args = args.iter().map(|arg| self.operand(arg, locals)).collect();
                 self.run(call_body, args)
             }
-            RValue::BinaryExpr { lhs, op, rhs } => {
+            RValue::Binary { lhs, op, rhs } => {
                 let lhs = self.operand(lhs, locals);
                 let rhs = self.operand(rhs, locals);
                 binary_op(lhs, *op, rhs)
             }
-            RValue::UnaryExpr { op, operand } => {
-                unary_op(*op, self.operand(operand, locals), self.w)
-            }
+            RValue::Unary { op, operand } => unary_op(*op, self.operand(operand, locals), self.w),
         }
     }
 

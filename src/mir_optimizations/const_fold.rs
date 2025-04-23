@@ -20,13 +20,13 @@ pub fn try_compute(rvalue: &RValue) -> Option<Operand> {
         return None;
     }
     match rvalue {
-        RValue::BinaryExpr { lhs, op, rhs } => {
+        RValue::Binary { lhs, op, rhs } => {
             let lhs = value_of(lhs)?;
             let rhs = value_of(rhs)?;
             let value = mir_interpreter::binary_op(lhs, *op, rhs);
             constant_of(&value)
         }
-        RValue::UnaryExpr { op, operand } => {
+        RValue::Unary { op, operand } => {
             let operand = value_of(operand)?;
             let value = mir_interpreter::unary_op(*op, operand, &mut std::io::sink());
             constant_of(&value)

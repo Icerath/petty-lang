@@ -67,15 +67,14 @@ impl Lowering<'_, '_, '_> {
 
     pub fn range_for(&mut self, ident: Symbol, iter: ExprId, body: &[ExprId]) {
         let range = self.lower(iter);
-        let lo =
-            self.assign_new(RValue::UnaryExpr { op: UnaryOp::RangeStart, operand: range.clone() });
-        let hi = self.assign_new(RValue::UnaryExpr { op: UnaryOp::RangeEnd, operand: range });
+        let lo = self.assign_new(RValue::Unary { op: UnaryOp::RangeStart, operand: range.clone() });
+        let hi = self.assign_new(RValue::Unary { op: UnaryOp::RangeEnd, operand: range });
 
         self.for_loop(
             ident,
             body,
             |lower| {
-                lower.assign_new(RValue::BinaryExpr {
+                lower.assign_new(RValue::Binary {
                     lhs: Operand::local(lo),
                     op: BinaryOp::IntLess,
                     rhs: Operand::local(hi),
@@ -85,7 +84,7 @@ impl Lowering<'_, '_, '_> {
                 let ident_var = lower.assign_new(Operand::local(lo));
                 lower.assign(
                     lo,
-                    RValue::BinaryExpr {
+                    RValue::Binary {
                         lhs: Operand::local(lo),
                         op: BinaryOp::IntAdd,
                         rhs: Constant::Int(1).into(),
@@ -101,7 +100,7 @@ impl Lowering<'_, '_, '_> {
         let iter = self.assign_new(iter_rvalue);
 
         let lo = self.assign_new(Constant::Int(0));
-        let hi = self.assign_new(RValue::UnaryExpr {
+        let hi = self.assign_new(RValue::Unary {
             op: UnaryOp::ArrayLen,
             operand: Operand::Ref(Place::local(iter)),
         });
@@ -110,7 +109,7 @@ impl Lowering<'_, '_, '_> {
             ident,
             body,
             |lower| {
-                lower.assign_new(RValue::BinaryExpr {
+                lower.assign_new(RValue::Binary {
                     lhs: Operand::local(lo),
                     op: BinaryOp::IntLess,
                     rhs: Operand::local(hi),
@@ -121,7 +120,7 @@ impl Lowering<'_, '_, '_> {
                 let ident_var = lower.assign_new(RValue::Use(Operand::Place(place)));
                 lower.assign(
                     lo,
-                    RValue::BinaryExpr {
+                    RValue::Binary {
                         lhs: Operand::local(lo),
                         op: BinaryOp::IntAdd,
                         rhs: Constant::Int(1).into(),

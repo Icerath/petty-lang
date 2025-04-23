@@ -44,7 +44,7 @@ impl Lowering<'_, '_, '_> {
 
         macro_rules! unary {
             ($name: ident) => {
-                RValue::UnaryExpr { op: UnaryOp::$name, operand: arg!(0) }
+                RValue::Unary { op: UnaryOp::$name, operand: arg!(0) }
             };
         }
         macro_rules! binary {

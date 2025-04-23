@@ -16,7 +16,7 @@ pub fn optimize(mir: &mut Mir, body_id: BodyId) {
         if cplace.local != place.local {
             continue;
         }
-        let RValue::UnaryExpr { op: UnaryOp::BoolNot, operand } = rvalue else { continue };
+        let RValue::Unary { op: UnaryOp::BoolNot, operand } = rvalue else { continue };
 
         // use condition inside of the not rvalue and swap false/true branches
         let (condition, tru, fals) = (operand.clone(), *fals, *tru);

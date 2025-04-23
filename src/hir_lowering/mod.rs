@@ -238,7 +238,7 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
                 RValue::local(local)
             }
             ExprKind::PrintStr(str) => {
-                RValue::UnaryExpr { op: UnaryOp::Println, operand: str!(self, str) }
+                RValue::Unary { op: UnaryOp::Println, operand: str!(self, str) }
             }
             ExprKind::Literal(ref lit) => self.lit_rvalue(lit),
             ExprKind::Unary { op, expr } => match op {
@@ -248,10 +248,10 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
                     RValue::Use(self.deref_operand(rvalue))
                 }
                 hir::UnaryOp::Not => {
-                    RValue::UnaryExpr { op: UnaryOp::BoolNot, operand: self.lower(expr) }
+                    RValue::Unary { op: UnaryOp::BoolNot, operand: self.lower(expr) }
                 }
                 hir::UnaryOp::Neg => {
-                    RValue::UnaryExpr { op: UnaryOp::IntNeg, operand: self.lower(expr) }
+                    RValue::Unary { op: UnaryOp::IntNeg, operand: self.lower(expr) }
                 }
             },
             ExprKind::FnDecl(ref decl) => {
@@ -380,7 +380,7 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
                 };
                 let lhs = self.lower(expr);
                 let rhs = self.lower(index);
-                RValue::BinaryExpr { lhs, op, rhs }
+                RValue::Binary { lhs, op, rhs }
             }
             ExprKind::Block(ref exprs) => self.block_expr(exprs),
         }
@@ -411,7 +411,7 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
         let op = Self::get_binary_op(lhs_ty, op);
         let lhs = self.process(lhs, lhs_ty);
         let rhs = self.process(rhs, rhs_ty);
-        RValue::BinaryExpr { lhs, op, rhs }
+        RValue::Binary { lhs, op, rhs }
     }
 
     fn get_binary_op(ty: Ty, op: hir::BinaryOp) -> BinaryOp {
@@ -487,7 +487,7 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
         let operand = self.lower(expr);
         let place = self.lower_place(place);
         let op = Self::get_binary_op(place_ty, op.into());
-        let rvalue = RValue::BinaryExpr { lhs: Operand::Place(place.clone()), op, rhs: operand };
+        let rvalue = RValue::Binary { lhs: Operand::Place(place.clone()), op, rhs: operand };
         self.assign(place, rvalue);
         RValue::UNIT
     }
@@ -528,8 +528,8 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
         (rhs, rhs_ty): (Place, Ty<'tcx>),
         span: Span,
     ) {
-        let array_len = self
-            .assign_new(RValue::UnaryExpr { op: UnaryOp::ArrayLen, operand: Operand::Ref(rhs) });
+        let array_len =
+            self.assign_new(RValue::Unary { op: UnaryOp::ArrayLen, operand: Operand::Ref(rhs) });
         let binary_op = self.binary_op_inner(
             (RValue::local(index), index_ty),
             hir::BinaryOp::GreaterEq,
@@ -714,10 +714,10 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
             TyKind::Ref(..) | TyKind::Infer(_) | TyKind::Str => unreachable!(),
             TyKind::Never => str!("!"),
             TyKind::Unit => str!("()"),
-            TyKind::Bool => RValue::UnaryExpr { op: UnaryOp::BoolToStr, operand },
-            TyKind::Int => RValue::UnaryExpr { op: UnaryOp::IntToStr, operand },
-            TyKind::Char => RValue::UnaryExpr { op: UnaryOp::CharToStr, operand },
-            TyKind::Range => RValue::UnaryExpr { op: UnaryOp::RangeToStr, operand },
+            TyKind::Bool => RValue::Unary { op: UnaryOp::BoolToStr, operand },
+            TyKind::Int => RValue::Unary { op: UnaryOp::IntToStr, operand },
+            TyKind::Char => RValue::Unary { op: UnaryOp::CharToStr, operand },
+            TyKind::Range => RValue::Unary { op: UnaryOp::RangeToStr, operand },
             TyKind::Struct { id, fields, .. } => self.format_struct(*id, fields, operand),
             TyKind::Array(of) => self.format_array(of, operand),
             TyKind::Function(..) => {
@@ -777,14 +777,12 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
     fn format_array_inner(&mut self, ty: Ty<'tcx>, array: Local) -> Operand {
         let strings = self.assign_new(Constant::EmptyArray { cap: 0 });
 
-        let len = self.assign_new(RValue::UnaryExpr {
-            op: UnaryOp::ArrayLen,
-            operand: Operand::local(array),
-        });
+        let len = self
+            .assign_new(RValue::Unary { op: UnaryOp::ArrayLen, operand: Operand::local(array) });
 
         let index = self.assign_new(Constant::Int(0));
 
-        self.assign_new(RValue::BinaryExpr {
+        self.assign_new(RValue::Binary {
             lhs: Operand::Ref(Place::local(strings)),
             op: BinaryOp::ArrayPush,
             rhs: str!("["),
@@ -792,7 +790,7 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
 
         self.lower_loop(
             |lower| {
-                Some(lower.assign_new(RValue::BinaryExpr {
+                Some(lower.assign_new(RValue::Binary {
                     lhs: Operand::local(index),
                     op: BinaryOp::IntLess,
                     rhs: Operand::local(len),
@@ -807,14 +805,14 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
                 let formatted_elem = lower.format_rvalue(Operand::Place(elem), ty);
                 let rhs = lower.process(formatted_elem, &TyKind::Str);
 
-                lower.assign_new(RValue::BinaryExpr {
+                lower.assign_new(RValue::Binary {
                     lhs: Operand::Ref(Place::local(strings)),
                     op: BinaryOp::ArrayPush,
                     rhs,
                 });
 
                 // push ', '
-                lower.assign_new(RValue::BinaryExpr {
+                lower.assign_new(RValue::Binary {
                     lhs: Operand::Ref(Place::local(strings)),
                     op: BinaryOp::ArrayPush,
                     rhs: str!(", "),
@@ -823,7 +821,7 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
                 // increment index
                 lower.assign(
                     index,
-                    RValue::BinaryExpr {
+                    RValue::Binary {
                         lhs: Operand::local(index),
                         op: BinaryOp::IntAdd,
                         rhs: Constant::Int(1).into(),
@@ -832,16 +830,14 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
             },
         );
 
-        self.assign_new(RValue::BinaryExpr {
+        self.assign_new(RValue::Binary {
             lhs: Operand::Ref(Place::local(strings)),
             op: BinaryOp::ArrayPush,
             rhs: str!("]"),
         });
 
-        let out = self.assign_new(RValue::UnaryExpr {
-            op: UnaryOp::StrJoin,
-            operand: Operand::local(strings),
-        });
+        let out = self
+            .assign_new(RValue::Unary { op: UnaryOp::StrJoin, operand: Operand::local(strings) });
         Operand::local(out)
     }
 
@@ -873,10 +869,8 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
         let segments = segments.into_iter().map(|operand| (operand, None)).collect();
         let strings = self.assign_new(RValue::BuildArray(segments));
 
-        let out = self.assign_new(RValue::UnaryExpr {
-            op: UnaryOp::StrJoin,
-            operand: Operand::local(strings),
-        });
+        let out = self
+            .assign_new(RValue::Unary { op: UnaryOp::StrJoin, operand: Operand::local(strings) });
         self.finish_with(Terminator::Return(Operand::local(out)));
 
         self.bodies = previous;

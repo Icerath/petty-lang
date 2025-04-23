@@ -147,8 +147,8 @@ pub enum Statement {
 #[derive(Debug, Hash, Clone)]
 pub enum RValue {
     Use(Operand),
-    BinaryExpr { lhs: Operand, op: BinaryOp, rhs: Operand },
-    UnaryExpr { op: UnaryOp, operand: Operand },
+    Binary { lhs: Operand, op: BinaryOp, rhs: Operand },
+    Unary { op: UnaryOp, operand: Operand },
     Call { function: Operand, args: ThinVec<Operand> },
     BuildArray(Vec<(Operand, Option<Operand>)>),
     StrJoin(Vec<Operand>),
@@ -164,8 +164,8 @@ impl RValue {
     pub fn side_effect(&self) -> bool {
         match self {
             Self::StrJoin(..) | Self::BuildArray(..) | Self::Use(..) => false,
-            Self::BinaryExpr { op, .. } => op.side_effect(),
-            Self::UnaryExpr { op, .. } => op.side_effect(),
+            Self::Binary { op, .. } => op.side_effect(),
+            Self::Unary { op, .. } => op.side_effect(),
             Self::Call { .. } => true,
         }
     }
@@ -290,13 +290,11 @@ impl RValue {
     pub fn mentions_place(&self, place: &Place) -> bool {
         match self {
             Self::StrJoin(operands) => operands.iter().any(|o| o.mentions_place(place)),
-            Self::BinaryExpr { lhs, rhs, .. } => {
-                lhs.mentions_place(place) || rhs.mentions_place(place)
-            }
+            Self::Binary { lhs, rhs, .. } => lhs.mentions_place(place) || rhs.mentions_place(place),
             Self::Call { function, args } => {
                 function.mentions_place(place) || args.iter().any(|arg| arg.mentions_place(place))
             }
-            Self::Use(operand) | Self::UnaryExpr { operand, .. } => operand.mentions_place(place),
+            Self::Use(operand) | Self::Unary { operand, .. } => operand.mentions_place(place),
             Self::BuildArray(segments) => segments.iter().any(|(elem, repeat)| {
                 elem.mentions_place(place)
                     || repeat.as_ref().is_some_and(|repeat| repeat.mentions_place(place))
@@ -311,10 +309,8 @@ impl RValue {
                 elem.mutates_local(local)
                     || repeat.as_ref().is_some_and(|repeat| repeat.mutates_local(local))
             }),
-            Self::BinaryExpr { lhs, rhs, .. } => {
-                lhs.mutates_local(local) || rhs.mutates_local(local)
-            }
-            Self::UnaryExpr { operand, .. } | Self::Use(operand) => operand.mutates_local(local),
+            Self::Binary { lhs, rhs, .. } => lhs.mutates_local(local) || rhs.mutates_local(local),
+            Self::Unary { operand, .. } | Self::Use(operand) => operand.mutates_local(local),
             Self::Call { function, args } => {
                 function.mutates_local(local) || args.iter().any(|arg| arg.mutates_local(local))
             }
@@ -332,8 +328,8 @@ impl RValue {
                     }
                 }
             }
-            Self::UnaryExpr { operand, .. } | Self::Use(operand) => f(operand),
-            Self::BinaryExpr { lhs, rhs, .. } => {
+            Self::Unary { operand, .. } | Self::Use(operand) => f(operand),
+            Self::Binary { lhs, rhs, .. } => {
                 f(lhs);
                 f(rhs);
             }

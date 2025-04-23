@@ -46,7 +46,7 @@ impl fmt::Display for Mir {
                                     }
                                     debug_list.finish()
                                 }
-                                RValue::BinaryExpr { lhs, op, rhs } => {
+                                RValue::Binary { lhs, op, rhs } => {
                                     write!(
                                         f,
                                         "{op:?}({}, {})",
@@ -64,7 +64,7 @@ impl fmt::Display for Mir {
                                     }
                                     write!(f, ")")
                                 }
-                                RValue::UnaryExpr { op, operand } => {
+                                RValue::Unary { op, operand } => {
                                     write!(f, "{op:?}({})", operand.display(self))
                                 }
                             }?;
