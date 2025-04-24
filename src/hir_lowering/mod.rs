@@ -30,6 +30,7 @@ pub fn lower<'tcx>(hir: &Hir<'tcx>, path: Option<&Path>, src: &str, tcx: &'tcx T
         bodies,
         struct_display_bodies: IndexVec::default(),
         array_display_bodies: HashMap::default(),
+        methods: HashMap::default(),
         strings: HashMap::default(),
         src,
         path,
@@ -49,6 +50,7 @@ struct Lowering<'hir, 'tcx, 'src> {
     bodies: Vec<BodyInfo>,
     struct_display_bodies: IndexVec<StructId, Option<BodyId>>,
     array_display_bodies: HashMap<Ty<'tcx>, BodyId>,
+    methods: HashMap<(Ty<'tcx>, Symbol), BodyId>,
     strings: HashMap<Symbol, ArcStr>,
     src: &'src str,
     path: Option<&'src Path>,
@@ -242,11 +244,14 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
             }
             ExprKind::Literal(ref lit) => self.lit_rvalue(lit),
             ExprKind::FnDecl(ref decl) => {
-                let hir::FnDecl { ident, ref params, ref body, .. } = **decl;
+                let hir::FnDecl { ident, for_ty, ref params, ref body, .. } = **decl;
 
                 assert!(self.current_mut().stmts.is_empty(), "TODO");
                 let body_id = self.mir.bodies.push(Body::new(Some(ident), params.len()));
-                self.current_mut().functions.insert(ident, body_id);
+                match for_ty {
+                    Some(ty) => self.methods.insert((ty, ident), body_id),
+                    None => self.current_mut().functions.insert(ident, body_id),
+                };
                 self.bodies.push(BodyInfo::new(body_id));
                 if self.bodies.len() == 2 && ident == "main" {
                     self.mir.main_body = Some(body_id);
@@ -337,8 +342,8 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
                 RValue::Use(operand) => RValue::Use(operand),
                 rvalue => rvalue,
             },
-            ExprKind::Method { .. } => {
-                todo!()
+            ExprKind::Method { ty, method } => {
+                RValue::from(Constant::Func(self.methods[&(ty, method)]))
             }
             ExprKind::FnCall { function, ref args } => {
                 let function = self.lower(function);
