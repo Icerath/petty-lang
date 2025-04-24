@@ -56,8 +56,8 @@ impl Lowering<'_, '_, '_> {
         }
         Some(match (ty, name) {
             (Some(TyKind::Str), "len") => unary!(StrLen),
-            (None, "str_find") => binary!(StrFind),
-            (None, "str_rfind") => binary!(StrRFind),
+            (Some(TyKind::Str), "find") => binary!(StrFind),
+            (Some(TyKind::Str), "rfind") => binary!(StrRFind),
             (None, "println") => unary!(Println),
             (None, "chr") => unary!(Chr),
             (None, "ord") => unary!(Ord),

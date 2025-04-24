@@ -1,5 +1,3 @@
-fn str_find(haystack: str, needle: str) -> int { unreachable }
-fn str_rfind(haystack: str, needle: str) -> int { unreachable }
 fn print(str: str) { unreachable }
 fn println(str: str) { unreachable }
 fn chr(int: int) -> char { unreachable }
@@ -11,4 +9,6 @@ fn pop<T>(arr: &[T]) -> T { unreachable }
 // TODO: support str::len instead
 impl str {
     fn len(self: str) -> int { unreachable }
+    fn find(self: str, needle: str) -> int { unreachable }
+    fn rfind(self: str, needle: str) -> int { unreachable }
 }

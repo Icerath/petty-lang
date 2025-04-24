@@ -6,4 +6,6 @@ fn main() {
     assert "Hello, " + "World!" == "Hello, World!";
 
     assert "Hello, World!"[0..5] == "Hello";
+
+    assert "Hello, World!".find("Hello") == 0;
 }
