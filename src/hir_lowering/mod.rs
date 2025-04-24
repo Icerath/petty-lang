@@ -337,6 +337,9 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
                 RValue::Use(operand) => RValue::Use(operand),
                 rvalue => rvalue,
             },
+            ExprKind::Method { .. } => {
+                todo!()
+            }
             ExprKind::FnCall { function, ref args } => {
                 let function = self.lower(function);
                 let args = args.iter().map(|arg| self.lower(*arg)).collect();

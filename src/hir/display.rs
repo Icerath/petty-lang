@@ -47,6 +47,7 @@ impl Writer<'_, '_> {
             }
             ExprKind::OpAssign { place, op, expr } => (place, op, expr).write(self),
             ExprKind::Ident(ident) => ident.write(self),
+            ExprKind::Method { ty, method } => (ty, "::", method).write(self),
             ExprKind::FnCall { function, ref args } => {
                 (function, "(", Sep(args, ", "), ")").write(self);
             }

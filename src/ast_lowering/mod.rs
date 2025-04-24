@@ -108,6 +108,16 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
             ast::ExprKind::FnCall { function, ref args } => {
                 self.lower_fn_call(function, args, expr_id)
             }
+            ast::ExprKind::MethodCall { expr, method, ref args, .. } => {
+                let ty = self.ty_info.expr_tys[expr];
+                let fn_ty = &TyKind::Unit; // TODO
+                let mut new_args = ThinVec::with_capacity(args.len() + 1);
+                new_args.push(self.lower(expr));
+                new_args.extend(args.iter().map(|arg| self.lower(*arg)));
+                let method =
+                    self.hir.exprs.push((hir::ExprKind::Method { ty, method }).with(fn_ty));
+                (hir::ExprKind::FnCall { function: method, args: new_args }).with(expr_ty)
+            }
             ast::ExprKind::Index { expr, index } => (ExprKind::Index {
                 expr: self.lower(expr),
                 index: self.lower(index),
@@ -147,7 +157,6 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
                 let arms = thin_vec![IfStmt { condition, body }];
                 (hir::ExprKind::If { arms, els: ThinVec::new() }).with(&TyKind::Unit)
             }
-            ast::ExprKind::MethodCall { .. } => todo!(),
             ast::ExprKind::FieldAccess { expr, field, .. } => {
                 let TyKind::Struct { symbols, .. } = self.get_ty(expr) else { unreachable!() };
                 let expr = self.lower(expr);

@@ -44,6 +44,7 @@ pub enum ExprKind<'tcx> {
     Unary { op: UnaryOp, expr: ExprId },
     Literal(Lit),
     Block(ThinVec<ExprId>),
+    Method { ty: Ty<'tcx>, method: Symbol },
     FnCall { function: ExprId, args: ThinVec<ExprId> },
     Index { expr: ExprId, index: ExprId, span: Span },
     FnDecl(Box<FnDecl<'tcx>>),
