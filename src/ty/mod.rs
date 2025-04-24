@@ -2,7 +2,7 @@ mod generic_range;
 mod interner;
 mod kind;
 
-use std::{cell::RefCell, collections::HashMap, hash::Hash};
+use std::{cell::RefCell, hash::Hash};
 
 pub use generic_range::GenericRange;
 use index_vec::IndexVec;
@@ -10,7 +10,7 @@ pub use interner::TyInterner;
 pub use kind::TyKind;
 use thin_vec::ThinVec;
 
-use crate::{define_id, symbol::Symbol};
+use crate::{HashMap, define_id, symbol::Symbol};
 
 pub type Ty<'tcx> = &'tcx TyKind<'tcx>;
 
@@ -26,7 +26,7 @@ pub struct Function<'tcx> {
 
 impl<'tcx> Function<'tcx> {
     pub fn caller(&self, tcx: &'tcx TyCtx<'tcx>) -> (Vec<Ty<'tcx>>, Ty<'tcx>) {
-        let mut map = HashMap::new();
+        let mut map = HashMap::default();
         self.generics(&mut |id| _ = map.entry(id).or_insert_with(|| tcx.new_vid()));
         let f = |id| map[&id];
         let params = self.params.iter().map(|param| param.replace_generics(tcx, f)).collect();
@@ -68,6 +68,15 @@ impl<'tcx> TyCtx<'tcx> {
     ) -> Ty<'tcx> {
         self.intern(self.inner.borrow_mut().new_struct(name, symbols, fields))
     }
+    pub fn add_method(&self, ty: Ty<'tcx>, name: Symbol, func: Function<'tcx>) {
+        let func = self.intern(TyKind::Function(func));
+        self.inner.borrow_mut().add_method(ty, name, func);
+    }
+    pub fn get_method(&self, ty: Ty<'tcx>, name: Symbol) -> Option<&'tcx Function<'tcx>> {
+        let ty = self.inner.borrow().get_method(ty, name)?;
+        let TyKind::Function(func) = ty else { unreachable!() };
+        Some(func)
+    }
     pub fn struct_name(&self, id: StructId) -> Symbol {
         self.inner.borrow().struct_names[id]
     }
@@ -105,9 +114,17 @@ struct TyCtxInner<'tcx> {
     subs: IndexVec<TyVid, Ty<'tcx>>,
     struct_names: IndexVec<StructId, Symbol>,
     generic_names: IndexVec<GenericId, Symbol>,
+    methods: HashMap<(Ty<'tcx>, Symbol), Ty<'tcx>>,
 }
 
 impl<'tcx> TyCtxInner<'tcx> {
+    fn add_method(&mut self, ty: Ty<'tcx>, name: Symbol, method: Ty<'tcx>) {
+        self.methods.insert((ty, name), method);
+    }
+    fn get_method(&self, ty: Ty<'tcx>, name: Symbol) -> Option<Ty<'tcx>> {
+        self.methods.get(&(ty, name)).copied()
+    }
+
     fn new_struct(
         &mut self,
         name: Symbol,

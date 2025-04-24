@@ -128,15 +128,21 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         }
 
         for &id in &block.stmts {
-            let ExprKind::FnDecl(fndecl) = &self.ast.exprs[id].kind else {
-                continue;
-            };
-            self.preanalyze_fndecl(&mut body, fndecl)?;
+            match &self.ast.exprs[id].kind {
+                ExprKind::FnDecl(func) => self.preanalyze_fndecl(&mut body, func)?,
+                ExprKind::Impl(impl_) => {
+                    for func in &impl_.methods {
+                        self.preanalyze_method(&mut body, impl_, func)?;
+                    }
+                }
+                _ => {}
+            }
         }
         self.bodies.push(body);
         let out = self.analyze_block_inner(block)?;
         Ok((out, self.bodies.pop().unwrap()))
     }
+
     fn preanalyze_fndecl(&mut self, body: &mut Body<'tcx>, fndecl: &FnDecl) -> Result<()> {
         let FnDecl { ident, ident_span, generics, params, ret, .. } = fndecl;
         let generics = self.tcx.new_generics(generics);
@@ -154,6 +160,30 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
             .insert(*ident, self.tcx.intern(TyKind::Function(Function { params, ret })));
 
         if prev.is_some() { Err(self.already_defined(*ident, *ident_span)) } else { Ok(()) }
+    }
+
+    fn preanalyze_method(
+        &mut self,
+        body: &mut Body<'tcx>,
+        impl_: &Impl,
+        fndecl: &FnDecl,
+    ) -> Result<()> {
+        _ = body;
+        let FnDecl { ident, generics, params, ret, .. } = fndecl;
+        let generics = self.tcx.new_generics(generics);
+        let ret = match ret {
+            Some(ret) => self.read_ast_ty_with(*ret, generics)?,
+            None => &TyKind::Unit,
+        };
+        let params = params
+            .iter()
+            .map(|param| self.read_ast_ty_with(param.ty, generics))
+            .collect::<Result<_>>()?;
+
+        let ty = self.read_ast_ty(impl_.ty)?;
+        let fn_ty = Function { params, ret };
+        self.tcx.add_method(ty, *ident, fn_ty);
+        Ok(())
     }
 
     fn current(&mut self) -> &mut Body<'tcx> {
@@ -298,6 +328,28 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 }
                 ret
             }
+            ExprKind::MethodCall { expr, method, ref args } => {
+                let ty = self.analyze_expr(expr)?;
+                self.tcx.infer_shallow(ty);
+                let Some(function) = self.tcx.get_method(ty, method) else { todo!() };
+
+                let (params, ret) = function.caller(self.tcx);
+
+                if args.len() + 1 != params.len() {
+                    return Err(self.invalid_arg_count(
+                        args.len() + 1,
+                        params.len(),
+                        self.ast.exprs[expr].span, // replace with method_span
+                        expr_span,
+                    ));
+                }
+
+                for (&arg_id, param) in std::iter::zip([expr].iter().chain(args), params) {
+                    let arg = self.analyze_expr(arg_id)?;
+                    self.subtype(arg, param, arg_id)?;
+                }
+                ret
+            }
             ExprKind::FnDecl(ref decl) => self.analyze_fndecl(decl)?,
             ExprKind::Struct { .. } => &TyKind::Unit,
             ExprKind::Let { ident, ty, expr } => {
@@ -404,7 +456,6 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                     .ok_or_else(|| self.field_error(expr, field, span))?;
                 fields[field]
             }
-            ExprKind::MethodCall { .. } => todo!(),
         };
         self.ty_info.expr_tys[id] = ty;
         Ok(ty)
@@ -494,6 +545,26 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         })
     }
 
+    fn analyze_method(&mut self, impl_: &Impl, decl: &FnDecl) -> Result<Ty<'tcx>> {
+        let &FnDecl { ident, ref generics, ref params, ret, block, .. } = decl;
+        _ = generics;
+        _ = ret;
+        let block_id = block.unwrap();
+        let ty = self.read_ast_ty(impl_.ty)?;
+        let fn_ty = self.tcx.get_method(ty, ident).unwrap();
+
+        let Function { params: param_tys, ret, .. } = fn_ty;
+
+        let mut body = Body::new(ret);
+        for (param, ty) in std::iter::zip(params, param_tys) {
+            body.scope().variables.insert(param.ident, *ty);
+        }
+        let block = &self.ast.blocks[block_id];
+        let body_ret = self.analyze_body_with(block, body)?.0;
+        self.subtype_block(body_ret, ret, block_id)?;
+        Ok(&TyKind::Unit)
+    }
+
     fn analyze_fndecl(&mut self, decl: &FnDecl) -> Result<Ty<'tcx>> {
         let &FnDecl { ident, ref generics, ref params, ret, block, .. } = decl;
         _ = generics;
@@ -530,7 +601,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         let &Impl { ty, ref methods } = impl_;
         _ = ty;
         for func in methods {
-            self.analyze_fndecl(func)?;
+            self.analyze_method(impl_, func)?;
         }
         Ok(&TyKind::Unit)
     }
