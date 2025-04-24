@@ -328,10 +328,12 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 }
                 ret
             }
-            ExprKind::MethodCall { expr, method, ref args } => {
+            ExprKind::MethodCall { expr, method, method_span, ref args } => {
                 let ty = self.analyze_expr(expr)?;
                 self.tcx.infer_shallow(ty);
-                let Some(function) = self.tcx.get_method(ty, method) else { todo!() };
+                let Some(function) = self.tcx.get_method(ty, method) else {
+                    return Err(self.method_not_found(ty, method, method_span));
+                };
 
                 let (params, ret) = function.caller(self.tcx);
 
@@ -339,7 +341,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                     return Err(self.invalid_arg_count(
                         args.len() + 1,
                         params.len(),
-                        self.ast.exprs[expr].span, // replace with method_span
+                        method_span,
                         expr_span,
                     ));
                 }

@@ -55,7 +55,7 @@ impl Writer<'_> {
             ExprKind::Unary { op, expr } => {
                 (inside_expr.then_some("("), op, expr, inside_expr.then_some(")")).write(self);
             }
-            ExprKind::MethodCall { expr, method, ref args } => {
+            ExprKind::MethodCall { expr, method, ref args, .. } => {
                 (expr, ".", method, "(", Sep(args, ", "), ")").write(self);
             }
             ExprKind::FieldAccess { expr, field, .. } => (expr, ".", field).write(self),

@@ -88,8 +88,10 @@ fn parse_leaf_expr(stream: &mut Stream, next: Token) -> Result<ExprId> {
                 let args = stream.parse_separated(TokenKind::Comma, TokenKind::RParen)?;
                 let end = stream.lexer.current_pos();
                 let span = stream.ast.exprs[expr].span.start()..end;
-                expr = (stream.ast.exprs)
-                    .push((ExprKind::MethodCall { expr, method: field, args }).with_span(span));
+                expr = (stream.ast.exprs).push(
+                    (ExprKind::MethodCall { expr, method: field, method_span: field_span, args })
+                        .with_span(span),
+                );
             }
             TokenKind::LBracket => {
                 _ = stream.next();

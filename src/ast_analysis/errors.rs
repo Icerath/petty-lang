@@ -9,6 +9,13 @@ use crate::{
 };
 
 impl<'tcx> Collector<'_, '_, 'tcx> {
+    pub fn method_not_found(&self, ty: Ty, ident: Symbol, span: Span) -> Error {
+        self.raw_error(
+            &format!("no method `{ident}` found in type `{}`", self.tcx.display(ty)),
+            [(span, format!("method not found in `{}`", self.tcx.display(ty)))],
+        )
+    }
+
     pub fn already_defined(&self, ident: Symbol, span: Span) -> Error {
         self.raw_error(
             &format!("function `{ident}` already defined"),
@@ -19,6 +26,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
     pub fn cannot_break(&self, span: Span) -> Error {
         self.raw_error("`break` outside of a loop", [(span, "cannot `break` outside of a loop")])
     }
+
     pub fn cannot_continue(&self, span: Span) -> Error {
         self.raw_error(
             "`continue` while outside of a loop",

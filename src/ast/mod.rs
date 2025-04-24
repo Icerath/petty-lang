@@ -65,7 +65,7 @@ pub enum ExprKind {
     Binary { lhs: ExprId, op: BinaryOp, rhs: ExprId },
     Unary { op: UnaryOp, expr: ExprId },
     FnCall { function: ExprId, args: ThinVec<ExprId> },
-    MethodCall { expr: ExprId, method: Symbol, args: ThinVec<ExprId> },
+    MethodCall { expr: ExprId, method: Symbol, method_span: Span, args: ThinVec<ExprId> },
     Ident(Symbol),
     Index { expr: ExprId, index: ExprId },
     FieldAccess { expr: ExprId, field: Symbol, span: Span },
