@@ -184,7 +184,7 @@ impl Dump for FStr<'_> {
 impl Dump for FnDecl {
     fn write(&self, w: &mut Writer) {
         let current = w.inside_expr;
-        let Self { ident, ref generics, ref params, ret, block } = *self;
+        let Self { ident, ref generics, ref params, ret, block, .. } = *self;
         ("fn ", ident, Generics(generics), params, ret.map(|ret| (" -> ", ret))).write(w);
         match block {
             Some(block) => block.write(w),

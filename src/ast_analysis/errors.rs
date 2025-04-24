@@ -9,6 +9,13 @@ use crate::{
 };
 
 impl<'tcx> Collector<'_, '_, 'tcx> {
+    pub fn already_defined(&self, ident: Symbol, span: Span) -> Error {
+        self.raw_error(
+            &format!("function `{ident}` already defined"),
+            [(span, format!("`{ident}` is already defined"))],
+        )
+    }
+
     pub fn cannot_break(&self, span: Span) -> Error {
         self.raw_error("`break` outside of a loop", [(span, "cannot `break` outside of a loop")])
     }

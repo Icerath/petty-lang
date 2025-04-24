@@ -128,7 +128,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         }
 
         for &id in &block.stmts {
-            let ExprKind::FnDecl(FnDecl { ident, generics, params, ret, .. }) =
+            let ExprKind::FnDecl(FnDecl { ident, ident_span, generics, params, ret, .. }) =
                 &self.ast.exprs[id].kind
             else {
                 continue;
@@ -142,9 +142,14 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 .iter()
                 .map(|param| self.read_ast_ty_with(param.ty, generics))
                 .collect::<Result<_>>()?;
-            body.scope()
+            let prev = body
+                .scope()
                 .variables
                 .insert(*ident, self.tcx.intern(TyKind::Function(Function { params, ret })));
+
+            if prev.is_some() {
+                return Err(self.already_defined(*ident, *ident_span));
+            }
         }
         self.bodies.push(body);
         let out = self.analyze_block_inner(block)?;
@@ -490,7 +495,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
     }
 
     fn analyze_fndecl(&mut self, decl: &FnDecl) -> Result<Ty<'tcx>> {
-        let &FnDecl { ident, ref generics, ref params, ret, block } = decl;
+        let &FnDecl { ident, ref generics, ref params, ret, block, .. } = decl;
         _ = generics;
         _ = ret;
         let block_id = block.unwrap();

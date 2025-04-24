@@ -88,6 +88,7 @@ pub enum ExprKind {
 #[derive(Debug)]
 pub struct FnDecl {
     pub ident: Symbol,
+    pub ident_span: Span,
     pub generics: ThinVec<Symbol>,
     pub params: ThinVec<Param>,
     pub ret: Option<TypeId>,

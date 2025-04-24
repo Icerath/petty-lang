@@ -258,7 +258,7 @@ fn parse_trait_methods(stream: &mut Stream) -> Result<ThinVec<FnDecl>> {
 
 impl Parse for FnDecl {
     fn parse(stream: &mut Stream) -> Result<Self> {
-        let ident = stream.expect_ident()?;
+        let (ident, ident_span) = stream.ident_spanned()?;
         let peek = stream.clone().any(&[TokenKind::Less, TokenKind::LParen])?;
         let generics = if peek.kind == TokenKind::Less {
             _ = stream.next();
@@ -278,7 +278,7 @@ impl Parse for FnDecl {
             chosen = stream.any(&[TokenKind::Semicolon, TokenKind::LBrace])?;
         }
         let block = if chosen.kind == TokenKind::Semicolon { None } else { Some(stream.parse()?) };
-        Ok(Self { ident, generics, params, ret, block })
+        Ok(Self { ident, ident_span, generics, params, ret, block })
     }
 }
 
