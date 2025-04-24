@@ -1,5 +1,4 @@
 fn main() {
-    assert ord('a') == 97;
-    assert chr(ord('a')) == 'a';
-
+    assert 'a'.ord() == 97;
+    assert 'a'.ord().chr() == 'a';
 }
