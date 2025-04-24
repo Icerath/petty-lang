@@ -4,11 +4,12 @@ use super::Lowering;
 use crate::{
     mir::{BinaryOp, Constant, Operand, Place, RValue, Terminator, UnaryOp},
     symbol::Symbol,
+    ty::Ty,
 };
 
 impl Lowering<'_, '_, '_> {
-    pub fn try_instrinsic(&mut self, ident: Symbol) -> bool {
-        let Some(rvalue) = Self::intrinsic_rvalue(&ident, &[]) else { return false };
+    pub fn try_instrinsic(&mut self, ty: Option<Ty>, ident: Symbol) -> bool {
+        let Some(rvalue) = Self::intrinsic_rvalue(&ident, ty, &[]) else { return false };
         let local = self.assign_new(rvalue);
         self.finish_with(Terminator::Return(Operand::Place(Place::local(local))));
         true
@@ -17,6 +18,7 @@ impl Lowering<'_, '_, '_> {
     pub fn try_call_intrinsic(
         &mut self,
         function: Operand,
+        ty: Option<Ty>,
         args: ThinVec<Operand>,
     ) -> Result<RValue, RValue> {
         macro_rules! bail {
@@ -29,13 +31,13 @@ impl Lowering<'_, '_, '_> {
         let true = self.mir.bodies[body].auto else { bail!() };
         let Some(ident) = self.mir.bodies[body].name else { bail!() };
 
-        match Self::intrinsic_rvalue(&ident, &args) {
+        match Self::intrinsic_rvalue(&ident, ty, &args) {
             Some(rvalue) => Ok(rvalue),
             None => bail!(),
         }
     }
 
-    fn intrinsic_rvalue(name: &str, args: &[Operand]) -> Option<RValue> {
+    fn intrinsic_rvalue(name: &str, ty: Option<Ty>, args: &[Operand]) -> Option<RValue> {
         macro_rules! arg {
             ($n: literal) => {
                 args.get($n).cloned().unwrap_or(Operand::arg($n))
@@ -52,17 +54,17 @@ impl Lowering<'_, '_, '_> {
                 RValue::Binary { lhs: arg!(0), op: BinaryOp::$name, rhs: arg!(1) }
             };
         }
-        Some(match name {
-            "strlen" => unary!(StrLen),
-            "str_find" => binary!(StrFind),
-            "str_rfind" => binary!(StrRFind),
-            "println" => unary!(Println),
-            "chr" => unary!(Chr),
-            "ord" => unary!(Ord),
-            "print" => unary!(Print),
-            "len" => unary!(ArrayLen),
-            "push" => binary!(ArrayPush),
-            "pop" => unary!(ArrayPop),
+        Some(match (ty, name) {
+            (None, "strlen") => unary!(StrLen),
+            (None, "str_find") => binary!(StrFind),
+            (None, "str_rfind") => binary!(StrRFind),
+            (None, "println") => unary!(Println),
+            (None, "chr") => unary!(Chr),
+            (None, "ord") => unary!(Ord),
+            (None, "print") => unary!(Print),
+            (None, "len") => unary!(ArrayLen),
+            (None, "push") => binary!(ArrayPush),
+            (None, "pop") => unary!(ArrayPop),
             _ => return None,
         })
     }

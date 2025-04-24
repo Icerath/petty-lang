@@ -257,7 +257,7 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
                     self.mir.main_body = Some(body_id);
                 }
 
-                if self.bodies.len() == 2 && self.try_instrinsic(ident) {
+                if self.bodies.len() == 2 && self.try_instrinsic(for_ty, ident) {
                     let current = self.current_mut().body;
                     self.mir.bodies[current].auto = true;
                 } else {
@@ -349,7 +349,7 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
                 let function = self.lower(function);
                 let args = args.iter().map(|arg| self.lower(*arg)).collect();
 
-                match self.try_call_intrinsic(function, args) {
+                match self.try_call_intrinsic(function, None, args) {
                     Ok(rvalue) | Err(rvalue) => rvalue,
                 }
             }
