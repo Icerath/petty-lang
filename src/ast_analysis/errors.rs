@@ -9,7 +9,8 @@ use crate::{
 };
 
 impl<'tcx> Collector<'_, '_, 'tcx> {
-    pub fn method_not_found(&self, ty: Ty, ident: Symbol, span: Span) -> Error {
+    pub fn method_not_found(&self, ty: Ty<'tcx>, ident: Symbol, span: Span) -> Error {
+        let ty = self.tcx.try_infer_deep(ty).unwrap_or(ty);
         self.raw_error(
             &format!("no method `{ident}` found in type `{}`", self.tcx.display(ty)),
             [(span, format!("method not found in `{}`", self.tcx.display(ty)))],
