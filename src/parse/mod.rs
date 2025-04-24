@@ -227,12 +227,10 @@ impl Parse for Ty {
 
 impl Parse for Impl {
     fn parse(stream: &mut Stream) -> Result<Self> {
-        let trait_ = stream.expect_ident()?;
-        stream.expect(TokenKind::For)?;
         let ty = stream.parse()?;
         stream.expect(TokenKind::LBrace)?;
         let methods = parse_trait_methods(stream)?;
-        Ok(Self { trait_, ty, methods })
+        Ok(Self { ty, methods })
     }
 }
 

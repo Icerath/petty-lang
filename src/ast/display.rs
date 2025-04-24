@@ -33,8 +33,8 @@ impl Writer<'_> {
     fn display_expr(&mut self, expr: ExprId) {
         let inside_expr = mem::replace(&mut self.inside_expr, true);
         match self.ast.exprs[expr].kind {
-            ExprKind::Impl(Impl { trait_, ty, ref methods }) => {
-                ("impl ", trait_, " for ", ty, methods).write(self);
+            ExprKind::Impl(Impl { ty, ref methods }) => {
+                ("impl ", ty, methods).write(self);
             }
             ExprKind::Unreachable => "unreachable".write(self),
             ExprKind::Assert(expr) => ("assert ", expr).write(self),

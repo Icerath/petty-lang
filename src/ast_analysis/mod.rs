@@ -522,8 +522,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
 
     fn analyze_impl(&mut self, impl_: &Impl, id: ExprId) -> Result<Ty<'tcx>> {
         _ = id;
-        let &Impl { trait_, ty, ref methods } = impl_;
-        _ = trait_;
+        let &Impl { ty, ref methods } = impl_;
         _ = ty;
         for func in methods {
             self.analyze_fndecl(func)?;
