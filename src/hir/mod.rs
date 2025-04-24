@@ -66,6 +66,7 @@ impl<'tcx> From<FnDecl<'tcx>> for Expr<'tcx> {
 #[derive(Debug)]
 pub struct FnDecl<'tcx> {
     pub ident: Symbol,
+    pub for_ty: Option<Ty<'tcx>>,
     pub params: Vec<Param<'tcx>>,
     pub ret: Ty<'tcx>,
     pub body: ThinVec<ExprId>,

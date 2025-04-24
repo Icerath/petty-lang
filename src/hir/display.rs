@@ -58,9 +58,18 @@ impl Writer<'_, '_> {
             ExprKind::Field { expr, field } => (expr, ".", field.to_string().as_str()).write(self),
             ExprKind::Block(ref block) => self.display_block(block),
             ExprKind::FnDecl(ref func) => {
-                let FnDecl { ident, ref params, ret, ref body } = **func;
+                let FnDecl { ident, for_ty, ref params, ret, ref body } = **func;
                 self.inside_expr = inside_expr;
-                ("fn ", ident, params.as_slice(), " -> ", ret, body.as_slice()).write(self);
+                (
+                    "fn ",
+                    for_ty.map(|ty| (ty, "::")),
+                    ident,
+                    params.as_slice(),
+                    " -> ",
+                    ret,
+                    body.as_slice(),
+                )
+                    .write(self);
             }
             ExprKind::Let { ident, expr } => {
                 self.inside_expr = inside_expr;
