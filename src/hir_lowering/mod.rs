@@ -346,10 +346,14 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
                 RValue::from(Constant::Func(self.methods[&(ty, method)]))
             }
             ExprKind::FnCall { function, ref args } => {
+                let ty = match self.hir.exprs[function].kind {
+                    ExprKind::Method { ty, .. } => Some(ty),
+                    _ => None,
+                };
                 let function = self.lower(function);
                 let args = args.iter().map(|arg| self.lower(*arg)).collect();
 
-                match self.try_call_intrinsic(function, None, args) {
+                match self.try_call_intrinsic(function, ty, args) {
                     Ok(rvalue) | Err(rvalue) => rvalue,
                 }
             }

@@ -4,7 +4,7 @@ use super::Lowering;
 use crate::{
     mir::{BinaryOp, Constant, Operand, Place, RValue, Terminator, UnaryOp},
     symbol::Symbol,
-    ty::Ty,
+    ty::{Ty, TyKind},
 };
 
 impl Lowering<'_, '_, '_> {
@@ -55,7 +55,7 @@ impl Lowering<'_, '_, '_> {
             };
         }
         Some(match (ty, name) {
-            (None, "strlen") => unary!(StrLen),
+            (Some(TyKind::Str), "len") => unary!(StrLen),
             (None, "str_find") => binary!(StrFind),
             (None, "str_rfind") => binary!(StrRFind),
             (None, "println") => unary!(Println),
