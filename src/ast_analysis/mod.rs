@@ -128,32 +128,32 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         }
 
         for &id in &block.stmts {
-            let ExprKind::FnDecl(FnDecl { ident, ident_span, generics, params, ret, .. }) =
-                &self.ast.exprs[id].kind
-            else {
+            let ExprKind::FnDecl(fndecl) = &self.ast.exprs[id].kind else {
                 continue;
             };
-            let generics = self.tcx.new_generics(generics);
-            let ret = match ret {
-                Some(ret) => self.read_ast_ty_with(*ret, generics)?,
-                None => &TyKind::Unit,
-            };
-            let params = params
-                .iter()
-                .map(|param| self.read_ast_ty_with(param.ty, generics))
-                .collect::<Result<_>>()?;
-            let prev = body
-                .scope()
-                .variables
-                .insert(*ident, self.tcx.intern(TyKind::Function(Function { params, ret })));
-
-            if prev.is_some() {
-                return Err(self.already_defined(*ident, *ident_span));
-            }
+            self.preanalyze_fndecl(&mut body, fndecl)?;
         }
         self.bodies.push(body);
         let out = self.analyze_block_inner(block)?;
         Ok((out, self.bodies.pop().unwrap()))
+    }
+    fn preanalyze_fndecl(&mut self, body: &mut Body<'tcx>, fndecl: &FnDecl) -> Result<()> {
+        let FnDecl { ident, ident_span, generics, params, ret, .. } = fndecl;
+        let generics = self.tcx.new_generics(generics);
+        let ret = match ret {
+            Some(ret) => self.read_ast_ty_with(*ret, generics)?,
+            None => &TyKind::Unit,
+        };
+        let params = params
+            .iter()
+            .map(|param| self.read_ast_ty_with(param.ty, generics))
+            .collect::<Result<_>>()?;
+        let prev = body
+            .scope()
+            .variables
+            .insert(*ident, self.tcx.intern(TyKind::Function(Function { params, ret })));
+
+        if prev.is_some() { Err(self.already_defined(*ident, *ident_span)) } else { Ok(()) }
     }
 
     fn current(&mut self) -> &mut Body<'tcx> {
