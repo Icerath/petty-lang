@@ -232,10 +232,7 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
 
         let block = block.unwrap();
 
-        let ret = match ret {
-            Some(ret) => self.ty_info.type_ids[ret],
-            None => &TyKind::Unit,
-        };
+        let ret = ret.map_or(&TyKind::Unit, |ret| self.ty_info.type_ids[ret]);
 
         let params = params
             .iter()
