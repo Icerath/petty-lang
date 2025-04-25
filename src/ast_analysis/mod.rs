@@ -370,6 +370,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 self.current().scope().variables.insert(ident, ty);
                 &TyKind::Unit
             }
+            ExprKind::Const { .. } => todo!(),
             ExprKind::For { ident, iter, body } => {
                 // for now only allow ranges
                 let iter_ty = self.analyze_expr(iter)?;
@@ -665,6 +666,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 | ExprKind::Struct { .. }
                 | ExprKind::Impl(..)
                 | ExprKind::Trait(..)
+                | ExprKind::Const { .. }
         )
     }
 }

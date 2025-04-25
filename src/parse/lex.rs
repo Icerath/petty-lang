@@ -207,6 +207,7 @@ fn ident_kind(str: &str) -> TokenKind {
         "fn" => TokenKind::Fn,
         "if" => TokenKind::If,
         "let" => TokenKind::Let,
+        "const" => TokenKind::Const,
         "return" => TokenKind::Return,
         "struct" => TokenKind::Struct,
         "true" => TokenKind::True,

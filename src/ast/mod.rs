@@ -72,6 +72,7 @@ pub enum ExprKind {
     Lit(Lit),
     Block(BlockId),
     Let { ident: Symbol, ty: Option<TypeId>, expr: ExprId },
+    Const { ident: Symbol, ty: Option<TypeId>, expr: ExprId },
     While { condition: ExprId, block: BlockId },
     For { ident: Symbol, iter: ExprId, body: BlockId },
     If { arms: ThinVec<IfStmt>, els: Option<BlockId> },

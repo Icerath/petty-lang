@@ -70,6 +70,12 @@ impl Writer<'_> {
                 self.inside_expr = false;
                 expr.write(self);
             }
+            ExprKind::Const { ident, ty, expr } => {
+                self.inside_expr = inside_expr;
+                ("const ", ident, ty.map(|ty| (": ", ty)), " = ").write(self);
+                self.inside_expr = false;
+                expr.write(self);
+            }
             ExprKind::For { ident, iter, body } => {
                 ("for ", ident, " in ", iter, body).write(self);
             }

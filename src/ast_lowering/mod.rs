@@ -109,6 +109,7 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
             ast::ExprKind::Lit(ref lit) => self.lower_literal(lit, expr_id),
             ast::ExprKind::FnDecl(ref decl) => self.lower_fn_decl(None, decl),
             ast::ExprKind::Let { ident, expr, .. } => self.lower_let_stmt(ident, expr),
+            ast::ExprKind::Const { .. } => todo!(),
             ast::ExprKind::If { ref arms, els } => self.lower_if_stmt(arms, els, expr_id),
             ast::ExprKind::While { condition, block } => self.lower_while_loop(condition, block),
             ast::ExprKind::For { ident, iter, body } => self.lower_for_loop(ident, iter, body),
