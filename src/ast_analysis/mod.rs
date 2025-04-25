@@ -36,11 +36,25 @@ impl<'tcx> Body<'tcx> {
     pub fn scope(&mut self) -> &mut Scope<'tcx> {
         self.scopes.last_mut().unwrap()
     }
+    pub fn insert_var(
+        &mut self,
+        ident: Symbol,
+        ty: Ty<'tcx>,
+        kind: Var,
+    ) -> Option<(Ty<'tcx>, Var)> {
+        self.scope().variables.insert(ident, (ty, kind))
+    }
 }
 
 #[derive(Debug, Default)]
 struct Scope<'tcx> {
-    variables: HashMap<Symbol, Ty<'tcx>>,
+    variables: HashMap<Symbol, (Ty<'tcx>, Var)>,
+}
+
+#[derive(Debug)]
+enum Var {
+    Let,
+    Const,
 }
 
 impl<'tcx> Body<'tcx> {
@@ -56,6 +70,7 @@ struct Collector<'src, 'ast, 'tcx> {
     tcx: &'tcx TyCtx<'tcx>,
     src: &'src str,
     path: Option<&'src Path>,
+    within_const: bool,
 }
 
 fn setup_ty_info<'tcx>(ast: &Ast) -> TyInfo<'tcx> {
@@ -75,7 +90,8 @@ pub fn analyze<'tcx>(
 ) -> Result<TyInfo<'tcx>> {
     let ty_info = setup_ty_info(ast);
     let body = global_body();
-    let mut collector = Collector { path: file, src, ty_info, ast, tcx, bodies: vec![body] };
+    let mut collector =
+        Collector { path: file, src, ty_info, ast, tcx, bodies: vec![body], within_const: false };
     let top_level_exprs = ast.top_level.iter().copied().collect();
     let top_level = ast::Block { span: Span::ZERO, stmts: top_level_exprs, is_expr: false };
     collector.analyze_body_with(&top_level, Body::new(&TyKind::Never))?;
@@ -121,9 +137,10 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
             self.current().ty_names.insert(*ident, struct_ty);
             self.ty_info.struct_types.insert(*span, struct_ty);
 
-            body.scope().variables.insert(
+            body.insert_var(
                 *ident,
                 self.tcx.intern(TyKind::Function(Function { params, ret: struct_ty })),
+                Var::Const,
             );
         }
 
@@ -154,10 +171,11 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
             .iter()
             .map(|param| self.read_ast_ty_with(param.ty, generics))
             .collect::<Result<_>>()?;
-        let prev = body
-            .scope()
-            .variables
-            .insert(*ident, self.tcx.intern(TyKind::Function(Function { params, ret })));
+        let prev = body.insert_var(
+            *ident,
+            self.tcx.intern(TyKind::Function(Function { params, ret })),
+            Var::Const,
+        );
 
         if prev.is_some() { Err(self.already_defined(*ident, *ident_span)) } else { Ok(()) }
     }
@@ -275,7 +293,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
     #[expect(clippy::too_many_lines)]
     fn analyze_expr(&mut self, id: ExprId) -> Result<Ty<'tcx>> {
         let expr_span = self.ast.exprs[id].span;
-        if self.bodies.len() <= 2 && !self.is_item(id) {
+        if !self.within_const && self.bodies.len() <= 2 && !self.is_item(id) {
             return Err(self.expected_item(id));
         }
 
@@ -367,10 +385,26 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 } else {
                     expr_ty
                 };
-                self.current().scope().variables.insert(ident, ty);
+                self.insert_var(ident, ty, Var::Let);
                 &TyKind::Unit
             }
-            ExprKind::Const { .. } => todo!(),
+            ExprKind::Const { ident, ty, expr } => {
+                let within_const = std::mem::replace(&mut self.within_const, true);
+                let expr_ty = self.analyze_expr(expr)?;
+                self.within_const = within_const;
+                let ty = if let Some(ty) = ty {
+                    let ty = self.read_ast_ty(ty)?;
+                    self.subtype(expr_ty, ty, expr)?;
+                    ty
+                } else {
+                    expr_ty
+                };
+                if self.tcx.try_infer_deep(ty).is_err() {
+                    return Err(self.cannot_infer(ty, self.ast.spans([expr])));
+                }
+                self.insert_var(ident, ty, Var::Const);
+                &TyKind::Unit
+            }
             ExprKind::For { ident, iter, body } => {
                 // for now only allow ranges
                 let iter_ty = self.analyze_expr(iter)?;
@@ -381,7 +415,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                     _ => return Err(self.cannot_iter(iter_ty, self.ast.exprs[iter].span)),
                 };
 
-                self.current().scope().variables.insert(ident, ident_ty);
+                self.insert_var(ident, ident_ty, Var::Let);
 
                 self.current().loops += 1;
                 let out = self.analyze_block(body)?;
@@ -466,6 +500,10 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         };
         self.ty_info.expr_tys[id] = ty;
         Ok(ty)
+    }
+
+    fn insert_var(&mut self, ident: Symbol, ty: Ty<'tcx>, kind: Var) {
+        self.current().insert_var(ident, ty, kind);
     }
 
     fn analyze_binary_expr(&mut self, lhs: ExprId, op: BinaryOp, rhs: ExprId) -> Result<Ty<'tcx>> {
@@ -563,8 +601,8 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         let Function { params: param_tys, ret, .. } = fn_ty;
 
         let mut body = Body::new(ret);
-        for (param, ty) in std::iter::zip(params, param_tys) {
-            body.scope().variables.insert(param.ident, *ty);
+        for (param, &ty) in std::iter::zip(params, param_tys) {
+            body.insert_var(param.ident, ty, Var::Let);
         }
         let block = &self.ast.blocks[block_id];
         let body_ret = self.analyze_body_with(block, body)?.0;
@@ -584,8 +622,8 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
             unreachable!()
         };
         let mut body = Body::new(ret);
-        for (param, ty) in std::iter::zip(params, param_tys) {
-            body.scope().variables.insert(param.ident, *ty);
+        for (param, &ty) in std::iter::zip(params, param_tys) {
+            body.insert_var(param.ident, ty, Var::Let);
         }
         let block = &self.ast.blocks[block_id];
         let body_ret = self.analyze_body_with(block, body)?.0;
@@ -619,7 +657,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
             .iter()
             .rev()
             .find_map(|body| body.scopes.iter().rev().find_map(|scope| scope.variables.get(&ident)))
-            .copied())
+            .map(|(ty, _)| *ty))
         .ok_or_else(|| self.ident_not_found(ident, span))
     }
 
