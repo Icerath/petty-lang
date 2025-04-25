@@ -9,6 +9,11 @@ use crate::{
 };
 
 impl<'tcx> Collector<'_, '_, 'tcx> {
+    pub fn expected_item(&self, expr: ExprId) -> Error {
+        let span = self.ast.exprs[expr].span;
+        self.raw_error("invalid item", [(span, "this expression is not a valid item")])
+    }
+
     pub fn method_not_found(&self, ty: Ty<'tcx>, ident: Symbol, span: Span) -> Error {
         let ty = self.tcx.try_infer_deep(ty).unwrap_or(ty);
         self.raw_error(

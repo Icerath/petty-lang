@@ -275,6 +275,10 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
     #[expect(clippy::too_many_lines)]
     fn analyze_expr(&mut self, id: ExprId) -> Result<Ty<'tcx>> {
         let expr_span = self.ast.exprs[id].span;
+        if self.bodies.len() <= 2 && !self.is_item(id) {
+            return Err(self.expected_item(id));
+        }
+
         let ty = match self.ast.exprs[id].kind {
             ExprKind::Trait(ref trait_) => self.analyze_trait(trait_, id)?,
             ExprKind::Impl(ref impl_) => self.analyze_impl(impl_, id)?,
@@ -652,5 +656,15 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 self.tcx.intern(TyKind::Array(first_ty))
             }
         })
+    }
+
+    fn is_item(&self, id: ExprId) -> bool {
+        matches!(
+            self.ast.exprs[id].kind,
+            ExprKind::FnDecl(..)
+                | ExprKind::Struct { .. }
+                | ExprKind::Impl(..)
+                | ExprKind::Trait(..)
+        )
     }
 }
