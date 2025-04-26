@@ -282,11 +282,11 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         self.tcx.eq(lhs, rhs).map_err(|[lhs, rhs]| self.subtype_err_block(lhs, rhs, block))
     }
 
-    fn subtype(&self, lhs: Ty<'tcx>, rhs: Ty<'tcx>, expr: ExprId) -> Result<()> {
+    fn sub(&self, lhs: Ty<'tcx>, rhs: Ty<'tcx>, expr: ExprId) -> Result<()> {
         self.tcx.sub(lhs, rhs).map_err(|[lhs, rhs]| self.subtype_err(lhs, rhs, expr))
     }
 
-    fn subtype_block(&self, lhs: Ty<'tcx>, rhs: Ty<'tcx>, block: BlockId) -> Result<()> {
+    fn sub_block(&self, lhs: Ty<'tcx>, rhs: Ty<'tcx>, block: BlockId) -> Result<()> {
         self.tcx.sub(lhs, rhs).map_err(|[lhs, rhs]| self.subtype_err_block(lhs, rhs, block))
     }
 
@@ -302,7 +302,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
             ExprKind::Impl(ref impl_) => self.analyze_impl(impl_, id)?,
             ExprKind::Assert(expr) => {
                 let ty = self.analyze_expr(expr)?;
-                self.subtype(ty, &TyKind::Bool, expr)?;
+                self.sub(ty, &TyKind::Bool, expr)?;
                 &TyKind::Unit
             }
             ExprKind::Lit(ref lit) => self.analyze_lit(lit)?,
@@ -321,7 +321,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                         break 'outer inner;
                     }
                 };
-                self.subtype(operand, ty, id)?;
+                self.sub(operand, ty, id)?;
                 ty
             }
             ExprKind::Binary { lhs, op, rhs } => self.analyze_binary_expr(lhs, op, rhs)?,
@@ -346,7 +346,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
 
                 for (&arg_id, param) in std::iter::zip(args, params) {
                     let arg = self.analyze_expr(arg_id)?;
-                    self.subtype(arg, param, arg_id)?;
+                    self.sub(arg, param, arg_id)?;
                 }
                 ret
             }
@@ -370,7 +370,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
 
                 for (&arg_id, param) in std::iter::zip([expr].iter().chain(args), params) {
                     let arg = self.analyze_expr(arg_id)?;
-                    self.subtype(arg, param, arg_id)?;
+                    self.sub(arg, param, arg_id)?;
                 }
                 ret
             }
@@ -380,7 +380,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 let expr_ty = self.analyze_expr(expr)?;
                 let ty = if let Some(ty) = ty {
                     let ty = self.read_ast_ty(ty)?;
-                    self.subtype(expr_ty, ty, expr)?;
+                    self.sub(expr_ty, ty, expr)?;
                     ty
                 } else {
                     expr_ty
@@ -394,7 +394,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 self.within_const = within_const;
                 let ty = if let Some(ty) = ty {
                     let ty = self.read_ast_ty(ty)?;
-                    self.subtype(expr_ty, ty, expr)?;
+                    self.sub(expr_ty, ty, expr)?;
                     ty
                 } else {
                     expr_ty
@@ -420,12 +420,12 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 self.current().loops += 1;
                 let out = self.analyze_block(body)?;
                 self.current().loops -= 1;
-                self.subtype_block(out, &TyKind::Unit, body)?;
+                self.sub_block(out, &TyKind::Unit, body)?;
                 &TyKind::Unit
             }
             ExprKind::While { condition, block } => {
                 let condition_ty = self.analyze_expr(condition)?;
-                self.subtype(condition_ty, &TyKind::Bool, condition)?;
+                self.sub(condition_ty, &TyKind::Bool, condition)?;
                 self.current().loops += 1;
                 self.analyze_block(block)?;
                 self.current().loops -= 1;
@@ -436,7 +436,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
 
                 for arm in arms {
                     let ty = self.analyze_expr(arm.condition)?;
-                    self.subtype(ty, &TyKind::Bool, id)?;
+                    self.sub(ty, &TyKind::Bool, id)?;
                     let block_ty = self.analyze_block(arm.body)?;
                     if let Some(expected_ty) = expected_ty {
                         self.eq_block(expected_ty, block_ty, arm.body)?;
@@ -447,10 +447,10 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 let expected_ty = expected_ty.unwrap();
                 if let Some(els) = els {
                     let block_ty = self.analyze_block(els)?;
-                    self.subtype_block(expected_ty, block_ty, els)?;
+                    self.sub_block(expected_ty, block_ty, els)?;
                 } else {
                     // TODO: specialized error message here.
-                    self.subtype(expected_ty, &TyKind::Unit, id)?;
+                    self.sub(expected_ty, &TyKind::Unit, id)?;
                 }
                 expected_ty
             }
@@ -470,7 +470,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
             ExprKind::Return(expr) => {
                 let ty = expr.map_or(Ok(&TyKind::Unit), |expr| self.analyze_expr(expr))?;
                 let expected = self.current().ret;
-                self.subtype(ty, expected, expr.unwrap_or(id))?;
+                self.sub(ty, expected, expr.unwrap_or(id))?;
                 &TyKind::Never
             }
             ExprKind::Break => {
@@ -522,7 +522,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         }
 
         self.enforce_valid_binop(lhs_ty, op, rhs_ty, lhs, rhs)?;
-        self.subtype(rhs_ty, lhs_ty, rhs)?;
+        self.sub(rhs_ty, lhs_ty, rhs)?;
 
         Ok(match op.kind {
             B::Assign
@@ -606,7 +606,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         }
         let block = &self.ast.blocks[block_id];
         let body_ret = self.analyze_body_with(block, body)?.0;
-        self.subtype_block(body_ret, ret, block_id)?;
+        self.sub_block(body_ret, ret, block_id)?;
         Ok(&TyKind::Unit)
     }
 
@@ -627,7 +627,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         }
         let block = &self.ast.blocks[block_id];
         let body_ret = self.analyze_body_with(block, body)?.0;
-        self.subtype_block(body_ret, ret, block_id)?;
+        self.sub_block(body_ret, ret, block_id)?;
         Ok(&TyKind::Unit)
     }
 
