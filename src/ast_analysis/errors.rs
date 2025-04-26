@@ -9,6 +9,10 @@ use crate::{
 };
 
 impl<'tcx> Collector<'_, '_, 'tcx> {
+    pub fn expected_const(&self, expr: ExprId) -> Error {
+        let span = self.ast.exprs[expr].span;
+        self.raw_error("invalid const expr", [(span, "this expression cannot be const")])
+    }
     pub fn expected_item(&self, expr: ExprId) -> Error {
         let span = self.ast.exprs[expr].span;
         self.raw_error("invalid item", [(span, "this expression is not a valid item")])

@@ -296,6 +296,9 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         if !self.within_const && self.bodies.len() <= 2 && !self.is_item(id) {
             return Err(self.expected_item(id));
         }
+        if self.within_const && !self.is_const(id) {
+            return Err(self.expected_const(id));
+        }
 
         let ty = match self.ast.exprs[id].kind {
             ExprKind::Trait(ref trait_) => self.analyze_trait(trait_, id)?,
@@ -706,5 +709,17 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 | ExprKind::Trait(..)
                 | ExprKind::Const { .. }
         )
+    }
+    fn is_const(&self, id: ExprId) -> bool {
+        match self.ast.exprs[id].kind {
+            ExprKind::Lit(ref lit) => match lit {
+                Lit::Bool(_) | Lit::Char(_) | Lit::Str(_) | Lit::Int(_) | Lit::Unit => true,
+                Lit::Array { .. } => todo!(),
+                Lit::FStr(_) => todo!(),
+            },
+            ExprKind::Binary { lhs, rhs, .. } => self.is_const(lhs) && self.is_const(rhs),
+            ExprKind::Unary { expr, .. } => self.is_const(expr),
+            _ => todo!(),
+        }
     }
 }
