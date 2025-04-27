@@ -1,14 +1,14 @@
 mod intrinsics;
 mod loops;
 
-use std::{mem, path::Path};
+use std::{hash::Hash, mem, path::Path};
 
 use arcstr::ArcStr;
 use index_vec::IndexVec;
 
 use crate::{
     HashMap, errors,
-    hir::{self, ArraySeg, ExprId, ExprKind, Hir, Lit, OpAssign},
+    hir::{self, ArraySeg, ExprId, ExprKind, Hir, Lit, OpAssign, Param},
     mir::{
         self, BinaryOp, Block, BlockId, Body, BodyId, Constant, Local, Mir, Operand, Place,
         Projection, RValue, Statement, Terminator, UnaryOp,
@@ -34,6 +34,7 @@ pub fn lower<'tcx>(hir: &Hir<'tcx>, path: Option<&Path>, src: &str, tcx: &'tcx T
         strings: HashMap::default(),
         src,
         path,
+        generic_fns: HashMap::default(),
     };
     for &expr in &hir.root {
         lowering.lower(expr);
@@ -43,17 +44,53 @@ pub fn lower<'tcx>(hir: &Hir<'tcx>, path: Option<&Path>, src: &str, tcx: &'tcx T
     lowering.mir
 }
 
+#[derive(Debug, Clone, Copy)]
+struct Function<'tcx, 'hir> {
+    params: &'hir [Param<'tcx>],
+    ret: Ty<'tcx>,
+}
+
+impl Function<'_, '_> {
+    pub fn is_generic(&self) -> bool {
+        let mut is_generic = false;
+        self.params.iter().for_each(|param| param.ty.generics(&mut |_| is_generic = true));
+        self.ret.generics(&mut |_| is_generic = true);
+        is_generic
+    }
+}
+
+impl Hash for Function<'_, '_> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.params.iter().for_each(|param| param.ty.hash(state));
+        self.ret.hash(state);
+    }
+}
+
+impl PartialEq for Function<'_, '_> {
+    fn eq(&self, other: &Self) -> bool {
+        self.ret == other.ret
+            && self
+                .params
+                .iter()
+                .map(|param| param.ty)
+                .eq(other.params.iter().map(|param| param.ty))
+    }
+}
+
+impl Eq for Function<'_, '_> {}
+
 struct Lowering<'hir, 'tcx, 'src> {
     tcx: &'tcx TyCtx<'tcx>,
     hir: &'hir Hir<'tcx>,
     mir: Mir,
-    bodies: Vec<BodyInfo>,
+    bodies: Vec<BodyInfo<'tcx, 'hir>>,
     struct_display_bodies: IndexVec<StructId, Option<BodyId>>,
     array_display_bodies: HashMap<Ty<'tcx>, BodyId>,
     methods: HashMap<(Ty<'tcx>, Symbol), BodyId>,
     strings: HashMap<Symbol, ArcStr>,
     src: &'src str,
     path: Option<&'src Path>,
+    generic_fns: HashMap<BodyId, HashMap<Function<'tcx, 'hir>, BodyId>>,
 }
 
 macro_rules! str {
@@ -65,16 +102,16 @@ macro_rules! str {
     };
 }
 
-struct BodyInfo {
+struct BodyInfo<'tcx, 'hir> {
     body: BodyId,
-    functions: HashMap<Symbol, BodyId>,
+    functions: HashMap<Symbol, (BodyId, Function<'tcx, 'hir>)>,
     stmts: Vec<Statement>,
     breaks: Vec<BlockId>,
     continue_block: Option<BlockId>,
     scopes: Vec<Scope>,
 }
 
-impl BodyInfo {
+impl BodyInfo<'_, '_> {
     pub fn scope(&mut self) -> &mut Scope {
         self.scopes.last_mut().unwrap()
     }
@@ -85,7 +122,7 @@ struct Scope {
     variables: HashMap<Symbol, Local>,
 }
 
-impl BodyInfo {
+impl BodyInfo<'_, '_> {
     pub fn new(body: BodyId) -> Self {
         Self {
             body,
@@ -98,7 +135,7 @@ impl BodyInfo {
     }
 }
 
-impl<'tcx> Lowering<'_, 'tcx, '_> {
+impl<'tcx, 'hir> Lowering<'hir, 'tcx, '_> {
     fn body_ref(&self) -> &Body {
         &self.mir.bodies[self.current().body]
     }
@@ -110,7 +147,7 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
     fn current(&self) -> &BodyInfo {
         self.bodies.last().unwrap()
     }
-    fn current_mut(&mut self) -> &mut BodyInfo {
+    fn current_mut(&mut self) -> &mut BodyInfo<'tcx, 'hir> {
         self.bodies.last_mut().unwrap()
     }
 
@@ -241,14 +278,21 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
             }
             ExprKind::Literal(ref lit) => self.lit_rvalue(lit),
             ExprKind::FnDecl(ref decl) => {
-                let hir::FnDecl { ident, for_ty, ref params, ref body, .. } = **decl;
+                let hir::FnDecl { ident, for_ty, ref params, ref body, ret } = **decl;
+
+                let function = Function { params, ret };
 
                 assert!(self.current_mut().stmts.is_empty(), "TODO");
                 let body_id = self.mir.bodies.push(Body::new(Some(ident), params.len()));
+
+                if function.is_generic() {
+                    self.generic_fns.entry(body_id).or_default().insert(function, body_id);
+                }
+
                 match for_ty {
-                    Some(ty) => self.methods.insert((ty, ident), body_id),
-                    None => self.current_mut().functions.insert(ident, body_id),
-                };
+                    Some(ty) => _ = self.methods.insert((ty, ident), body_id),
+                    None => _ = self.current_mut().functions.insert(ident, (body_id, function)),
+                }
                 self.bodies.push(BodyInfo::new(body_id));
                 if self.bodies.len() == 2 && ident == "main" {
                     self.mir.main_body = Some(body_id);
@@ -661,10 +705,9 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
         {
             return RValue::local(*place);
         }
-        let Some(location) = self.bodies.iter().rev().find_map(|body| body.functions.get(&ident))
-        else {
-            panic!("{ident}");
-        };
+        let (location, _) =
+            self.bodies.iter().rev().find_map(|body| body.functions.get(&ident)).unwrap();
+
         RValue::from(Constant::Func(*location))
     }
 
