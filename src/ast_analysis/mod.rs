@@ -352,8 +352,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 ret
             }
             ExprKind::MethodCall { expr, method, ref args } => {
-                let ty = self.analyze_expr(expr)?;
-                self.tcx.infer_shallow(ty);
+                let ty = self.tcx.infer_shallow(self.analyze_expr(expr)?);
                 let Some(Function { params, ret }) = self.tcx.get_method(ty, method.symbol) else {
                     return Err(self.method_not_found(ty, method));
                 };

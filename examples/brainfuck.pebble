@@ -2,7 +2,7 @@
 
 fn main() {
     let input = "++++++++[>++++[>++>+++>+++>+<<<<-]>+>+>->>+[<]<-]>>.>---.+++++++..+++.>>.<-.<.+++.------.--------.>>+.>++.";
-    let cells: [_] = [0; 256];
+    let cells: [int] = [0; 256];
     let data_ptr = 0;
     let instruction_ptr = 0;
     while instruction_ptr < input.len() {
@@ -24,7 +24,7 @@ fn main() {
                 cells[data_ptr] -= 1;
             }
         } else if instr == '.' {
-            print("${chr(cells[data_ptr])}")
+            print("${cells[data_ptr].chr()}")
         } else if instr == ',' {
         } else if instr == '[' {
             if cells[data_ptr] == 0 {
