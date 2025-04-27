@@ -655,13 +655,12 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
     }
 
     fn read_ident(&self, ident: Symbol, span: Span) -> Result<Ty<'tcx>> {
-        (self
-            .bodies
+        self.bodies
             .iter()
             .rev()
             .find_map(|body| body.scopes.iter().rev().find_map(|scope| scope.variables.get(&ident)))
-            .map(|(ty, _)| *ty))
-        .ok_or_else(|| self.ident_not_found(ident, span))
+            .map(|(ty, _)| *ty)
+            .ok_or_else(|| self.ident_not_found(ident, span))
     }
 
     fn analyze_lit(&mut self, lit: &Lit) -> Result<Ty<'tcx>> {
