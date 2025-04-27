@@ -498,7 +498,7 @@ fn parse_string(stream: &mut Stream, outer_span: Span) -> Result<Expr> {
     let mut chars = raw.char_indices();
 
     let mut escaped = false;
-    while let Some((_, char)) = chars.next() {
+    while let Some((char_pos, char)) = chars.next() {
         match char {
             '$' if !escaped && chars.clone().next().is_some_and(|c| c.1 == '{') => {
                 let char_pos = chars.next().unwrap().0 + span.start() as usize;
@@ -523,12 +523,19 @@ fn parse_string(stream: &mut Stream, outer_span: Span) -> Result<Expr> {
             '\\' if !escaped => escaped = true,
             _ if !escaped => current.push(char),
             _ => {
+                escaped = false;
                 match char {
                     '\\' => current.push('\\'),
                     'n' => current.push('\n'),
-                    _ => todo!(),
+                    '$' => current.push('$'),
+                    _ => {
+                        let span = Span::new(
+                            current_start..span.start() as usize + char_pos + char.len_utf8(),
+                            span.source(),
+                        );
+                        return Err(invalid_escape(stream, span, char));
+                    }
                 }
-                escaped = false;
             }
         }
     }
@@ -543,6 +550,15 @@ fn parse_string(stream: &mut Stream, outer_span: Span) -> Result<Expr> {
     }
     stream.lexer.set_offset(lexer_offset);
     Ok(ExprKind::Lit(Lit::FStr(segments)).with_span(outer_span))
+}
+
+fn invalid_escape(stream: &mut Stream<'_, '_>, span: Span, char: char) -> Error {
+    errors::error(
+        &format!("invalid escape character {char:?}"),
+        stream.path,
+        stream.lexer.src(),
+        [(span, "here")],
+    )
 }
 
 impl Parse for Identifier {
