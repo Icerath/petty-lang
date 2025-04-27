@@ -101,16 +101,6 @@ impl Stream<'_, '_> {
         )
     }
 
-    fn expect_ident(&mut self) -> Result<Symbol> {
-        let token = self.expect(TokenKind::Ident)?;
-        Ok(Symbol::from(&self.lexer.src()[token.span]))
-    }
-
-    fn ident_spanned(&mut self) -> Result<(Symbol, Span)> {
-        let token = self.expect(TokenKind::Ident)?;
-        Ok((Symbol::from(&self.lexer.src()[token.span]), token.span))
-    }
-
     fn parse<T: Parse>(&mut self) -> Result<T> {
         T::parse(self)
     }
@@ -139,7 +129,8 @@ trait Parse: Sized {
 
 impl Parse for Symbol {
     fn parse(stream: &mut Stream) -> Result<Self> {
-        stream.expect_ident()
+        let token = stream.expect(TokenKind::Ident)?;
+        Ok(Symbol::from(&stream.lexer.src()[token.span]))
     }
 }
 
@@ -552,6 +543,7 @@ fn parse_string(stream: &mut Stream, outer_span: Span) -> Result<Expr> {
 
 impl Parse for Identifier {
     fn parse(stream: &mut Stream) -> Result<Self> {
-        stream.ident_spanned().map(|(symbol, span)| Self { symbol, span })
+        let span = stream.expect(TokenKind::Ident)?.span;
+        Ok(Self { symbol: Symbol::from(&stream.lexer.src()[span]), span })
     }
 }
