@@ -55,8 +55,7 @@ impl<'tcx> TyKind<'tcx> {
             Self::Function(Function { ref params, ret, .. }) => {
                 let params = params.iter().map(|param| param.replace_generics(tcx, f)).collect();
                 let ret = ret.replace_generics(tcx, f);
-                let func = Function { params, ret };
-                tcx.intern(TyKind::Function(func))
+                tcx.intern(TyKind::Function(Function { params, ret }))
             }
             Self::Struct { ref fields, ref symbols, id } => {
                 let fields = fields.iter().map(|field| field.replace_generics(tcx, f)).collect();

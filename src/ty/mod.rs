@@ -25,13 +25,13 @@ pub struct Function<'tcx> {
 }
 
 impl<'tcx> Function<'tcx> {
-    pub fn caller(&self, tcx: &'tcx TyCtx<'tcx>) -> (Vec<Ty<'tcx>>, Ty<'tcx>) {
+    pub fn caller(&self, tcx: &'tcx TyCtx<'tcx>) -> Self {
         let mut map = HashMap::default();
         self.generics(&mut |id| _ = map.entry(id).or_insert_with(|| tcx.new_vid()));
         let f = |id| map[&id];
         let params = self.params.iter().map(|param| param.replace_generics(tcx, f)).collect();
         let ret = self.ret.replace_generics(tcx, f);
-        (params, ret)
+        Self { params, ret }
     }
     pub fn generics(&self, f: &mut impl FnMut(GenericId)) {
         self.params.iter().for_each(|param| param.generics(f));

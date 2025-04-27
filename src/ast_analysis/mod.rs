@@ -331,12 +331,10 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
             ExprKind::Index { expr, index } => self.index(expr, index, expr_span)?,
             ExprKind::FnCall { function, ref args } => {
                 let fn_ty = self.analyze_expr(function)?;
-                let TyKind::Function(func) = fn_ty else {
+                let TyKind::Function(Function { params, ret }) = fn_ty else {
                     let fn_span = self.ast.exprs[function].span;
                     return Err(self.expected_function(fn_ty, fn_span));
                 };
-
-                let (params, ret) = func.caller(self.tcx);
 
                 if args.len() != params.len() {
                     return Err(self.invalid_arg_count(
@@ -356,11 +354,9 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
             ExprKind::MethodCall { expr, method, ref args } => {
                 let ty = self.analyze_expr(expr)?;
                 self.tcx.infer_shallow(ty);
-                let Some(function) = self.tcx.get_method(ty, method.symbol) else {
+                let Some(Function { params, ret }) = self.tcx.get_method(ty, method.symbol) else {
                     return Err(self.method_not_found(ty, method));
                 };
-
-                let (params, ret) = function.caller(self.tcx);
 
                 if args.len() + 1 != params.len() {
                     return Err(self.invalid_arg_count(
@@ -618,8 +614,9 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         _ = generics;
         _ = ret;
         let block_id = block.unwrap();
+        // call `read_ident_raw` to avoid producing extra inference variables
         let fn_ty = self
-            .read_ident(ident.symbol, Span::ZERO)
+            .read_ident_raw(ident.symbol, Span::ZERO)
             .expect("fndecl ident should have been inserted already");
         let TyKind::Function(Function { params: param_tys, ret, .. }) = fn_ty else {
             unreachable!()
@@ -655,6 +652,15 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
     }
 
     fn read_ident(&self, ident: Symbol, span: Span) -> Result<Ty<'tcx>> {
+        // TODO: put functions in separate namespaces
+        Ok(match self.read_ident_raw(ident, span)? {
+            TyKind::Function(func) => self.tcx.intern(TyKind::Function(func.caller(self.tcx))),
+            other => other,
+        })
+    }
+
+    // like `read_ident` but will not produce `TyVid`s for generic functions
+    fn read_ident_raw(&self, ident: Symbol, span: Span) -> Result<Ty<'tcx>> {
         self.bodies
             .iter()
             .rev()
