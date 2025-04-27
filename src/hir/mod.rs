@@ -36,7 +36,6 @@ pub enum ExprKind<'tcx> {
     Abort { msg: Symbol },
     StructInit,
     Field { expr: ExprId, field: usize },
-    PrintStr(Symbol), // temporary
     Ident(Symbol),
     Binary { lhs: ExprId, op: BinaryOp, rhs: ExprId },
     OpAssign { place: ExprId, op: OpAssign, expr: ExprId },

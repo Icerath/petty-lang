@@ -239,9 +239,6 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
                 }
                 RValue::local(local)
             }
-            ExprKind::PrintStr(str) => {
-                RValue::Unary { op: UnaryOp::Println, operand: str!(self, str) }
-            }
             ExprKind::Literal(ref lit) => self.lit_rvalue(lit),
             ExprKind::FnDecl(ref decl) => {
                 let hir::FnDecl { ident, for_ty, ref params, ref body, .. } = **decl;

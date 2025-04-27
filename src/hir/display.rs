@@ -33,7 +33,6 @@ impl Writer<'_, '_> {
         match self.hir.exprs[expr].kind {
             ExprKind::Loop(ref block) => ("loop ", block.as_slice()).write(self),
             ExprKind::StructInit => "<struct init>".write(self),
-            ExprKind::PrintStr(str) => ("print ", format!("{str:?}").as_str()).write(self),
             ExprKind::Assignment { lhs, expr } => (lhs, " = ", expr).write(self),
             ExprKind::Abort { msg } => ("abort(", msg, ")").write(self),
             ExprKind::Unreachable => "unreachable".write(self),
