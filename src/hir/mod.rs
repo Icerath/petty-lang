@@ -25,9 +25,9 @@ pub struct Expr<'tcx> {
 }
 
 impl Expr<'_> {
-    pub const UNIT: Self = Self { ty: &TyKind::Unit, kind: ExprKind::Literal(Lit::Unit) };
-    pub const BREAK: Self = Self { ty: &TyKind::Never, kind: ExprKind::Break };
-    pub const CONTINUE: Self = Self { ty: &TyKind::Never, kind: ExprKind::Continue };
+    pub const UNIT: Self = ExprKind::Literal(Lit::Unit).with(&TyKind::Unit);
+    pub const BREAK: Self = ExprKind::Break.with(&TyKind::Never);
+    pub const CONTINUE: Self = ExprKind::Continue.with(&TyKind::Never);
 }
 
 #[derive(Debug)]
@@ -134,7 +134,7 @@ pub struct IfStmt {
 }
 
 impl<'tcx> ExprKind<'tcx> {
-    pub fn with(self, ty: Ty<'tcx>) -> Expr<'tcx> {
+    pub const fn with(self, ty: Ty<'tcx>) -> Expr<'tcx> {
         Expr { kind: self, ty }
     }
 }
