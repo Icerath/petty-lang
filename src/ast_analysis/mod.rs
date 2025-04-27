@@ -51,7 +51,7 @@ struct Scope<'tcx> {
     variables: HashMap<Symbol, (Ty<'tcx>, Var)>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 enum Var {
     Let,
     Const,
@@ -614,7 +614,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         _ = ret;
         let block_id = block.unwrap();
         // call `read_ident_raw` to avoid producing extra inference variables
-        let fn_ty = self
+        let (fn_ty, _) = self
             .read_ident_raw(ident.symbol, Span::ZERO)
             .expect("fndecl ident should have been inserted already");
         let TyKind::Function(Function { params: param_tys, ret, .. }) = fn_ty else {
@@ -651,20 +651,21 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
     }
 
     fn read_ident(&self, ident: Symbol, span: Span) -> Result<Ty<'tcx>> {
-        // TODO: put functions in separate namespaces
         Ok(match self.read_ident_raw(ident, span)? {
-            TyKind::Function(func) => self.tcx.intern(TyKind::Function(func.caller(self.tcx))),
-            other => other,
+            (TyKind::Function(func), Var::Const) => {
+                self.tcx.intern(TyKind::Function(func.caller(self.tcx)))
+            }
+            (other, _) => other,
         })
     }
 
     // like `read_ident` but will not produce `TyVid`s for generic functions
-    fn read_ident_raw(&self, ident: Symbol, span: Span) -> Result<Ty<'tcx>> {
+    fn read_ident_raw(&self, ident: Symbol, span: Span) -> Result<(Ty<'tcx>, Var)> {
         self.bodies
             .iter()
             .rev()
             .find_map(|body| body.scopes.iter().rev().find_map(|scope| scope.variables.get(&ident)))
-            .map(|(ty, _)| *ty)
+            .copied()
             .ok_or_else(|| self.ident_not_found(ident, span))
     }
 
