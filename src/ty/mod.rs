@@ -160,6 +160,15 @@ impl<'tcx> TyCtxInner<'tcx> {
             TyKind::Ref(of) => {
                 intern.intern(TyKind::Ref(self.try_infer_deep(of, intern).map_err(|_| ty)?))
             }
+            TyKind::Function(Function { params, ret }) => {
+                let params = params
+                    .iter()
+                    .map(|param| self.try_infer_deep(param, intern))
+                    .collect::<Result<_, _>>()?;
+
+                let ret = self.try_infer_deep(ret, intern)?;
+                intern.intern(TyKind::Function(Function { params, ret }))
+            }
             ty => ty,
         })
     }
