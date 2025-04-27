@@ -46,14 +46,40 @@ pub fn lower<'tcx>(hir: &Hir<'tcx>, path: Option<&Path>, src: &str, tcx: &'tcx T
 
 #[derive(Debug, Clone, Copy)]
 struct Function<'tcx, 'hir> {
-    params: &'hir [Param<'tcx>],
+    params: Params<'tcx, 'hir>,
     ret: Ty<'tcx>,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum Params<'tcx, 'hir> {
+    Decl(&'hir [Param<'tcx>]),
+    Ty(&'tcx [Ty<'tcx>]),
+}
+
+impl<'tcx> Params<'tcx, '_> {
+    fn for_each(&self, mut f: impl FnMut(Ty<'tcx>)) {
+        match self {
+            Self::Decl(params) => params.iter().for_each(|param| f(param.ty)),
+            Self::Ty(params) => params.iter().for_each(|param| f(param)),
+        }
+    }
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Decl(lhs), Self::Decl(rhs)) => {
+                lhs.iter().map(|param| param.ty).eq(rhs.iter().map(|param| param.ty))
+            }
+            (Self::Ty(lhs), Self::Ty(rhs)) => lhs == rhs,
+            (Self::Decl(decl), Self::Ty(ty)) | (Self::Ty(ty), Self::Decl(decl)) => {
+                decl.iter().map(|param| param.ty).eq(ty.iter().copied())
+            }
+        }
+    }
 }
 
 impl Function<'_, '_> {
     pub fn is_generic(&self) -> bool {
         let mut is_generic = false;
-        self.params.iter().for_each(|param| param.ty.generics(&mut |_| is_generic = true));
+        self.params.for_each(|param| param.generics(&mut |_| is_generic = true));
         self.ret.generics(&mut |_| is_generic = true);
         is_generic
     }
@@ -61,19 +87,14 @@ impl Function<'_, '_> {
 
 impl Hash for Function<'_, '_> {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.params.iter().for_each(|param| param.ty.hash(state));
+        self.params.for_each(|param| param.hash(state));
         self.ret.hash(state);
     }
 }
 
 impl PartialEq for Function<'_, '_> {
     fn eq(&self, other: &Self) -> bool {
-        self.ret == other.ret
-            && self
-                .params
-                .iter()
-                .map(|param| param.ty)
-                .eq(other.params.iter().map(|param| param.ty))
+        self.ret == other.ret && self.params.eq(&other.params)
     }
 }
 
@@ -280,7 +301,7 @@ impl<'tcx, 'hir> Lowering<'hir, 'tcx, '_> {
             ExprKind::FnDecl(ref decl) => {
                 let hir::FnDecl { ident, for_ty, ref params, ref body, ret } = **decl;
 
-                let function = Function { params, ret };
+                let function = Function { params: Params::Decl(params), ret };
 
                 assert!(self.current_mut().stmts.is_empty(), "TODO");
                 let body_id = self.mir.bodies.push(Body::new(Some(ident), params.len()));
@@ -379,7 +400,7 @@ impl<'tcx, 'hir> Lowering<'hir, 'tcx, '_> {
             ExprKind::Binary { lhs, op, rhs } => self.binary_op(lhs, op, rhs),
             ExprKind::Unary { op, expr } => self.unary_op(op, expr),
             ExprKind::OpAssign { place, op, expr } => self.op_assign(place, op, expr),
-            ExprKind::Ident(ident) => match self.load_ident(ident) {
+            ExprKind::Ident(ident) => match self.load_ident(ident, self.hir.exprs[id].ty) {
                 RValue::Use(operand) => RValue::Use(operand),
                 rvalue => rvalue,
             },
@@ -699,16 +720,30 @@ impl<'tcx, 'hir> Lowering<'hir, 'tcx, '_> {
         rvalue.unwrap_or(RValue::UNIT)
     }
 
-    fn load_ident(&self, ident: Symbol) -> RValue {
+    fn load_ident(&mut self, ident: Symbol, ty: Ty<'tcx>) -> RValue {
         if let Some(place) =
             self.current().scopes.iter().rev().find_map(|scope| scope.variables.get(&ident))
         {
             return RValue::local(*place);
         }
-        let (location, _) =
+        let (location, function) =
             self.bodies.iter().rev().find_map(|body| body.functions.get(&ident)).unwrap();
 
-        RValue::from(Constant::Func(*location))
+        if !function.is_generic() {
+            return RValue::from(Constant::Func(*location));
+        }
+        let TyKind::Function(func) = ty else { unreachable!() };
+        let params = func.params.len();
+        let func = Function { params: Params::Ty(&func.params), ret: func.ret };
+
+        let monomorphized_location = *self
+            .generic_fns
+            .entry(*location)
+            .or_default()
+            .entry(func)
+            .or_insert_with(|| self.mir.bodies.push(Body::new(None, params)));
+        eprintln!("{ident} = {monomorphized_location:?}");
+        RValue::from(Constant::Func(monomorphized_location))
     }
 
     fn lit_rvalue(&mut self, lit: &Lit) -> RValue {
