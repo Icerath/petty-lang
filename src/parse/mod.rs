@@ -520,11 +520,15 @@ fn parse_string(stream: &mut Stream, outer_span: Span) -> Result<Expr> {
                 assert_eq!(next.1, '}');
                 current_start = next.0 + span.start() as usize;
             }
-            '/' if !escaped => escaped = true,
-            _ if escaped => panic!(),
+            '\\' if !escaped => escaped = true,
+            _ if !escaped => current.push(char),
             _ => {
+                match char {
+                    '\\' => current.push('\\'),
+                    'n' => current.push('\n'),
+                    _ => todo!(),
+                }
                 escaped = false;
-                current.push(char);
             }
         }
     }
