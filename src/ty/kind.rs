@@ -126,7 +126,7 @@ impl TyCtx<'_> {
                         write!(f, " -> {}", tcx.display(ret))
                     }
                     TyKind::Infer(_) => write!(f, "_"),
-                    TyKind::Generic(id) => write!(f, "<{id:?}>"),
+                    TyKind::Generic(id) => write!(f, "{}", tcx.generic_symbol(*id)),
                     TyKind::Struct { id, .. } => write!(f, "{}", tcx.struct_name(*id)),
                 }
             }
