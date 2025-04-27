@@ -11,8 +11,8 @@ use token::{Token, TokenKind};
 
 use crate::{
     ast::{
-        ArraySeg, Ast, BinOpKind, BinaryOp, Block, BlockId, Expr, ExprId, ExprKind, FnDecl, IfStmt,
-        Impl, Lit, Param, Trait, Ty, TyKind, TypeId,
+        ArraySeg, Ast, BinOpKind, BinaryOp, Block, BlockId, Expr, ExprId, ExprKind, FnDecl,
+        Identifier, IfStmt, Impl, Lit, Param, Trait, Ty, TyKind, TypeId,
     },
     errors,
     span::Span,
@@ -236,7 +236,7 @@ impl Parse for Impl {
 
 impl Parse for Trait {
     fn parse(stream: &mut Stream) -> Result<Self> {
-        let ident = stream.expect_ident()?;
+        let ident = stream.parse()?;
         stream.expect(TokenKind::LBrace)?;
         let methods = parse_trait_methods(stream)?;
         Ok(Self { ident, methods })
@@ -258,7 +258,7 @@ fn parse_trait_methods(stream: &mut Stream) -> Result<ThinVec<FnDecl>> {
 
 impl Parse for FnDecl {
     fn parse(stream: &mut Stream) -> Result<Self> {
-        let (ident, ident_span) = stream.ident_spanned()?;
+        let ident = stream.parse()?;
         let peek = stream.clone().any(&[TokenKind::Less, TokenKind::LParen])?;
         let generics = if peek.kind == TokenKind::Less {
             _ = stream.next();
@@ -278,20 +278,20 @@ impl Parse for FnDecl {
             chosen = stream.any(&[TokenKind::Semicolon, TokenKind::LBrace])?;
         }
         let block = if chosen.kind == TokenKind::Semicolon { None } else { Some(stream.parse()?) };
-        Ok(Self { ident, ident_span, generics, params, ret, block })
+        Ok(Self { ident, generics, params, ret, block })
     }
 }
 
 fn parse_struct(stream: &mut Stream) -> Result<Expr> {
-    let (ident, span) = stream.ident_spanned()?;
+    let ident = stream.parse()?;
     stream.expect(TokenKind::LParen)?;
     let fields = stream.parse_separated(TokenKind::Comma, TokenKind::RParen)?;
 
-    Ok((ExprKind::Struct { ident, fields, span }).todo_span())
+    Ok((ExprKind::Struct { ident, fields }).todo_span())
 }
 
 fn parse_var(stream: &mut Stream, let_tok: Token) -> Result<Expr> {
-    let ident = stream.expect_ident()?;
+    let ident = stream.parse()?;
     let tok = stream.any(&[TokenKind::Colon, TokenKind::Eq])?;
     let mut ty = None;
     if tok.kind == TokenKind::Colon {
@@ -319,7 +319,7 @@ fn parse_while(stream: &mut Stream) -> Result<Expr> {
 }
 
 fn parse_for(stream: &mut Stream) -> Result<Expr> {
-    let ident = stream.expect_ident()?;
+    let ident = stream.parse()?;
     stream.expect(TokenKind::In)?;
     let iter = stream.parse()?;
     stream.expect(TokenKind::LBrace)?;
@@ -365,7 +365,7 @@ impl Parse for ArraySeg {
 
 impl Parse for Param {
     fn parse(stream: &mut Stream) -> Result<Self> {
-        let ident = stream.expect_ident()?;
+        let ident = stream.parse()?;
         stream.expect(TokenKind::Colon)?;
         let ty = stream.parse()?;
         Ok(Self { ident, ty })
@@ -548,4 +548,10 @@ fn parse_string(stream: &mut Stream, outer_span: Span) -> Result<Expr> {
     }
     stream.lexer.set_offset(lexer_offset);
     Ok(ExprKind::Lit(Lit::FStr(segments)).with_span(outer_span))
+}
+
+impl Parse for Identifier {
+    fn parse(stream: &mut Stream) -> Result<Self> {
+        stream.ident_spanned().map(|(symbol, span)| Self { symbol, span })
+    }
 }

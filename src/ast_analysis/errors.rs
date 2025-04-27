@@ -2,7 +2,7 @@ use miette::Error;
 
 use super::Collector;
 use crate::{
-    ast::{BinaryOp, BlockId, ExprId, ExprKind},
+    ast::{BinaryOp, BlockId, ExprId, ExprKind, Identifier},
     span::Span,
     symbol::Symbol,
     ty::Ty,
@@ -18,18 +18,19 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         self.raw_error("invalid item", [(span, "this expression is not a valid item")])
     }
 
-    pub fn method_not_found(&self, ty: Ty<'tcx>, ident: Symbol, span: Span) -> Error {
+    pub fn method_not_found(&self, ty: Ty<'tcx>, ident: Identifier) -> Error {
+        let Identifier { symbol, span } = ident;
         let ty = self.tcx.try_infer_deep(ty).unwrap_or(ty);
         self.raw_error(
-            &format!("no method `{ident}` found in type `{}`", self.tcx.display(ty)),
+            &format!("no method `{symbol}` found in type `{}`", self.tcx.display(ty)),
             [(span, format!("method not found in `{}`", self.tcx.display(ty)))],
         )
     }
 
-    pub fn already_defined(&self, ident: Symbol, span: Span) -> Error {
+    pub fn already_defined(&self, ident: Identifier) -> Error {
         self.raw_error(
-            &format!("function `{ident}` already defined"),
-            [(span, format!("`{ident}` is already defined"))],
+            &format!("function `{}` already defined", ident.symbol),
+            [(ident.span, format!("`{}` is already defined", ident.symbol))],
         )
     }
 
@@ -96,10 +97,10 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         )
     }
 
-    pub fn field_error(&self, ty: Ty<'tcx>, field: Symbol, span: Span) -> Error {
+    pub fn field_error(&self, ty: Ty<'tcx>, field: Identifier) -> Error {
         self.raw_error(
-            &format!("no field `{field}` on type `{}`", self.tcx.display(ty)),
-            [(span, "unknown field")],
+            &format!("no field `{}` on type `{}`", field.symbol, self.tcx.display(ty)),
+            [(field.span, "unknown field")],
         )
     }
 

@@ -9,8 +9,8 @@ use thin_vec::ThinVec;
 use crate::{
     HashMap,
     ast::{
-        self, Ast, BinOpKind, BinaryOp, Block, BlockId, ExprId, ExprKind, FnDecl, Impl, Lit, Trait,
-        TypeId, UnaryOp,
+        self, Ast, BinOpKind, BinaryOp, Block, BlockId, ExprId, ExprKind, FnDecl, Identifier, Impl,
+        Lit, Trait, TypeId, UnaryOp,
     },
     span::Span,
     symbol::Symbol,
@@ -38,11 +38,11 @@ impl<'tcx> Body<'tcx> {
     }
     pub fn insert_var(
         &mut self,
-        ident: Symbol,
+        ident: Identifier,
         ty: Ty<'tcx>,
         kind: Var,
     ) -> Option<(Ty<'tcx>, Var)> {
-        self.scope().variables.insert(ident, (ty, kind))
+        self.scope().variables.insert(ident.symbol, (ty, kind))
     }
 }
 
@@ -126,16 +126,16 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
     ) -> Result<(Ty<'tcx>, Body<'tcx>)> {
         // look for structs/enums first.
         for id in &block.stmts {
-            let ExprKind::Struct { ident, fields, span } = &self.ast.exprs[*id].kind else {
+            let ExprKind::Struct { ident, fields } = &self.ast.exprs[*id].kind else {
                 continue;
             };
-            let symbols: ThinVec<_> = fields.iter().map(|field| field.ident).collect();
+            let symbols: ThinVec<_> = fields.iter().map(|field| field.ident.symbol).collect();
             let fields: ThinVec<_> =
                 fields.iter().map(|field| self.read_ast_ty(field.ty)).collect::<Result<_>>()?;
             let params = fields.clone();
-            let struct_ty = self.tcx.new_struct(*ident, symbols, fields);
-            self.current().ty_names.insert(*ident, struct_ty);
-            self.ty_info.struct_types.insert(*span, struct_ty);
+            let struct_ty = self.tcx.new_struct(ident.symbol, symbols, fields);
+            self.current().ty_names.insert(ident.symbol, struct_ty);
+            self.ty_info.struct_types.insert(ident.span, struct_ty);
 
             body.insert_var(
                 *ident,
@@ -161,7 +161,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
     }
 
     fn preanalyze_fndecl(&mut self, body: &mut Body<'tcx>, fndecl: &FnDecl) -> Result<()> {
-        let FnDecl { ident, ident_span, generics, params, ret, .. } = fndecl;
+        let FnDecl { ident, generics, params, ret, .. } = fndecl;
         let generics = self.tcx.new_generics(generics);
         let ret = match ret {
             Some(ret) => self.read_ast_ty_with(*ret, generics)?,
@@ -177,7 +177,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
             Var::Const,
         );
 
-        if prev.is_some() { Err(self.already_defined(*ident, *ident_span)) } else { Ok(()) }
+        if prev.is_some() { Err(self.already_defined(*ident)) } else { Ok(()) }
     }
 
     fn preanalyze_method(
@@ -200,7 +200,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
 
         let ty = self.read_ast_ty(impl_.ty)?;
         let fn_ty = Function { params, ret };
-        self.tcx.add_method(ty, *ident, fn_ty);
+        self.tcx.add_method(ty, ident.symbol, fn_ty);
         Ok(())
     }
 
@@ -353,11 +353,11 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 }
                 ret
             }
-            ExprKind::MethodCall { expr, method, method_span, ref args } => {
+            ExprKind::MethodCall { expr, method, ref args } => {
                 let ty = self.analyze_expr(expr)?;
                 self.tcx.infer_shallow(ty);
-                let Some(function) = self.tcx.get_method(ty, method) else {
-                    return Err(self.method_not_found(ty, method, method_span));
+                let Some(function) = self.tcx.get_method(ty, method.symbol) else {
+                    return Err(self.method_not_found(ty, method));
                 };
 
                 let (params, ret) = function.caller(self.tcx);
@@ -366,7 +366,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                     return Err(self.invalid_arg_count(
                         args.len() + 1,
                         params.len(),
-                        method_span,
+                        method.span,
                         expr_span,
                     ));
                 }
@@ -489,15 +489,15 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 &TyKind::Never
             }
             ExprKind::Unreachable => &TyKind::Never,
-            ExprKind::FieldAccess { expr, field, span } => {
+            ExprKind::FieldAccess { expr, field } => {
                 let expr = self.tcx.infer_shallow(self.analyze_expr(expr)?);
                 let TyKind::Struct { symbols, fields, .. } = expr else {
-                    return Err(self.field_error(expr, field, span));
+                    return Err(self.field_error(expr, field));
                 };
                 let field = symbols
                     .iter()
-                    .position(|&s| s == field)
-                    .ok_or_else(|| self.field_error(expr, field, span))?;
+                    .position(|&s| s == field.symbol)
+                    .ok_or_else(|| self.field_error(expr, field))?;
                 fields[field]
             }
         };
@@ -505,7 +505,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         Ok(ty)
     }
 
-    fn insert_var(&mut self, ident: Symbol, ty: Ty<'tcx>, kind: Var) {
+    fn insert_var(&mut self, ident: Identifier, ty: Ty<'tcx>, kind: Var) {
         self.current().insert_var(ident, ty, kind);
     }
 
@@ -599,7 +599,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         _ = ret;
         let block_id = block.unwrap();
         let ty = self.read_ast_ty(impl_.ty)?;
-        let fn_ty = self.tcx.get_method(ty, ident).unwrap();
+        let fn_ty = self.tcx.get_method(ty, ident.symbol).unwrap();
 
         let Function { params: param_tys, ret, .. } = fn_ty;
 
@@ -619,7 +619,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         _ = ret;
         let block_id = block.unwrap();
         let fn_ty = self
-            .read_ident(ident, Span::ZERO)
+            .read_ident(ident.symbol, Span::ZERO)
             .expect("fndecl ident should have been inserted already");
         let TyKind::Function(Function { params: param_tys, ret, .. }) = fn_ty else {
             unreachable!()

@@ -38,9 +38,15 @@ pub struct IfStmt {
     pub body: BlockId,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct Identifier {
+    pub symbol: Symbol,
+    pub span: Span,
+}
+
 #[derive(Debug)]
 pub struct Param {
-    pub ident: Symbol,
+    pub ident: Identifier,
     pub ty: TypeId,
 }
 
@@ -65,16 +71,16 @@ pub enum ExprKind {
     Binary { lhs: ExprId, op: BinaryOp, rhs: ExprId },
     Unary { op: UnaryOp, expr: ExprId },
     FnCall { function: ExprId, args: ThinVec<ExprId> },
-    MethodCall { expr: ExprId, method: Symbol, method_span: Span, args: ThinVec<ExprId> },
+    MethodCall { expr: ExprId, method: Identifier, args: ThinVec<ExprId> },
     Ident(Symbol),
     Index { expr: ExprId, index: ExprId },
-    FieldAccess { expr: ExprId, field: Symbol, span: Span },
+    FieldAccess { expr: ExprId, field: Identifier },
     Lit(Lit),
     Block(BlockId),
-    Let { ident: Symbol, ty: Option<TypeId>, expr: ExprId },
-    Const { ident: Symbol, ty: Option<TypeId>, expr: ExprId },
+    Let { ident: Identifier, ty: Option<TypeId>, expr: ExprId },
+    Const { ident: Identifier, ty: Option<TypeId>, expr: ExprId },
     While { condition: ExprId, block: BlockId },
-    For { ident: Symbol, iter: ExprId, body: BlockId },
+    For { ident: Identifier, iter: ExprId, body: BlockId },
     If { arms: ThinVec<IfStmt>, els: Option<BlockId> },
     Return(Option<ExprId>),
     Assert(ExprId),
@@ -83,14 +89,13 @@ pub enum ExprKind {
     Trait(Trait),
     Impl(Impl),
     FnDecl(FnDecl),
-    Struct { ident: Symbol, span: Span, fields: ThinVec<Param> },
+    Struct { ident: Identifier, fields: ThinVec<Param> },
 }
 
 #[derive(Debug)]
 pub struct FnDecl {
-    pub ident: Symbol,
-    pub ident_span: Span,
-    pub generics: ThinVec<Symbol>,
+    pub ident: Identifier,
+    pub generics: ThinVec<Identifier>,
     pub params: ThinVec<Param>,
     pub ret: Option<TypeId>,
     pub block: Option<BlockId>,
@@ -98,7 +103,7 @@ pub struct FnDecl {
 
 #[derive(Debug)]
 pub struct Trait {
-    pub ident: Symbol,
+    pub ident: Identifier,
     pub methods: ThinVec<FnDecl>,
 }
 

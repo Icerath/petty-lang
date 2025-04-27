@@ -10,7 +10,7 @@ pub use interner::TyInterner;
 pub use kind::TyKind;
 use thin_vec::ThinVec;
 
-use crate::{HashMap, define_id, symbol::Symbol};
+use crate::{HashMap, ast::Identifier, define_id, symbol::Symbol};
 
 pub type Ty<'tcx> = &'tcx TyKind<'tcx>;
 
@@ -49,12 +49,12 @@ impl<'tcx> TyCtx<'tcx> {
     pub fn new(interner: &'tcx TyInterner) -> Self {
         Self { inner: RefCell::default(), interner }
     }
-    pub fn new_generics(&self, generics: &[Symbol]) -> GenericRange {
+    pub fn new_generics(&self, generics: &[Identifier]) -> GenericRange {
         let mut inner = self.inner.borrow_mut();
         let mut iter = generics.iter();
         let Some(start) = iter.next() else { return GenericRange::EMPTY };
-        let start = inner.new_generic(*start);
-        iter.for_each(|generic| _ = inner.new_generic(*generic));
+        let start = inner.new_generic(start.symbol);
+        iter.for_each(|generic| _ = inner.new_generic(generic.symbol));
         GenericRange { start, len: generics.len().try_into().unwrap() }
     }
     pub fn generic_symbol(&self, id: GenericId) -> Symbol {
