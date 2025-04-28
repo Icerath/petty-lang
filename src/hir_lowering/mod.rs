@@ -695,7 +695,7 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
         let monomorphized_location = *generic_fns
             .impls
             .entry(func)
-            .or_insert_with(|| self.mir.bodies.push(Body::new(None, params)));
+            .or_insert_with(|| self.mir.bodies.push(Body::new(Some(ident), params)));
         RValue::from(Constant::Func(monomorphized_location))
     }
 
