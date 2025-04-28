@@ -801,7 +801,8 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
             return *body;
         }
         let previous = std::mem::take(&mut self.bodies);
-        let body_id = self.mir.bodies.push(Body::new(None, 1).with_auto(false));
+        let body_id =
+            self.mir.bodies.push(Body::new(Some("format_array".into()), 1).with_auto(true));
         self.bodies.push(BodyInfo::new(body_id));
 
         self.array_display_bodies.insert(ty, body_id);
