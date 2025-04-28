@@ -71,6 +71,15 @@ pub struct FnDecl<'tcx> {
     pub body: ThinVec<ExprId>,
 }
 
+impl FnDecl<'_> {
+    pub fn is_generic(&self) -> bool {
+        let mut is_generic = false;
+        self.params.iter().for_each(|param| param.ty.generics(&mut |_| is_generic = true));
+        self.ret.generics(&mut |_| is_generic = true);
+        is_generic
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub enum BinaryOp {
     Add,
