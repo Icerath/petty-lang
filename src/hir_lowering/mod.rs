@@ -800,7 +800,7 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
         if let Some(body) = self.array_display_bodies.get(ty) {
             return *body;
         }
-        let previous = std::mem::take(&mut self.bodies);
+        let previous = mem::take(&mut self.bodies);
         let body_id =
             self.mir.bodies.push(Body::new(Some("format_array".into()), 1).with_auto(true));
         self.bodies.push(BodyInfo::new(body_id));
@@ -886,7 +886,7 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
         if let Some(Some(body)) = self.struct_display_bodies.get(id) {
             return *body;
         }
-        let previous = std::mem::take(&mut self.bodies);
+        let previous = mem::take(&mut self.bodies);
         let body_id = self.mir.bodies.push(Body::new(None, 1).with_auto(true));
         self.bodies.push(BodyInfo::new(body_id));
 
