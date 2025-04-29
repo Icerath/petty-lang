@@ -757,20 +757,26 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
         self.format_rvalue(rvalue, expr.ty)
     }
 
-    fn format_rvalue(&mut self, rvalue: impl Into<RValue>, ty: Ty<'tcx>) -> RValue {
-        let (rvalue, mut ty) = self.fully_deref(rvalue, ty);
-        if ty.is_str() {
-            return rvalue;
+    fn format_rvalue(&mut self, rvalue: impl Into<RValue>, mut ty: Ty<'tcx>) -> RValue {
+        if let TyKind::Generic(id) = ty {
+            ty = self.generic_map.as_ref().unwrap()[id];
         }
-        let operand = self.process(rvalue, ty);
+
+        let (rvalue, mut ty) = self.fully_deref(rvalue, ty);
 
         if let TyKind::Generic(id) = ty {
             ty = self.generic_map.as_ref().unwrap()[id];
         }
 
+        if ty.is_str() {
+            return rvalue;
+        }
+
+        let operand = self.process(rvalue, ty);
+
         match ty {
             TyKind::Generic(_) | TyKind::Ref(_) | TyKind::Infer(_) | TyKind::Str => {
-                unreachable!()
+                unreachable!("{ty:?}");
             }
             TyKind::Never => str!("!"),
             TyKind::Unit => str!("()"),
