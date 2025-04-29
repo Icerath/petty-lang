@@ -255,7 +255,6 @@ pub enum UnaryOp {
 
     StrLen,
     Print,
-    Println,
 
     ArrayLen,
     StrJoin,
@@ -269,7 +268,7 @@ pub enum UnaryOp {
 
 impl UnaryOp {
     pub fn side_effect(self) -> bool {
-        matches!(self, Self::Print | Self::Println | Self::ArrayPop)
+        matches!(self, Self::Print | Self::ArrayPop)
     }
 }
 
