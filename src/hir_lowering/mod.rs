@@ -278,6 +278,11 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
                     Some(ty) => _ = self.methods.insert((ty, ident), body_id),
                     None => _ = self.current_mut().functions.insert(ident, body_id),
                 }
+
+                if is_generic {
+                    return RValue::UNIT;
+                }
+
                 self.bodies.push(BodyInfo::new(body_id));
                 if self.bodies.len() == 2 && ident == "main" {
                     self.mir.main_body = Some(body_id);
@@ -759,14 +764,14 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
         }
         let operand = self.process(rvalue, ty);
 
-        if let Some(map) = &self.generic_map {
-            if let TyKind::Generic(id) = ty {
-                ty = map[id];
-            }
+        if let TyKind::Generic(id) = ty {
+            ty = self.generic_map.as_ref().unwrap()[id];
         }
 
         match ty {
-            TyKind::Ref(..) | TyKind::Infer(_) | TyKind::Str => unreachable!(),
+            TyKind::Generic(_) | TyKind::Ref(_) | TyKind::Infer(_) | TyKind::Str => {
+                unreachable!()
+            }
             TyKind::Never => str!("!"),
             TyKind::Unit => str!("()"),
             TyKind::Bool => RValue::Unary { op: UnaryOp::BoolToStr, operand },
@@ -778,7 +783,6 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
             TyKind::Function(..) => {
                 RValue::from(Constant::Str(self.tcx.display(ty).to_string().into()))
             }
-            TyKind::Generic(..) => str!("<generic>"),
         }
     }
 
