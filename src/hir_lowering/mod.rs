@@ -261,9 +261,15 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
                 let hir::FnDecl { ident, for_ty, ref params, ref body, .. } = **decl;
 
                 assert!(self.current_mut().stmts.is_empty(), "TODO");
-                let body_id = self.mir.bodies.push(Body::new(Some(ident), params.len()));
 
-                if decl.is_generic() {
+                let is_generic = decl.is_generic();
+
+                let body_id = self
+                    .mir
+                    .bodies
+                    .push(Body::new(Some(ident), params.len()).with_auto(is_generic));
+
+                if is_generic {
                     self.generic_fns
                         .insert(body_id, GenericFns { decl, impls: HashMap::default() });
                 }
