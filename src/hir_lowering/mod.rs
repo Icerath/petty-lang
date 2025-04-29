@@ -8,14 +8,14 @@ use index_vec::IndexVec;
 
 use crate::{
     HashMap, errors,
-    hir::{self, ArraySeg, ExprId, ExprKind, Hir, Lit, OpAssign},
+    hir::{self, ArraySeg, ExprId, ExprKind, FnDecl, Hir, Lit, OpAssign},
     mir::{
         self, BinaryOp, Block, BlockId, Body, BodyId, Constant, Local, Mir, Operand, Place,
         Projection, RValue, Statement, Terminator, UnaryOp,
     },
     source::span::Span,
     symbol::Symbol,
-    ty::{StructId, Ty, TyCtx, TyKind},
+    ty::{GenericId, StructId, Ty, TyCtx, TyKind},
 };
 
 pub fn lower<'tcx>(hir: &Hir<'tcx>, path: Option<&Path>, src: &str, tcx: &'tcx TyCtx<'tcx>) -> Mir {
@@ -35,13 +35,14 @@ pub fn lower<'tcx>(hir: &Hir<'tcx>, path: Option<&Path>, src: &str, tcx: &'tcx T
         src,
         path,
         generic_fns: HashMap::default(),
+        generic_map: None,
     };
     for &expr in &hir.root {
         lowering.lower(expr);
     }
+    lowering.monomorphization();
     // TODO: Instead produce an error for any non-body expr in the global scope (probably before type analysis?)
     assert!(lowering.mir.bodies.first().unwrap().blocks.is_empty());
-    lowering.monomorphization();
     lowering.mir
 }
 
@@ -63,6 +64,7 @@ struct Lowering<'hir, 'tcx, 'src> {
     src: &'src str,
     path: Option<&'src Path>,
     generic_fns: HashMap<BodyId, GenericFns<'tcx, 'hir>>,
+    generic_map: Option<HashMap<GenericId, Ty<'tcx>>>,
 }
 
 #[derive(Debug)]
@@ -745,11 +747,18 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
     }
 
     fn format_rvalue(&mut self, rvalue: impl Into<RValue>, ty: Ty<'tcx>) -> RValue {
-        let (rvalue, ty) = self.fully_deref(rvalue, ty);
+        let (rvalue, mut ty) = self.fully_deref(rvalue, ty);
         if ty.is_str() {
             return rvalue;
         }
         let operand = self.process(rvalue, ty);
+
+        if let Some(map) = &self.generic_map {
+            if let TyKind::Generic(id) = ty {
+                ty = map[id];
+            }
+        }
+
         match ty {
             TyKind::Ref(..) | TyKind::Infer(_) | TyKind::Str => unreachable!(),
             TyKind::Never => str!("!"),
@@ -763,7 +772,7 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
             TyKind::Function(..) => {
                 RValue::from(Constant::Str(self.tcx.display(ty).to_string().into()))
             }
-            TyKind::Generic(..) => todo!(),
+            TyKind::Generic(..) => str!("<generic>"),
         }
     }
 
@@ -919,9 +928,67 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
     }
 
     pub fn monomorphization(&mut self) {
-        for (body, new_impls) in &self.generic_fns {
-            _ = new_impls.decl;
-            println!("{body:?} {new_impls:?}");
+        for new_impls in mem::take(&mut self.generic_fns).values() {
+            for (decl, &body_id) in &new_impls.impls {
+                self.generic_map = Some(produce_generic_map(new_impls.decl, decl));
+                let hir::FnDecl { ident, for_ty, ref body, ref params, .. } = *new_impls.decl;
+
+                self.bodies.push(BodyInfo::new(body_id));
+
+                if self.bodies.len() == 2 && self.try_instrinsic(for_ty, ident) {
+                    let current = self.current_mut().body;
+                    self.mir.bodies[current].auto = true;
+                } else {
+                    for (i, param) in params.iter().enumerate() {
+                        self.current_mut().scope().variables.insert(param.ident, Local::from(i));
+                    }
+                    let mut last = Operand::UNIT;
+                    for &expr in body {
+                        last = self.lower(expr);
+                    }
+                    self.finish_with(Terminator::Return(last));
+                }
+                self.bodies.pop().unwrap();
+            }
         }
+    }
+}
+
+fn produce_generic_map<'tcx>(
+    generic: &FnDecl<'tcx>,
+    mono: &Function<'tcx>,
+) -> HashMap<GenericId, Ty<'tcx>> {
+    let generic = generic.params.iter().map(|param| param.ty).chain([generic.ret]);
+    let mono = mono.params.iter().copied().chain([mono.ret]);
+    generic_map_inner(generic, mono)
+}
+
+fn generic_map_inner<'tcx>(
+    generic: impl IntoIterator<Item = Ty<'tcx>>,
+    mono: impl IntoIterator<Item = Ty<'tcx>>,
+) -> HashMap<GenericId, Ty<'tcx>> {
+    let mut map = HashMap::default();
+    for (generic, mono) in generic.into_iter().zip(mono) {
+        generic_map_ty(generic, mono, &mut map);
+    }
+    map
+}
+
+// TODO: replace with some kind of iterator through a type
+fn generic_map_ty<'tcx>(
+    generic: Ty<'tcx>,
+    mono: Ty<'tcx>,
+    into: &mut HashMap<GenericId, Ty<'tcx>>,
+) {
+    match (generic, mono) {
+        (TyKind::Generic(id), mono) => _ = into.insert(*id, mono),
+        (TyKind::Function(generic), TyKind::Function(mono)) => {
+            generic.params.iter().zip(&mono.params).for_each(|(&g, &m)| generic_map_ty(g, m, into));
+            generic_map_ty(generic.ret, mono.ret, into);
+        }
+        (TyKind::Struct { .. }, TyKind::Struct { .. }) => todo!(),
+        (TyKind::Array(generic), TyKind::Array(mono))
+        | (TyKind::Ref(generic), TyKind::Ref(mono)) => generic_map_ty(generic, mono, into),
+        _ => {}
     }
 }
