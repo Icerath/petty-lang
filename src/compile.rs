@@ -21,6 +21,7 @@ pub fn compile_test(path: impl Into<std::path::PathBuf>) -> miette::Result<Vec<u
 
     let path = path.into();
     let mut args = Args {
+        show_auto: false,
         command: Command::Run,
         path,
         verbose: 0,
@@ -71,7 +72,7 @@ pub fn compile(args: &Args, w: &mut dyn Write) -> miette::Result<()> {
     let mut mir = hir_lowering::lower(&hir, Some(&args.path), &src, &tcx);
     drop(hir);
     mir_optimizations::optimize(&mut mir, &args.codegen, args.verbose);
-    dump!(mir);
+    dump!(mir, mir.display(args.show_auto).to_string());
     if args.verbose > 1 {
         crate::log!("type interner entries: {}", ty_intern.len());
         crate::log!("type interner cache hits: {}", ty_intern.cache_hits());

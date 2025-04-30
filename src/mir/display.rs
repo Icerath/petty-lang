@@ -1,11 +1,24 @@
-use std::fmt;
+use std::fmt::{self};
 
 use super::{Constant, Mir, Operand, Place, Projection, RValue, Statement, Terminator};
 
-impl fmt::Display for Mir {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl Mir {
+    pub fn display(&self, show_auto: bool) -> impl fmt::Display {
+        struct Display<'mir> {
+            mir: &'mir Mir,
+            show_auto: bool,
+        }
+        impl fmt::Display for Display<'_> {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                self.mir.dump_into(self.show_auto, f)
+            }
+        }
+        Display { mir: self, show_auto }
+    }
+
+    pub fn dump_into(&self, show_auto: bool, f: &mut fmt::Formatter) -> fmt::Result {
         for (id, body) in self.bodies.iter_enumerated() {
-            if body.auto {
+            if !show_auto && body.auto {
                 continue;
             }
             write!(f, "fn ")?;
@@ -91,6 +104,12 @@ impl fmt::Display for Mir {
             writeln!(f, "}}")?;
         }
         Ok(())
+    }
+}
+
+impl fmt::Display for Mir {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.dump_into(false, f)
     }
 }
 

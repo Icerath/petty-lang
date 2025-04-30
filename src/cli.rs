@@ -14,6 +14,8 @@ struct CliArgs {
     no_default_optimizations: bool,
     #[arg(long, default_value = "true", help = "Dumps the ast/hir/mir to the target directory ")]
     dump: bool,
+    #[arg(long, default_value = "false")]
+    show_auto: bool,
     #[arg(long, default_value = "target", help = "The target directory")]
     target: PathBuf,
     #[arg(short='C', long, action = clap::ArgAction::Append)]
@@ -25,6 +27,7 @@ pub struct Args {
     pub path: PathBuf,
     pub verbose: u8,
     pub dump: Option<PathBuf>,
+    pub show_auto: bool,
     pub codegen: CodegenOpts,
 }
 
@@ -40,6 +43,7 @@ impl Args {
             command: args.command,
             path: args.path,
             verbose: args.verbose,
+            show_auto: args.show_auto,
             dump: args.dump.then_some(args.target),
             codegen: opts,
         }
