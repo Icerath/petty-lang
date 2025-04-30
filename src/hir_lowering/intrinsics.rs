@@ -8,7 +8,7 @@ use crate::{
 };
 
 impl Lowering<'_, '_, '_> {
-    pub fn try_instrinsic(&mut self, ty: Option<Ty>, ident: Symbol) -> bool {
+    pub fn try_intrinsic(&mut self, ty: Option<Ty>, ident: Symbol) -> bool {
         let Some(rvalue) = Self::intrinsic_rvalue(&ident, ty, &[]) else { return false };
         let local = self.assign_new(rvalue);
         self.finish_with(Terminator::Return(Operand::Place(Place::local(local))));

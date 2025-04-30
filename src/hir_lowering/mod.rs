@@ -305,7 +305,7 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
                     self.mir.main_body = Some(body_id);
                 }
 
-                if self.bodies.len() == 2 && self.try_instrinsic(for_ty, ident) {
+                if self.bodies.len() == 2 && self.try_intrinsic(for_ty, ident) {
                     let current = self.current_mut().body;
                     self.mir.bodies[current].auto = true;
                 } else {
@@ -960,7 +960,7 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
 
                 self.bodies.push(BodyInfo::new(body_id));
 
-                if self.bodies.len() == 2 && self.try_instrinsic(for_ty, ident) {
+                if self.bodies.len() == 2 && self.try_intrinsic(for_ty, ident) {
                     let current = self.current_mut().body;
                     self.mir.bodies[current].auto = true;
                 } else {
