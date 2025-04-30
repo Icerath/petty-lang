@@ -15,7 +15,7 @@ use crate::{
     },
     source::span::Span,
     symbol::Symbol,
-    ty::{GenericId, StructId, Ty, TyCtx, TyKind},
+    ty::{self, GenericId, StructId, Ty, TyCtx, TyKind},
 };
 
 pub fn lower<'tcx>(hir: &Hir<'tcx>, path: Option<&Path>, src: &str, tcx: &'tcx TyCtx<'tcx>) -> Mir {
@@ -116,6 +116,24 @@ impl BodyInfo {
 }
 
 impl<'tcx> Lowering<'_, 'tcx, '_> {
+    fn ty(&self, id: ExprId) -> Ty<'tcx> {
+        self.mono(self.hir.exprs[id].ty)
+    }
+    fn mono(&self, ty: Ty<'tcx>) -> Ty<'tcx> {
+        match ty {
+            TyKind::Generic(id) => self.generic_map.as_ref().unwrap()[id],
+            TyKind::Array(of) => self.tcx.intern(TyKind::Array(self.mono(of))),
+            TyKind::Function(ty::Function { params, ret }) => {
+                let params = params.iter().map(|param| self.mono(param)).collect();
+                let ret = self.mono(ret);
+                self.tcx.intern(TyKind::Function(ty::Function { params, ret }))
+            }
+            TyKind::Ref(of) => self.tcx.intern(TyKind::Ref(self.mono(of))),
+            // TyKind::Struct { .. } => todo!(),
+            ty => ty,
+        }
+    }
+
     fn body_ref(&self) -> &Body {
         &self.mir.bodies[self.current().body]
     }
@@ -159,7 +177,7 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
 
     fn lower(&mut self, id: ExprId) -> Operand {
         let rvalue = self.lower_rvalue(id);
-        self.process(rvalue, self.hir.exprs[id].ty)
+        self.process(rvalue, self.ty(id))
     }
 
     fn lower_local(&mut self, id: ExprId) -> Local {
@@ -218,12 +236,11 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
 
     #[expect(clippy::too_many_lines)]
     fn lower_rvalue(&mut self, id: ExprId) -> RValue {
-        let expr = &self.hir.exprs[id];
-        let is_unit = expr.ty.is_unit();
+        let is_unit = self.ty(id).is_unit();
 
-        match expr.kind {
+        match self.hir.exprs[id].kind {
             ExprKind::ForLoop { ident, iter, ref body } => {
-                match self.hir.exprs[iter].ty {
+                match self.ty(iter) {
                     TyKind::Range => self.range_for(ident, iter, body),
                     TyKind::Array(..) => self.array_for(ident, iter, body),
                     _ => unreachable!(),
@@ -338,7 +355,7 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
                     });
                     let block_out = self.block_expr(&arm.body);
                     if is_unit {
-                        self.process(block_out, expr.ty);
+                        self.process(block_out, self.ty(id));
                     } else {
                         self.assign(out_local, block_out);
                     }
@@ -348,7 +365,7 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
                 }
                 let els_out = self.block_expr(els);
                 if is_unit {
-                    self.process(els_out, expr.ty);
+                    self.process(els_out, self.ty(id));
                 } else {
                     self.assign(out_local, els_out);
                 }
@@ -369,7 +386,7 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
             ExprKind::Binary { lhs, op, rhs } => self.binary_op(lhs, op, rhs),
             ExprKind::Unary { op, expr } => self.unary_op(op, expr),
             ExprKind::OpAssign { place, op, expr } => self.op_assign(place, op, expr),
-            ExprKind::Ident(ident) => match self.load_ident(ident, self.hir.exprs[id].ty) {
+            ExprKind::Ident(ident) => match self.load_ident(ident, self.ty(id)) {
                 RValue::Use(operand) => RValue::Use(operand),
                 rvalue => rvalue,
             },
@@ -398,13 +415,14 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
                 RValue::UNIT
             }
             ExprKind::Index { expr, index, span } => {
-                let op = if self.hir.exprs[expr].ty.is_str() {
-                    if self.hir.exprs[index].ty.is_range() {
+                let index_ty = self.ty(index);
+                let op = if self.ty(expr).is_str() {
+                    if index_ty.is_range() {
                         mir::BinaryOp::StrIndexSlice
                     } else {
                         mir::BinaryOp::StrIndex
                     }
-                } else if self.hir.exprs[index].ty.is_range() {
+                } else if index_ty.is_range() {
                     mir::BinaryOp::ArrayIndexRange
                 } else {
                     return self.index_array(expr, index, span);
@@ -430,8 +448,8 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
     }
 
     fn binary_op(&mut self, lhs: ExprId, op: hir::BinaryOp, rhs: ExprId) -> RValue {
-        let lhs_ty = self.hir.exprs[lhs].ty;
-        let rhs_ty = self.hir.exprs[rhs].ty;
+        let lhs_ty = self.ty(lhs);
+        let rhs_ty = self.ty(rhs);
         if let hir::BinaryOp::And | hir::BinaryOp::Or = op {
             return self.logical_op(op, lhs, rhs);
         }
@@ -491,8 +509,8 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
     }
 
     fn logical_op(&mut self, op: hir::BinaryOp, lhs: ExprId, rhs: ExprId) -> RValue {
-        let lhs_ty = self.hir.exprs[lhs].ty;
-        let rhs_ty = self.hir.exprs[rhs].ty;
+        let lhs_ty = self.ty(lhs);
+        let rhs_ty = self.ty(rhs);
 
         let output = self.new_local();
 
@@ -525,7 +543,7 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
     }
 
     fn op_assign(&mut self, place: ExprId, op: OpAssign, expr: ExprId) -> RValue {
-        let place_ty = self.hir.exprs[place].ty;
+        let place_ty = self.ty(place);
 
         let operand = self.lower(expr);
         let place = self.lower_place(place);
@@ -545,8 +563,8 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
     }
 
     fn index_array(&mut self, expr: ExprId, index: ExprId, span: Span) -> RValue {
-        let expr_ty = self.hir.exprs[expr].ty;
-        let index_ty = self.hir.exprs[index].ty;
+        let expr_ty = self.ty(expr);
+        let index_ty = self.ty(index);
 
         let expr = self.lower_rvalue(expr);
         let (expr, _) = self.fully_deref(expr, expr_ty);
@@ -624,14 +642,14 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
                 let index_local = self.process_to_local(index_rvalue);
 
                 let local = self.lower_place_inner(expr, proj);
-                let mut expr_ty = self.hir.exprs[expr].ty;
+                let mut expr_ty = self.ty(expr);
                 while let TyKind::Ref(of) = expr_ty {
                     expr_ty = of;
                     proj.push(Projection::Deref);
                 }
 
                 self.bounds_check(
-                    (index_local, self.hir.exprs[index].ty),
+                    (index_local, self.ty(index)),
                     (Place { local, projections: proj.clone() }, expr_ty),
                     span,
                 );
@@ -752,21 +770,12 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
     }
 
     fn format_expr(&mut self, id: ExprId) -> RValue {
-        let expr = &self.hir.exprs[id];
         let rvalue = self.lower_rvalue(id);
-        self.format_rvalue(rvalue, expr.ty)
+        self.format_rvalue(rvalue, self.ty(id))
     }
 
-    fn format_rvalue(&mut self, rvalue: impl Into<RValue>, mut ty: Ty<'tcx>) -> RValue {
-        if let TyKind::Generic(id) = ty {
-            ty = self.generic_map.as_ref().unwrap()[id];
-        }
-
-        let (rvalue, mut ty) = self.fully_deref(rvalue, ty);
-
-        if let TyKind::Generic(id) = ty {
-            ty = self.generic_map.as_ref().unwrap()[id];
-        }
+    fn format_rvalue(&mut self, rvalue: impl Into<RValue>, ty: Ty<'tcx>) -> RValue {
+        let (rvalue, ty) = self.fully_deref(rvalue, ty);
 
         if ty.is_str() {
             return rvalue;
