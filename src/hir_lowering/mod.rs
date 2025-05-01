@@ -857,12 +857,6 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
 
         let index = self.assign_new(Constant::Int(0));
 
-        self.assign_new(RValue::Binary {
-            lhs: Operand::Ref(Place::local(strings)),
-            op: BinaryOp::ArrayPush,
-            rhs: str!("["),
-        });
-
         self.lower_loop(
             |lower| {
                 Some(lower.assign_new(RValue::Binary {
@@ -886,14 +880,6 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
                     rhs,
                 });
 
-                // push ', '
-                lower.assign_new(RValue::Binary {
-                    lhs: Operand::Ref(Place::local(strings)),
-                    op: BinaryOp::ArrayPush,
-                    rhs: str!(", "),
-                });
-
-                // increment index
                 lower.assign(
                     index,
                     RValue::Binary {
@@ -905,14 +891,11 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
             },
         );
 
-        self.assign_new(RValue::Binary {
-            lhs: Operand::Ref(Place::local(strings)),
-            op: BinaryOp::ArrayPush,
-            rhs: str!("]"),
+        let out = self.assign_new(RValue::Unary {
+            op: UnaryOp::ArrayStrFmt,
+            operand: Operand::local(strings),
         });
 
-        let out = self
-            .assign_new(RValue::Unary { op: UnaryOp::StrJoin, operand: Operand::local(strings) });
         Operand::local(out)
     }
 

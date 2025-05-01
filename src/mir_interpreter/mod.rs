@@ -141,6 +141,19 @@ impl Interpreter<'_, '_> {
 #[expect(clippy::needless_pass_by_value)]
 pub fn unary_op(op: UnaryOp, operand: Value, w: &mut dyn Write) -> Value {
     match op {
+        UnaryOp::ArrayStrFmt => {
+            let mut string = String::new();
+            string.push('[');
+            let array = operand.unwrap_array();
+            for i in 0..array.len() {
+                if i != 0 {
+                    string.push_str(", ");
+                }
+                string.push_str(array.get(i).unwrap().borrow().unwrap_str());
+            }
+            string.push(']');
+            Value::Str(string.into())
+        }
         UnaryOp::StrJoin => {
             let mut string = String::new();
             let array = operand.unwrap_array();

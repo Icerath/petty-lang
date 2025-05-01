@@ -264,6 +264,7 @@ pub enum UnaryOp {
     RangeEnd,
 
     ArrayPop,
+    ArrayStrFmt,
 }
 
 impl UnaryOp {
