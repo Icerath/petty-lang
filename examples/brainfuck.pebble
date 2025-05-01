@@ -24,7 +24,7 @@ fn main() {
                 cells[data_ptr] -= 1;
             }
         } else if instr == '.' {
-            print("${cells[data_ptr].chr()}")
+            print(cells[data_ptr].chr())
         } else if instr == ',' {
         } else if instr == '[' {
             if cells[data_ptr] == 0 {
