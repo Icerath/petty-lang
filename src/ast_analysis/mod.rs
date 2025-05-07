@@ -599,7 +599,9 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
     fn analyze_method(&mut self, impl_: &Impl, decl: &FnDecl) -> Result<Ty<'tcx>> {
         let &FnDecl { ident, ref params, block, .. } = decl;
         let block_id = block.unwrap();
-        let ty = self.read_ast_ty(impl_.ty)?;
+        let impl_generics = self.tcx.new_generics(&impl_.generics);
+
+        let ty = self.read_ast_ty_with(impl_.ty, [GenericRange::EMPTY, impl_generics])?;
         let fn_ty = self.tcx.get_method(ty, ident.symbol).unwrap();
 
         let Function { params: param_tys, ret, .. } = fn_ty;
