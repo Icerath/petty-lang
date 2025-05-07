@@ -118,7 +118,7 @@ struct TyCtxInner<'tcx> {
 }
 
 #[derive(Debug)]
-struct TyKey<'tcx>(Ty<'tcx>);
+pub struct TyKey<'tcx>(pub Ty<'tcx>);
 
 impl PartialOrd for TyKey<'_> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {

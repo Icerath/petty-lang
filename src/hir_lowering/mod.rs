@@ -1,7 +1,7 @@
 mod intrinsics;
 mod loops;
 
-use std::{hash::Hash, mem, path::Path};
+use std::{collections::BTreeMap, hash::Hash, mem, path::Path};
 
 use arcstr::ArcStr;
 use index_vec::IndexVec;
@@ -15,7 +15,7 @@ use crate::{
     },
     source::span::Span,
     symbol::Symbol,
-    ty::{self, GenericId, StructId, Ty, TyCtx, TyKind},
+    ty::{self, GenericId, StructId, Ty, TyCtx, TyKey, TyKind},
 };
 
 pub fn lower<'tcx>(hir: &Hir<'tcx>, path: Option<&Path>, src: &str, tcx: &'tcx TyCtx<'tcx>) -> Mir {
@@ -30,7 +30,7 @@ pub fn lower<'tcx>(hir: &Hir<'tcx>, path: Option<&Path>, src: &str, tcx: &'tcx T
         bodies,
         struct_display_bodies: IndexVec::default(),
         array_display_bodies: HashMap::default(),
-        methods: HashMap::default(),
+        methods: BTreeMap::default(),
         strings: HashMap::default(),
         src,
         path,
@@ -59,7 +59,7 @@ struct Lowering<'hir, 'tcx, 'src> {
     bodies: Vec<BodyInfo>,
     struct_display_bodies: IndexVec<StructId, Option<BodyId>>,
     array_display_bodies: HashMap<Ty<'tcx>, BodyId>,
-    methods: HashMap<(Ty<'tcx>, Symbol), BodyId>,
+    methods: BTreeMap<(TyKey<'tcx>, Symbol), BodyId>,
     strings: HashMap<Symbol, ArcStr>,
     src: &'src str,
     path: Option<&'src Path>,
@@ -292,7 +292,7 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
                 }
 
                 match for_ty {
-                    Some(ty) => _ = self.methods.insert((ty, ident), body_id),
+                    Some(ty) => _ = self.methods.insert((TyKey(ty), ident), body_id),
                     None => _ = self.current_mut().functions.insert(ident, body_id),
                 }
 
@@ -391,7 +391,7 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
                 rvalue => rvalue,
             },
             ExprKind::Method { ty, method } => {
-                let location = self.methods[&(ty, method)];
+                let location = self.methods[&(TyKey(ty), method)];
 
                 self.mono_fn(method, location, self.ty(id))
             }
