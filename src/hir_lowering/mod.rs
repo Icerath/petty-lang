@@ -391,7 +391,9 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
                 rvalue => rvalue,
             },
             ExprKind::Method { ty, method } => {
-                RValue::from(Constant::Func(self.methods[&(ty, method)]))
+                let location = self.methods[&(ty, method)];
+
+                self.mono_fn(method, location, self.ty(id))
             }
             ExprKind::FnCall { function, ref args } => {
                 let ty = match self.hir.exprs[function].kind {
@@ -433,6 +435,22 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
             }
             ExprKind::Block(ref exprs) => self.block_expr(exprs),
         }
+    }
+
+    fn mono_fn(&mut self, ident: Symbol, location: BodyId, ty: Ty<'tcx>) -> RValue {
+        let Some(generic_fns) = self.generic_fns.get_mut(&location) else {
+            return RValue::from(Constant::Func(location));
+        };
+
+        let TyKind::Function(func) = ty else { unreachable!("{}", self.tcx.display(ty)) };
+        let params = func.params.len();
+        let func = Function { params: &func.params, ret: func.ret };
+
+        let monomorphized_location = *generic_fns
+            .impls
+            .entry(func)
+            .or_insert_with(|| self.mir.bodies.push(Body::new(Some(ident), params)));
+        RValue::from(Constant::Func(monomorphized_location))
     }
 
     fn unary_op(&mut self, op: crate::ast::UnaryOp, expr: ExprId) -> RValue {
@@ -714,20 +732,9 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
             return RValue::local(*place);
         }
         let location =
-            self.bodies.iter().rev().find_map(|body| body.functions.get(&ident)).unwrap();
+            *self.bodies.iter().rev().find_map(|body| body.functions.get(&ident)).unwrap();
 
-        let Some(generic_fns) = self.generic_fns.get_mut(location) else {
-            return RValue::from(Constant::Func(*location));
-        };
-        let TyKind::Function(func) = ty else { unreachable!() };
-        let params = func.params.len();
-        let func = Function { params: &func.params, ret: func.ret };
-
-        let monomorphized_location = *generic_fns
-            .impls
-            .entry(func)
-            .or_insert_with(|| self.mir.bodies.push(Body::new(Some(ident), params)));
-        RValue::from(Constant::Func(monomorphized_location))
+        self.mono_fn(ident, location, ty)
     }
 
     fn lit_rvalue(&mut self, lit: &Lit) -> RValue {
