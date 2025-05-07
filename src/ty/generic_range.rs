@@ -32,8 +32,6 @@ impl Iterator for GenericRangeIter {
     type Item = GenericId;
     fn next(&mut self) -> Option<Self::Item> {
         self.len = self.len.checked_sub(1)?;
-        let next = self.start;
-        self.start += 1;
-        Some(next)
+        Some(self.start.incr())
     }
 }

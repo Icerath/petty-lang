@@ -68,8 +68,7 @@ impl Body {
     }
 
     pub fn new_local(&mut self) -> Local {
-        self.locals += 1;
-        self.locals - 1
+        self.locals.incr()
     }
 }
 #[derive(Debug, Hash)]
