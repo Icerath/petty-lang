@@ -218,10 +218,16 @@ impl Parse for Ty {
 
 impl Parse for Impl {
     fn parse(stream: &mut Stream) -> Result<Self> {
+        let generics = if stream.peek()?.kind == TokenKind::Less {
+            _ = stream.next();
+            stream.parse_separated(TokenKind::Comma, TokenKind::Greater)?
+        } else {
+            ThinVec::new()
+        };
         let ty = stream.parse()?;
         stream.expect(TokenKind::LBrace)?;
         let methods = parse_trait_methods(stream)?;
-        Ok(Self { ty, methods })
+        Ok(Self { generics, ty, methods })
     }
 }
 
