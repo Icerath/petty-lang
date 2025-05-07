@@ -597,9 +597,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
     }
 
     fn analyze_method(&mut self, impl_: &Impl, decl: &FnDecl) -> Result<Ty<'tcx>> {
-        let &FnDecl { ident, ref generics, ref params, ret, block, .. } = decl;
-        _ = generics;
-        _ = ret;
+        let &FnDecl { ident, ref params, block, .. } = decl;
         let block_id = block.unwrap();
         let ty = self.read_ast_ty(impl_.ty)?;
         let fn_ty = self.tcx.get_method(ty, ident.symbol).unwrap();
@@ -617,9 +615,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
     }
 
     fn analyze_fndecl(&mut self, decl: &FnDecl) -> Result<Ty<'tcx>> {
-        let &FnDecl { ident, ref generics, ref params, ret, block, .. } = decl;
-        _ = generics;
-        _ = ret;
+        let &FnDecl { ident, ref params, block, .. } = decl;
         let block_id = block.unwrap();
         // call `read_ident_raw` to avoid producing extra inference variables
         let (fn_ty, _) = self
