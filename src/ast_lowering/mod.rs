@@ -8,7 +8,7 @@ use crate::{
     errors,
     hir::{self, ExprKind, Hir, IfStmt, OpAssign},
     symbol::Symbol,
-    ty::{Ty, TyCtx, TyKind},
+    ty::{Ty, TyKind},
 };
 
 pub fn lower<'tcx>(
@@ -16,11 +16,10 @@ pub fn lower<'tcx>(
     path: Option<&Path>,
     mut ast: Ast,
     ty_info: TyInfo<'tcx>,
-    tcx: &'tcx TyCtx<'tcx>,
 ) -> Hir<'tcx> {
     assert_eq!(ast.exprs.len(), ty_info.expr_tys.len());
     let top_level = std::mem::take(&mut ast.top_level);
-    let mut lowering = Lowering { src, path, ast: &ast, hir: Hir::default(), ty_info, tcx };
+    let mut lowering = Lowering { src, path, ast: &ast, hir: Hir::default(), ty_info };
     let mut hir_root = vec![];
     for expr in top_level {
         hir_root.push(lowering.lower(expr));
@@ -35,7 +34,6 @@ struct Lowering<'src, 'ast, 'tcx> {
     ty_info: TyInfo<'tcx>,
     src: &'src str,
     path: Option<&'src Path>,
-    tcx: &'tcx TyCtx<'tcx>,
 }
 
 impl<'tcx> Lowering<'_, '_, 'tcx> {
@@ -123,8 +121,7 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
             }
             ast::ExprKind::MethodCall { expr, method, ref args, .. } => {
                 let ty = self.ty_info.expr_tys[expr];
-                let func = self.tcx.get_method(ty, method.symbol).unwrap();
-                let fn_ty = self.tcx.intern(TyKind::Function(func.clone()));
+                let fn_ty = self.ty_info.method_types[&expr_id];
                 let mut new_args = ThinVec::with_capacity(args.len() + 1);
                 new_args.push(self.lower(expr));
                 new_args.extend(args.iter().map(|arg| self.lower(*arg)));

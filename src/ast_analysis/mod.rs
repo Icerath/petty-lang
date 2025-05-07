@@ -22,6 +22,7 @@ pub struct TyInfo<'tcx> {
     pub expr_tys: IndexVec<ExprId, Ty<'tcx>>,
     pub type_ids: IndexVec<TypeId, Ty<'tcx>>,
     pub struct_types: HashMap<Span, Ty<'tcx>>,
+    pub method_types: HashMap<ExprId, Ty<'tcx>>,
 }
 
 #[derive(Debug)]
@@ -78,6 +79,7 @@ fn setup_ty_info<'tcx>(ast: &Ast) -> TyInfo<'tcx> {
     TyInfo {
         expr_tys: std::iter::repeat_n(shared, ast.exprs.len()).collect(),
         type_ids: std::iter::repeat_n(shared, ast.types.len()).collect(),
+        method_types: HashMap::default(),
         struct_types: HashMap::default(),
     }
 }
@@ -366,7 +368,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 };
                 let func = func.caller(self.tcx);
 
-                let Function { params, ret } = func;
+                let Function { ref params, ret } = func;
 
                 if args.len() + 1 != params.len() {
                     return Err(self.invalid_arg_count(
@@ -381,6 +383,10 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                     let arg = self.analyze_expr(arg_id)?;
                     self.sub(arg, param, arg_id)?;
                 }
+
+                let fn_ty = self.tcx.infer_deep(self.tcx.intern(TyKind::Function(func)));
+                self.ty_info.method_types.insert(id, fn_ty);
+
                 ret
             }
             ExprKind::FnDecl(ref decl) => self.analyze_fndecl(decl)?,
