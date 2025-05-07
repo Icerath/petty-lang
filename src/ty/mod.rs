@@ -2,7 +2,7 @@ mod generic_range;
 mod interner;
 mod kind;
 
-use std::{cell::RefCell, hash::Hash};
+use std::{cell::RefCell, cmp::Ordering, collections::BTreeMap, hash::Hash};
 
 pub use generic_range::GenericRange;
 use index_vec::IndexVec;
@@ -114,15 +114,43 @@ struct TyCtxInner<'tcx> {
     subs: IndexVec<TyVid, Ty<'tcx>>,
     struct_names: IndexVec<StructId, Symbol>,
     generic_names: IndexVec<GenericId, Symbol>,
-    methods: HashMap<(Ty<'tcx>, Symbol), Ty<'tcx>>,
+    methods: BTreeMap<(TyKey<'tcx>, Symbol), Ty<'tcx>>,
 }
+
+#[derive(Debug)]
+struct TyKey<'tcx>(Ty<'tcx>);
+
+impl PartialOrd for TyKey<'_> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for TyKey<'_> {
+    fn cmp(&self, other: &Self) -> Ordering {
+        use TyKind as T;
+        match (self.0, other.0) {
+            (T::Generic(..), _) | (_, T::Generic(..)) => Ordering::Equal,
+            (T::Array(lhs), T::Array(rhs)) => TyKey(lhs).cmp(&TyKey(rhs)),
+            _ => self.0.cmp(other.0),
+        }
+    }
+}
+
+impl PartialEq for TyKey<'_> {
+    fn eq(&self, other: &Self) -> bool {
+        self.cmp(other).is_eq()
+    }
+}
+
+impl Eq for TyKey<'_> {}
 
 impl<'tcx> TyCtxInner<'tcx> {
     fn add_method(&mut self, ty: Ty<'tcx>, name: Symbol, method: Ty<'tcx>) {
-        self.methods.insert((ty, name), method);
+        self.methods.insert((TyKey(ty), name), method);
     }
     fn get_method(&self, ty: Ty<'tcx>, name: Symbol) -> Option<Ty<'tcx>> {
-        self.methods.get(&(ty, name)).copied()
+        self.methods.get(&(TyKey(ty), name)).copied()
     }
 
     fn new_struct(
