@@ -67,7 +67,7 @@ pub fn compile(args: &Args, w: &mut dyn Write) -> miette::Result<()> {
     let ast = parse(&src, Some(&args.path))?;
     dump!(ast);
     let analysis = ast_analysis::analyze(Some(&args.path), &src, &ast, &tcx)?;
-    let hir = ast_lowering::lower(&src, Some(&args.path), ast, analysis);
+    let hir = ast_lowering::lower(&src, Some(&args.path), ast, analysis, &tcx);
     dump!(@d hir);
     let mut mir = hir_lowering::lower(&hir, Some(&args.path), &src, &tcx);
     drop(hir);
