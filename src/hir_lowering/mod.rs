@@ -41,7 +41,6 @@ pub fn lower<'tcx>(hir: &Hir<'tcx>, path: Option<&Path>, src: &str, tcx: &'tcx T
         lowering.lower(expr);
     }
     lowering.monomorphization();
-    // TODO: Instead produce an error for any non-body expr in the global scope (probably before type analysis?)
     assert!(lowering.mir.bodies.first().unwrap().blocks.is_empty());
     lowering.mir
 }
