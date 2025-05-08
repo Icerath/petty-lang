@@ -279,4 +279,13 @@ impl<'tcx> TyKind<'tcx> {
         }
         ty
     }
+    pub fn ref_depth(&'tcx self) -> usize {
+        let mut depth = 0;
+        let mut ty = self;
+        while let TyKind::Ref(of) = ty {
+            ty = of;
+            depth += 1;
+        }
+        depth
+    }
 }

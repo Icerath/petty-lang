@@ -8,7 +8,7 @@ use crate::{
     errors,
     hir::{self, ExprKind, Hir, IfStmt, OpAssign},
     symbol::Symbol,
-    ty::{Ty, TyKind},
+    ty::{Function, Ty, TyKind},
 };
 
 pub fn lower<'tcx>(
@@ -122,9 +122,15 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
             ast::ExprKind::MethodCall { expr, method, ref args, .. } => {
                 let ty = self.ty_info.expr_tys[expr];
                 let fn_ty = self.ty_info.method_types[&expr_id];
+                let TyKind::Function(Function { params, .. }) = fn_ty else { unreachable!() };
+
+                let mut expr = self.lower(expr);
+                expr = self.make_eq_ref(expr, ty, params[0]);
+
                 let mut new_args = ThinVec::with_capacity(args.len() + 1);
-                new_args.push(self.lower(expr));
+                new_args.push(expr);
                 new_args.extend(args.iter().map(|arg| self.lower(*arg)));
+
                 let method = self
                     .hir
                     .exprs
@@ -185,6 +191,30 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
                 (hir::ExprKind::Field { expr, field }).with(expr_ty)
             }
         }
+    }
+
+    fn make_eq_ref(
+        &mut self,
+        mut lhs: hir::ExprId,
+        ty: Ty<'tcx>,
+        expected: Ty<'tcx>,
+    ) -> hir::ExprId {
+        let depth_lhs = ty.ref_depth();
+        let depth_expected = expected.ref_depth();
+
+        for _ in 0..depth_lhs.saturating_sub(depth_expected) {
+            lhs = self
+                .hir
+                .exprs
+                .push((ExprKind::Unary { op: ast::UnaryOp::Deref, expr: lhs }).with(ty));
+        }
+        for _ in 0..depth_expected.saturating_sub(depth_lhs) {
+            lhs = self
+                .hir
+                .exprs
+                .push((ExprKind::Unary { op: ast::UnaryOp::Ref, expr: lhs }).with(ty));
+        }
+        lhs
     }
 
     fn lower_then_not(&mut self, ast_expr: ast::ExprId) -> hir::ExprId {

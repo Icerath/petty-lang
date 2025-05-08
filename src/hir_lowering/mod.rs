@@ -401,6 +401,7 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
                     _ => None,
                 };
                 let function = self.lower(function);
+
                 let args = args.iter().map(|arg| self.lower(*arg)).collect();
 
                 match self.try_call_intrinsic(function, ty, args) {
