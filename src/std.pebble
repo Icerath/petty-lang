@@ -2,6 +2,7 @@ fn printstr(str: str) { unreachable }
 fn len<T>(arr: &[T]) -> int { unreachable }
 fn push<T>(arr: &[T], value: T) { unreachable }
 fn pop<T>(arr: &[T]) -> T { unreachable }
+fn __strjoin(arr: [str]) -> str { unreachable }
 
 impl str {
     fn len(self: str) -> int { unreachable }
@@ -28,5 +29,19 @@ fn println<T>(val: T) {
 impl<T> [T] {
     fn push(self: &[T], val: T) {
         push(self, val)
+    }
+}
+
+impl [str] {
+    fn join(self: [str], seperator: str) -> str {
+        let arr: [str] = [];
+        for i in self {
+            arr.push(i);
+            arr.push(seperator);
+        }
+        if len(&self) != 0 {
+            pop(&arr);
+        }
+        __strjoin(arr)
     }
 }

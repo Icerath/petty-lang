@@ -60,6 +60,7 @@ impl Lowering<'_, '_, '_> {
             (Some(TyKind::Str), "rfind") => binary!(StrRFind),
             (Some(TyKind::Int), "chr") => unary!(Chr),
             (Some(TyKind::Char), "ord") => unary!(Ord),
+            (None, "__strjoin") => unary!(StrJoin),
             (None, "printstr") => unary!(Print),
             (None, "len") => unary!(ArrayLen),
             (None, "push") => binary!(ArrayPush),
