@@ -379,7 +379,9 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                     ));
                 }
 
-                for (&arg_id, param) in std::iter::zip([expr].iter().chain(args), params) {
+                self.anyref_sub(ty, params[0], expr)?;
+
+                for (&arg_id, param) in args.iter().zip(&params[1..]) {
                     let arg = self.analyze_expr(arg_id)?;
                     self.sub(arg, param, arg_id)?;
                 }
@@ -515,6 +517,25 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         };
         self.ty_info.expr_tys[id] = ty;
         Ok(ty)
+    }
+
+    fn anyref_sub(&mut self, mut lhs: Ty<'tcx>, mut rhs: Ty<'tcx>, expr: ExprId) -> Result<()> {
+        loop {
+            lhs = self.tcx.infer_shallow(lhs);
+            match lhs {
+                TyKind::Ref(of) => lhs = of,
+                _ => break,
+            }
+        }
+
+        loop {
+            rhs = self.tcx.infer_shallow(rhs);
+            match rhs {
+                TyKind::Ref(of) => rhs = of,
+                _ => break,
+            }
+        }
+        self.sub(lhs, rhs, expr)
     }
 
     fn insert_var(&mut self, ident: Identifier, ty: Ty<'tcx>, kind: Var) {

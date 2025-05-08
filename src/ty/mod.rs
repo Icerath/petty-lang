@@ -89,8 +89,11 @@ impl<'tcx> TyCtx<'tcx> {
     pub fn new_infer(&self) -> Ty<'tcx> {
         self.interner.intern(TyKind::Infer(self.new_vid()))
     }
+    pub fn try_infer_shallow(&self, ty: Ty<'tcx>) -> Result<Ty<'tcx>, Ty<'tcx>> {
+        self.inner.borrow().try_infer_shallow(ty)
+    }
     pub fn infer_shallow(&self, ty: Ty<'tcx>) -> Ty<'tcx> {
-        self.inner.borrow().try_infer_shallow(ty).expect("Failed to Infer")
+        self.try_infer_shallow(ty).expect("Failed to Infer")
     }
     pub fn infer_deep(&self, ty: Ty<'tcx>) -> Ty<'tcx> {
         self.inner.borrow().try_infer_deep(ty, self.interner).expect("Failed to Infer")

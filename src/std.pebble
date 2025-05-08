@@ -25,3 +25,9 @@ fn print<T>(val: T) {
 fn println<T>(val: T) {
     printstr("${val}\n")
 }
+
+impl<T> [T] {
+    fn push(self: &[T], val: T) {
+        push(self, val)
+    }
+}
