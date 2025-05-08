@@ -3,7 +3,6 @@ fn len<T>(arr: &[T]) -> int { unreachable }
 fn push<T>(arr: &[T], value: T) { unreachable }
 fn pop<T>(arr: &[T]) -> T { unreachable }
 
-// TODO: support str::len instead
 impl str {
     fn len(self: str) -> int { unreachable }
     fn find(self: str, needle: str) -> int { unreachable }
