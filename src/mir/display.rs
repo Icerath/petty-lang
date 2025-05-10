@@ -23,8 +23,8 @@ impl Mir {
             }
             write!(f, "fn ")?;
             match body.name {
-                Some(name) => write!(f, "{name}"),
-                None => write!(f, "{}", id.raw()),
+                Some(name) => write!(f, "{id:?}({name})"),
+                None => write!(f, "{id:?}"),
             }?;
             writeln!(f, "() {{")?;
             for (id, block) in body.blocks.iter_enumerated() {
@@ -173,8 +173,8 @@ impl fmt::Display for ConstDisplay<'_, '_> {
             Constant::Char(char) => write!(f, "{char:?}"),
             Constant::Str(str) => write!(f, "{str:?}"),
             Constant::Func(id) => match self.0.bodies[*id].name {
-                Some(name) => write!(f, "{name}"),
-                None => write!(f, "fn({})", id.raw()),
+                Some(name) => write!(f, "fn {id:?}({name})"),
+                None => write!(f, "fn {id:?}"),
             },
         }
     }
