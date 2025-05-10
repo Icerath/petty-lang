@@ -1,7 +1,7 @@
 fn main() {
     let array = [0; 8]
     assert (&array)[0] == 0;
-    assert len(&array) == 8;
+    assert array.len() == 8;
 
     for i in 0..8 {
         for j in 0..i {
@@ -18,10 +18,11 @@ fn main() {
     assert arr2d[0][0] == 2;
 
     let grow = [];
-    assert len(&grow) == 0;
-    push(&grow, 1);
-    assert len(&grow) == 1;
+    assert grow.len() == 0;
+    grow.push(1);
+    assert grow.len() == 1;
     assert grow[0] == 1;
-    assert pop(&grow) == 1;
-    assert len(&grow) == 0;
+    assert grow.len() == 1;
+    grow.pop();
+    assert grow.len() == 0;
 }

@@ -61,10 +61,10 @@ impl Lowering<'_, '_, '_> {
             (Some(TyKind::Int), "chr") => unary!(Chr),
             (Some(TyKind::Char), "ord") => unary!(Ord),
             (None, "__strjoin") => unary!(StrJoin),
-            (None, "printstr") => unary!(Print),
-            (None, "len") => unary!(ArrayLen),
-            (None, "push") => binary!(ArrayPush),
-            (None, "pop") => unary!(ArrayPop),
+            (None, "__printstr") => unary!(Print),
+            (None, "__arraylen") => unary!(ArrayLen),
+            (None, "__arraypush") => binary!(ArrayPush),
+            (None, "__arraypop") => unary!(ArrayPop),
             _ => return None,
         })
     }

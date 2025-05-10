@@ -1,7 +1,7 @@
-fn printstr(str: str) { unreachable }
-fn len<T>(arr: &[T]) -> int { unreachable }
-fn push<T>(arr: &[T], value: T) { unreachable }
-fn pop<T>(arr: &[T]) -> T { unreachable }
+fn __printstr(str: str) { unreachable }
+fn __arraylen<T>(arr: &[T]) -> int { unreachable }
+fn __arraypush<T>(arr: &[T], value: T) { unreachable }
+fn __arraypop<T>(arr: &[T]) -> T { unreachable }
 fn __strjoin(arr: [str]) -> str { unreachable }
 
 impl str {
@@ -19,16 +19,22 @@ impl char {
 }
 
 fn print<T>(val: T) {
-    printstr("${val}")
+    __printstr("${val}")
 }
 
 fn println<T>(val: T) {
-    printstr("${val}\n")
+    __printstr("${val}\n")
 }
 
 impl<T> [T] {
+    fn len(self: &[T]) -> int {
+        __arraylen(self)
+    }
     fn push(self: &[T], val: T) {
-        push(self, val)
+        __arraypush(self, val)
+    }
+    fn pop(self: &[T]) -> T {
+        __arraypop(self)
     }
 }
 
@@ -39,8 +45,8 @@ impl [str] {
             arr.push(i);
             arr.push(seperator);
         }
-        if len(&self) != 0 {
-            pop(&arr);
+        if self.len() != 0 {
+            arr.pop();
         }
         __strjoin(arr)
     }
