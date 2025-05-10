@@ -92,15 +92,14 @@ impl<'tcx> TyCtx<'tcx> {
     pub fn try_infer_shallow(&self, ty: Ty<'tcx>) -> Result<Ty<'tcx>, Ty<'tcx>> {
         self.inner.borrow().try_infer_shallow(ty)
     }
+    #[track_caller]
     pub fn infer_shallow(&self, ty: Ty<'tcx>) -> Ty<'tcx> {
         self.try_infer_shallow(ty).expect("Failed to Infer")
     }
+    #[track_caller]
     pub fn infer_deep(&self, ty: Ty<'tcx>) -> Ty<'tcx> {
         self.inner.borrow().try_infer_deep(ty, self.interner).expect("Failed to Infer")
     }
-    // pub fn try_infer_shallow(&self, ty: Ty<'tcx>) -> Result<Ty<'tcx>, Ty<'tcx>> {
-    //     self.inner.borrow().try_infer_shallow(ty)
-    // }
     pub fn try_infer_deep(&self, ty: Ty<'tcx>) -> Result<Ty<'tcx>, Ty<'tcx>> {
         self.inner.borrow().try_infer_deep(ty, self.interner)
     }

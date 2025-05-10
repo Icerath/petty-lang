@@ -103,6 +103,7 @@ pub fn analyze<'tcx>(
         *ty = tcx.try_infer_deep(ty).map_err(|ty| collector.cannot_infer(ty, expr.span))?;
     }
     ty_info.type_ids.iter_mut().for_each(|ty| *ty = tcx.infer_deep(ty));
+    ty_info.method_types.values_mut().for_each(|ty| *ty = tcx.infer_deep(ty));
 
     Ok(ty_info)
 }
@@ -386,7 +387,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                     self.sub(arg, param, arg_id)?;
                 }
 
-                let fn_ty = self.tcx.infer_deep(self.tcx.intern(TyKind::Function(func)));
+                let fn_ty = self.tcx.intern(TyKind::Function(func));
                 self.ty_info.method_types.insert(id, fn_ty);
 
                 ret
