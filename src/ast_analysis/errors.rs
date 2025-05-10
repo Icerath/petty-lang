@@ -9,6 +9,12 @@ use crate::{
 };
 
 impl<'tcx> Collector<'_, '_, 'tcx> {
+    pub fn invalid_self(&self, span: Span) -> Error {
+        self.raw_error(
+            "the `self` type cannot be used outside of an impl block",
+            [(span, "invalid position for `self`")],
+        )
+    }
     pub fn expected_const(&self, expr: ExprId) -> Error {
         let span = self.ast.exprs[expr].span;
         self.raw_error("invalid const expr", [(span, "this expression cannot be const")])

@@ -152,7 +152,8 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 ExprKind::FnDecl(func) => self.preanalyze_fndecl(&mut body, func)?,
                 ExprKind::Impl(impl_) => {
                     let generics = self.tcx.new_generics(&impl_.generics);
-                    let ty = self.read_ast_ty_with(impl_.ty, [generics, GenericRange::EMPTY])?;
+                    let ty =
+                        self.read_ast_ty_with(impl_.ty, None, [generics, GenericRange::EMPTY])?;
                     for func in &impl_.methods {
                         self.preanalyze_method(&mut body, ty, generics, func)?;
                     }
@@ -169,12 +170,12 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         let FnDecl { ident, generics, params, ret, .. } = fndecl;
         let generics = self.tcx.new_generics(generics);
         let ret = match ret {
-            Some(ret) => self.read_ast_ty_with(*ret, [GenericRange::EMPTY, generics])?,
+            Some(ret) => self.read_ast_ty_with(*ret, None, [GenericRange::EMPTY, generics])?,
             None => &TyKind::Unit,
         };
         let params = params
             .iter()
-            .map(|param| self.read_ast_ty_with(param.ty, [GenericRange::EMPTY, generics]))
+            .map(|param| self.read_ast_ty_with(param.ty, None, [GenericRange::EMPTY, generics]))
             .collect::<Result<_>>()?;
         let prev = body.insert_var(
             *ident,
@@ -196,12 +197,12 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         let FnDecl { ident, generics, params, ret, .. } = fndecl;
         let generics = self.tcx.new_generics(generics);
         let ret = match ret {
-            Some(ret) => self.read_ast_ty_with(*ret, [impl_generics, generics])?,
+            Some(ret) => self.read_ast_ty_with(*ret, Some(ty), [impl_generics, generics])?,
             None => &TyKind::Unit,
         };
         let params = params
             .iter()
-            .map(|param| self.read_ast_ty_with(param.ty, [impl_generics, generics]))
+            .map(|param| self.read_ast_ty_with(param.ty, Some(ty), [impl_generics, generics]))
             .collect::<Result<_>>()?;
 
         let fn_ty = Function { params, ret };
@@ -235,36 +236,41 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
     }
 
     fn read_ast_ty(&mut self, id: ast::TypeId) -> Result<Ty<'tcx>> {
-        self.read_ast_ty_with(id, [GenericRange::EMPTY; 2])
+        self.read_ast_ty_with(id, None, [GenericRange::EMPTY; 2])
     }
 
     fn read_ast_ty_with(
         &mut self,
         id: ast::TypeId,
+        for_ty: Option<Ty<'tcx>>,
         generics: [GenericRange; 2],
     ) -> Result<Ty<'tcx>> {
         let ast_ty = &self.ast.types[id];
         let ty = match ast_ty.kind {
             ast::TyKind::Ref(of) => {
-                self.tcx.intern(TyKind::Ref(self.read_ast_ty_with(of, generics)?))
+                self.tcx.intern(TyKind::Ref(self.read_ast_ty_with(of, for_ty, generics)?))
             }
             ast::TyKind::Func { ref params, ret } => {
                 let ret = match ret {
-                    Some(ty) => self.read_ast_ty_with(ty, generics)?,
+                    Some(ty) => self.read_ast_ty_with(ty, for_ty, generics)?,
                     None => &TyKind::Unit,
                 };
                 let params = params
                     .iter()
-                    .map(|param| self.read_ast_ty_with(*param, generics))
+                    .map(|param| self.read_ast_ty_with(*param, for_ty, generics))
                     .collect::<Result<_>>()?;
                 self.tcx.intern(TyKind::Function(Function { params, ret }))
             }
             ast::TyKind::Never => &TyKind::Never,
             ast::TyKind::Unit => &TyKind::Unit,
             ast::TyKind::Array(of) => {
-                self.tcx.intern(TyKind::Array(self.read_ast_ty_with(of, generics)?))
+                self.tcx.intern(TyKind::Array(self.read_ast_ty_with(of, for_ty, generics)?))
             }
             ast::TyKind::Name(name) if name == "_" => self.tcx.new_infer(),
+            ast::TyKind::Name(name) if name == "self" => match for_ty {
+                Some(ty) => ty,
+                None => return Err(self.invalid_self(ast_ty.span)),
+            },
             ast::TyKind::Name(name) => {
                 match (generics.iter().copied().flatten())
                     .find(|&g| self.tcx.generic_symbol(g) == name)
@@ -632,7 +638,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         let block_id = block.unwrap();
         let impl_generics = self.tcx.new_generics(&impl_.generics);
 
-        let ty = self.read_ast_ty_with(impl_.ty, [GenericRange::EMPTY, impl_generics])?;
+        let ty = self.read_ast_ty_with(impl_.ty, None, [GenericRange::EMPTY, impl_generics])?;
         let fn_ty = self.tcx.get_method(ty, ident.symbol).unwrap();
 
         let Function { params: param_tys, ret, .. } = fn_ty;
