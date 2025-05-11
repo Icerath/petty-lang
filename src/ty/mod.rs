@@ -129,11 +129,14 @@ impl PartialOrd for TyKey<'_> {
 }
 
 impl Ord for TyKey<'_> {
+    #[expect(clippy::match_same_arms)]
     fn cmp(&self, other: &Self) -> Ordering {
         use TyKind as T;
         match (self.0, other.0) {
             (T::Generic(..), _) | (_, T::Generic(..)) => Ordering::Equal,
             (T::Array(lhs), T::Array(rhs)) => TyKey(lhs).cmp(&TyKey(rhs)),
+            (T::Ref(lhs), T::Ref(rhs)) => TyKey(lhs).cmp(&TyKey(rhs)),
+            (T::Ref(ref_), val) | (val, T::Ref(ref_)) => TyKey(ref_).cmp(&TyKey(val)),
             _ => self.0.cmp(other.0),
         }
     }
