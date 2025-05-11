@@ -14,10 +14,10 @@ clap = { version = "4.5.32", features = ["derive"] }
 colored = "3.0.0"
 index_vec = "0.1.4"
 miette = { version = "7.5.0", features = ["fancy"] }
+petty-intern = "0.1.1"
 rustc-hash = "2.1.1"
 symbol_table = { version = "0.4.0", features = ["global"] }
 thin-vec = "0.2.13"
-typed-arena = "2.0.2"
 
 [profile.release]
 panic = "abort"

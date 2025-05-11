@@ -1,14 +1,15 @@
 mod generic_range;
-mod interner;
 mod kind;
 
 use std::{cell::RefCell, cmp::Ordering, collections::BTreeMap, hash::Hash};
 
 pub use generic_range::GenericRange;
 use index_vec::IndexVec;
-pub use interner::TyInterner;
 pub use kind::TyKind;
+use petty_intern::Interner;
 use thin_vec::ThinVec;
+
+type TyInterner<'tcx> = &'tcx Interner<TyKind<'tcx>>;
 
 use crate::{HashMap, ast::Identifier, define_id, symbol::Symbol};
 
@@ -42,11 +43,11 @@ impl<'tcx> Function<'tcx> {
 #[derive(Debug)]
 pub struct TyCtx<'tcx> {
     inner: RefCell<TyCtxInner<'tcx>>,
-    interner: &'tcx TyInterner,
+    interner: TyInterner<'tcx>,
 }
 
 impl<'tcx> TyCtx<'tcx> {
-    pub fn new(interner: &'tcx TyInterner) -> Self {
+    pub fn new(interner: TyInterner<'tcx>) -> Self {
         Self { inner: RefCell::default(), interner }
     }
     pub fn new_generics(&self, generics: &[Identifier]) -> GenericRange {
@@ -172,7 +173,7 @@ impl<'tcx> TyCtxInner<'tcx> {
         self.generic_names.push(symbol)
     }
 
-    fn vid(&mut self, intern: &'tcx TyInterner) -> TyVid {
+    fn vid(&mut self, intern: TyInterner<'tcx>) -> TyVid {
         let id = self.subs.next_idx();
         self.subs.push(intern.intern_new(TyKind::Infer(id)))
     }
@@ -185,7 +186,7 @@ impl<'tcx> TyCtxInner<'tcx> {
         }
     }
 
-    fn try_infer_deep(&self, ty: Ty<'tcx>, intern: &'tcx TyInterner) -> Result<Ty<'tcx>, Ty<'tcx>> {
+    fn try_infer_deep(&self, ty: Ty<'tcx>, intern: TyInterner<'tcx>) -> Result<Ty<'tcx>, Ty<'tcx>> {
         Ok(match self.try_infer_shallow(ty)? {
             TyKind::Array(of) => {
                 intern.intern(TyKind::Array(self.try_infer_deep(of, intern).map_err(|_| ty)?))

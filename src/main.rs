@@ -21,7 +21,7 @@ mod ty;
 
 pub use cli::Args;
 pub use codegen_opts::CodegenOpts;
-use rustc_hash::{FxHashMap as HashMap, FxHashSet as HashSet};
+use rustc_hash::FxHashMap as HashMap;
 use source::span;
 
 const STD: &str = concat!(include_str!("std.pebble"), "\n\n");

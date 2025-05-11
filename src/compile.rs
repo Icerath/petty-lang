@@ -6,13 +6,11 @@ use std::{
 };
 
 use miette::IntoDiagnostic;
+use petty_intern::Interner;
 
 use crate::{
-    Args, ast_analysis, ast_lowering,
-    cli::Command,
-    hir_lowering, mir_interpreter, mir_optimizations,
-    parse::parse,
-    ty::{TyCtx, TyInterner},
+    Args, ast_analysis, ast_lowering, cli::Command, hir_lowering, mir_interpreter,
+    mir_optimizations, parse::parse, ty::TyCtx,
 };
 
 #[cfg(test)]
@@ -43,7 +41,7 @@ pub fn compile(args: &Args, w: &mut dyn Write) -> miette::Result<()> {
         create_new_dir(target).into_diagnostic()?;
     }
 
-    let ty_intern = TyInterner::default();
+    let ty_intern = Interner::default();
     let tcx = TyCtx::new(&ty_intern);
 
     macro_rules! dump {
@@ -75,7 +73,6 @@ pub fn compile(args: &Args, w: &mut dyn Write) -> miette::Result<()> {
     dump!(mir, mir.display(args.show_auto).to_string());
     if args.verbose > 1 {
         crate::log!("type interner entries: {}", ty_intern.len());
-        crate::log!("type interner cache hits: {}", ty_intern.cache_hits());
     }
     if args.verbose > 0 {
         crate::log!("compile time: {:?}", start.elapsed());
