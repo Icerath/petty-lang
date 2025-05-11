@@ -12,7 +12,7 @@ struct CliArgs {
     verbose: u8,
     #[arg(long, help = "Turns off all optimizations unless overriden")]
     no_default_optimizations: bool,
-    #[arg(long, default_value = "true", help = "Dumps the ast/hir/mir to the target directory ")]
+    #[arg(long, action = clap::ArgAction::Set, default_value = "true", help = "Dumps the ast/hir/mir to the target directory ")]
     dump: bool,
     #[arg(long, default_value = "false")]
     show_auto: bool,
