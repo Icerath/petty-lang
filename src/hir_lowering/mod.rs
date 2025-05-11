@@ -385,10 +385,7 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
             ExprKind::Binary { lhs, op, rhs } => self.binary_op(lhs, op, rhs),
             ExprKind::Unary { op, expr } => self.unary_op(op, expr),
             ExprKind::OpAssign { place, op, expr } => self.op_assign(place, op, expr),
-            ExprKind::Ident(ident) => match self.load_ident(ident, self.ty(id)) {
-                RValue::Use(operand) => RValue::Use(operand),
-                rvalue => rvalue,
-            },
+            ExprKind::Ident(ident) => self.load_ident(ident, self.ty(id)),
             ExprKind::Method { ty, method } => {
                 let location = self.methods[&(TyKey(ty), method)];
 
