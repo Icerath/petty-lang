@@ -1,7 +1,11 @@
 mod intrinsics;
 mod loops;
 
-use std::{collections::BTreeMap, hash::Hash, mem, path::Path};
+use std::{
+    collections::{BTreeMap, VecDeque},
+    mem,
+    path::Path,
+};
 
 use arcstr::ArcStr;
 use index_vec::IndexVec;
@@ -35,6 +39,7 @@ pub fn lower<'tcx>(hir: &Hir<'tcx>, path: Option<&Path>, src: &str, tcx: &'tcx T
         src,
         path,
         generic_fns: HashMap::default(),
+        mono_generics: VecDeque::default(),
         generic_map: None,
     };
     for &expr in &hir.root {
@@ -43,12 +48,6 @@ pub fn lower<'tcx>(hir: &Hir<'tcx>, path: Option<&Path>, src: &str, tcx: &'tcx T
     lowering.monomorphization();
     assert!(lowering.mir.bodies.first().unwrap().blocks.is_empty());
     lowering.mir
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-struct Function<'tcx> {
-    params: &'tcx [Ty<'tcx>],
-    ret: Ty<'tcx>,
 }
 
 struct Lowering<'hir, 'tcx, 'src> {
@@ -63,13 +62,14 @@ struct Lowering<'hir, 'tcx, 'src> {
     src: &'src str,
     path: Option<&'src Path>,
     generic_fns: HashMap<BodyId, GenericFns<'tcx, 'hir>>,
+    mono_generics: VecDeque<(&'hir hir::FnDecl<'tcx>, &'tcx ty::Function<'tcx>, BodyId)>,
     generic_map: Option<HashMap<GenericId, Ty<'tcx>>>,
 }
 
 #[derive(Debug)]
 struct GenericFns<'tcx, 'hir> {
     decl: &'hir hir::FnDecl<'tcx>,
-    impls: HashMap<Function<'tcx>, BodyId>,
+    impls: HashMap<&'tcx ty::Function<'tcx>, BodyId>,
 }
 
 macro_rules! str {
@@ -439,14 +439,18 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
             return RValue::from(Constant::Func(location));
         };
 
-        let TyKind::Function(func) = ty else { unreachable!("{}", self.tcx.display(ty)) };
-        let params = func.params.len();
-        let func = Function { params: &func.params, ret: func.ret };
+        let TyKind::Function(fn_ty) = ty else { unreachable!("{}", self.tcx.display(ty)) };
+        let params = fn_ty.params.len();
 
-        let monomorphized_location = *generic_fns
-            .impls
-            .entry(func)
-            .or_insert_with(|| self.mir.bodies.push(Body::new(Some(ident), params)));
+        let mut new = false;
+        let monomorphized_location = *generic_fns.impls.entry(fn_ty).or_insert_with(|| {
+            new = true;
+            self.mir.bodies.push(Body::new(Some(ident), params))
+        });
+        if new {
+            self.mono_generics.push_back((generic_fns.decl, fn_ty, monomorphized_location));
+        }
+
         RValue::from(Constant::Func(monomorphized_location))
     }
 
@@ -940,35 +944,34 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
     }
 
     pub fn monomorphization(&mut self) {
-        for new_impls in mem::take(&mut self.generic_fns).values() {
-            for (decl, &body_id) in &new_impls.impls {
-                self.generic_map = Some(produce_generic_map(new_impls.decl, decl));
-                let hir::FnDecl { ident, for_ty, ref body, ref params, .. } = *new_impls.decl;
+        while let Some(new_impl) = self.mono_generics.pop_front() {
+            let (decl, fn_ty, body_id) = new_impl;
+            self.generic_map = Some(produce_generic_map(decl, fn_ty));
+            let hir::FnDecl { ident, for_ty, ref body, ref params, .. } = *decl;
 
-                self.bodies.push(BodyInfo::new(body_id));
+            self.bodies.push(BodyInfo::new(body_id));
 
-                if self.bodies.len() == 2 && self.try_intrinsic(for_ty, ident) {
-                    let current = self.current_mut().body;
-                    self.mir.bodies[current].auto = true;
-                } else {
-                    for (i, param) in params.iter().enumerate() {
-                        self.current_mut().scope().variables.insert(param.ident, Local::from(i));
-                    }
-                    let mut last = Operand::UNIT;
-                    for &expr in body {
-                        last = self.lower(expr);
-                    }
-                    self.finish_with(Terminator::Return(last));
+            if self.bodies.len() == 2 && self.try_intrinsic(for_ty, ident) {
+                let current = self.current_mut().body;
+                self.mir.bodies[current].auto = true;
+            } else {
+                for (i, param) in params.iter().enumerate() {
+                    self.current_mut().scope().variables.insert(param.ident, Local::from(i));
                 }
-                self.bodies.pop().unwrap();
+                let mut last = Operand::UNIT;
+                for &expr in body {
+                    last = self.lower(expr);
+                }
+                self.finish_with(Terminator::Return(last));
             }
+            self.bodies.pop().unwrap();
         }
     }
 }
 
 fn produce_generic_map<'tcx>(
     generic: &FnDecl<'tcx>,
-    mono: &Function<'tcx>,
+    mono: &ty::Function<'tcx>,
 ) -> HashMap<GenericId, Ty<'tcx>> {
     let generic = generic.params.iter().map(|param| param.ty).chain([generic.ret]);
     let mono = mono.params.iter().copied().chain([mono.ret]);
