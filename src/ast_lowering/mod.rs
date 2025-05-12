@@ -60,9 +60,9 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
                     let expr = self.lower_fn_decl(Some(self.ty_info[impl_.ty]), decl);
                     block.push(self.hir.exprs.push(expr));
                 }
-                hir::ExprKind::Block(block).with(&TyKind::Unit)
+                hir::ExprKind::Block(block).with(Ty::UNIT)
             }
-            ast::ExprKind::Unreachable => ExprKind::Unreachable.with(&TyKind::Never),
+            ast::ExprKind::Unreachable => ExprKind::Unreachable.with(Ty::NEVER),
             ast::ExprKind::Binary {
                 lhs,
                 op:
@@ -80,7 +80,7 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
                 let op = OpAssign::try_from(op.kind).unwrap();
                 let place = self.lower(lhs);
                 let expr = self.lower(rhs);
-                ExprKind::OpAssign { place, op, expr }.with(&TyKind::Unit)
+                ExprKind::OpAssign { place, op, expr }.with(Ty::UNIT)
             }
             ast::ExprKind::Binary { lhs, op: BinaryOp { kind: BinOpKind::Assign, .. }, rhs } => {
                 (hir::ExprKind::Assignment { lhs: self.lower(lhs), expr: self.lower(rhs) })
@@ -125,7 +125,7 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
             ast::ExprKind::MethodCall { expr, method, ref args, .. } => {
                 let ty = self.ty_info.expr_tys[expr];
                 let fn_ty = self.ty_info.method_types[&expr_id];
-                let TyKind::Function(Function { params, .. }) = fn_ty else { unreachable!() };
+                let TyKind::Function(Function { params, .. }) = fn_ty.0 else { unreachable!() };
 
                 let mut expr = self.lower(expr);
                 expr = self.make_eq_ref(expr, ty, params[0]);
@@ -151,7 +151,7 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
                     Some(expr) => self.lower(expr),
                     None => self.hir.exprs.push(hir::Expr::UNIT),
                 };
-                ExprKind::Return(inner).with(&TyKind::Never)
+                ExprKind::Return(inner).with(Ty::NEVER)
             }
             ast::ExprKind::Unary { op, expr } => self.lower(expr).unary(op).with(expr_ty),
             ast::ExprKind::Break => hir::Expr::BREAK,
@@ -179,15 +179,15 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
             }
             ast::ExprKind::Assert(expr) => {
                 let msg = self.assert_failed_error(expr);
-                let abort = (self.hir.exprs).push(ExprKind::Abort { msg }.with(&TyKind::Never));
+                let abort = (self.hir.exprs).push(ExprKind::Abort { msg }.with(Ty::NEVER));
 
                 let body = ThinVec::from([abort]);
                 let condition = self.lower_then_not(expr);
                 let arms = thin_vec![IfStmt { condition, body }];
-                (hir::ExprKind::If { arms, els: ThinVec::new() }).with(&TyKind::Unit)
+                (hir::ExprKind::If { arms, els: ThinVec::new() }).with(Ty::UNIT)
             }
             ast::ExprKind::FieldAccess { expr, field, .. } => {
-                let TyKind::Struct { symbols, .. } = self.get_ty(expr) else { unreachable!() };
+                let TyKind::Struct { symbols, .. } = self.get_ty(expr).0 else { unreachable!() };
                 let expr = self.lower(expr);
 
                 let field = symbols.iter().position(|&s| s == field.symbol).unwrap();
@@ -221,7 +221,7 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
     }
 
     fn lower_then_not(&mut self, ast_expr: ast::ExprId) -> hir::ExprId {
-        let hir_expr = self.lower(ast_expr).unary(hir::UnaryOp::Not).with(&TyKind::Bool);
+        let hir_expr = self.lower(ast_expr).unary(hir::UnaryOp::Not).with(Ty::BOOL);
         self.hir.exprs.push(hir_expr)
     }
 
@@ -250,10 +250,10 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
             arms: ThinVec::from([hir::IfStmt { condition, body: ThinVec::from([break_]) }]),
             els: ThinVec::new(),
         })
-        .with(&TyKind::Unit);
+        .with(Ty::UNIT);
         let mut block = self.lower_block_inner(body).1;
         block.insert(0, self.hir.exprs.push(if_stmt));
-        ExprKind::Loop(block).with(&TyKind::Unit)
+        ExprKind::Loop(block).with(Ty::UNIT)
     }
 
     fn lower_for_loop(
@@ -264,7 +264,7 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
     ) -> hir::Expr<'tcx> {
         let iter = self.lower(iter);
         let body = self.lower_block_inner(body).1;
-        (hir::ExprKind::ForLoop { ident, iter, body }).with(&TyKind::Unit)
+        (hir::ExprKind::ForLoop { ident, iter, body }).with(Ty::UNIT)
     }
 
     fn lower_if_stmt(
@@ -286,7 +286,7 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
     }
 
     fn lower_let_stmt(&mut self, ident: Symbol, expr: ast::ExprId) -> hir::Expr<'tcx> {
-        (hir::ExprKind::Let { ident, expr: self.lower(expr) }).with(&TyKind::Unit)
+        (hir::ExprKind::Let { ident, expr: self.lower(expr) }).with(Ty::UNIT)
     }
 
     fn lower_fn_decl(&mut self, for_ty: Option<Ty<'tcx>>, decl: &ast::FnDecl) -> hir::Expr<'tcx> {
@@ -294,7 +294,7 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
 
         let block = block.unwrap();
 
-        let ret = ret.map_or(&TyKind::Unit, |ret| self.ty_info[ret]);
+        let ret = ret.map_or(Ty::UNIT, |ret| self.ty_info[ret]);
 
         let params = params
             .iter()
@@ -338,7 +338,7 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
     fn lower_block_inner(&mut self, block_id: ast::BlockId) -> (Ty<'tcx>, ThinVec<hir::ExprId>) {
         let block = &self.ast.blocks[block_id];
         let block_ty =
-            if block.is_expr { self.get_ty(*block.stmts.last().unwrap()) } else { &TyKind::Unit };
+            if block.is_expr { self.get_ty(*block.stmts.last().unwrap()) } else { Ty::UNIT };
         let needs_unit = self.block_needs_terminating_unit(block);
 
         let mut new = ThinVec::with_capacity(block.stmts.len() + usize::from(needs_unit));
@@ -356,6 +356,6 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
         if block.is_expr {
             return false;
         }
-        block.stmts.last().is_some_and(|last| self.get_ty(*last) != &TyKind::Unit)
+        block.stmts.last().is_some_and(|last| self.get_ty(*last) != Ty::UNIT)
     }
 }

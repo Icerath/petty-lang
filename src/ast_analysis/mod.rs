@@ -14,7 +14,7 @@ use crate::{
     },
     span::Span,
     symbol::Symbol,
-    ty::{Function, GenericRange, Ty, TyCtx, TyKind},
+    ty::{Function, GenericRange, Interned, Ty, TyCtx, TyKind},
 };
 
 #[derive(Default, Debug)]
@@ -86,7 +86,7 @@ struct Collector<'src, 'ast, 'tcx> {
 }
 
 fn setup_ty_info<'tcx>(ast: &Ast) -> TyInfo<'tcx> {
-    let shared = &TyKind::Unit;
+    let shared = Ty::UNIT;
     TyInfo {
         expr_tys: std::iter::repeat_n(shared, ast.exprs.len()).collect(),
         type_ids: std::iter::repeat_n(shared, ast.types.len()).collect(),
@@ -117,27 +117,22 @@ pub fn analyze<'tcx>(
     };
     let top_level_exprs = ast.top_level.iter().copied().collect();
     let top_level = ast::Block { span: Span::ZERO, stmts: top_level_exprs, is_expr: false };
-    collector.analyze_body_with(&top_level, Body::new(&TyKind::Never))?;
+    collector.analyze_body_with(&top_level, Body::new(Ty::NEVER))?;
 
     let mut ty_info = std::mem::take(&mut collector.ty_info);
     for (expr, ty) in std::iter::zip(&ast.exprs, &mut ty_info.expr_tys) {
-        *ty = tcx.try_infer_deep(ty).map_err(|ty| collector.cannot_infer(ty, expr.span))?;
+        *ty = tcx.try_infer_deep(*ty).map_err(|ty| collector.cannot_infer(ty, expr.span))?;
     }
-    ty_info.type_ids.iter_mut().for_each(|ty| *ty = tcx.infer_deep(ty));
-    ty_info.method_types.values_mut().for_each(|ty| *ty = tcx.infer_deep(ty));
+    ty_info.type_ids.iter_mut().for_each(|ty| *ty = tcx.infer_deep(*ty));
+    ty_info.method_types.values_mut().for_each(|ty| *ty = tcx.infer_deep(*ty));
 
     Ok(ty_info)
 }
 
 fn global_body<'tcx>() -> Body<'tcx> {
-    let mut body = Body::new(&TyKind::Never);
-    let common = [
-        ("bool", &TyKind::Bool),
-        ("int", &TyKind::Int),
-        ("char", &TyKind::Char),
-        ("str", &TyKind::Str),
-    ]
-    .map(|(name, ty)| (Symbol::from(name), ty));
+    let mut body = Body::new(Ty::NEVER);
+    let common = [("bool", Ty::BOOL), ("int", Ty::INT), ("char", Ty::CHAR), ("str", Ty::STR)]
+        .map(|(name, ty)| (Symbol::from(name), ty));
     body.ty_names.extend(common);
     body
 }
@@ -202,7 +197,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         self.produced_generics.insert(id, self.fn_generics);
         let ret = match ret {
             Some(ret) => self.read_ast_ty(*ret)?,
-            None => &TyKind::Unit,
+            None => Ty::UNIT,
         };
         let params = params
             .iter()
@@ -235,7 +230,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         self.produced_generics.insert(id, self.fn_generics);
         let ret = match ret {
             Some(ret) => self.read_ast_ty_with(*ret, Some(ty))?,
-            None => &TyKind::Unit,
+            None => Ty::UNIT,
         };
         let params = params
             .iter()
@@ -269,11 +264,11 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         }
         self.current().scopes.pop().unwrap();
         Ok(if block.is_expr {
-            ty.unwrap_or(&TyKind::Unit)
-        } else if ty.is_some_and(TyKind::is_never) {
-            &TyKind::Never
+            ty.unwrap_or(Ty::UNIT)
+        } else if ty.is_some_and(|ty| ty.is_never()) {
+            Ty::NEVER
         } else {
-            &TyKind::Unit
+            Ty::UNIT
         })
     }
 
@@ -290,7 +285,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
             ast::TyKind::Func { ref params, ret } => {
                 let ret = match ret {
                     Some(ty) => self.read_ast_ty_with(ty, for_ty)?,
-                    None => &TyKind::Unit,
+                    None => Ty::UNIT,
                 };
                 let params = params
                     .iter()
@@ -298,8 +293,8 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                     .collect::<Result<_>>()?;
                 self.tcx.intern(TyKind::Function(Function { params, ret }))
             }
-            ast::TyKind::Never => &TyKind::Never,
-            ast::TyKind::Unit => &TyKind::Unit,
+            ast::TyKind::Never => Ty::NEVER,
+            ast::TyKind::Unit => Ty::UNIT,
             ast::TyKind::Array(of) => {
                 self.tcx.intern(TyKind::Array(self.read_ast_ty_with(of, for_ty)?))
             }
@@ -359,23 +354,23 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
             ExprKind::Impl(ref impl_) => self.analyze_impl(impl_, id)?,
             ExprKind::Assert(expr) => {
                 let ty = self.analyze_expr(expr)?;
-                self.sub(ty, &TyKind::Bool, expr)?;
-                &TyKind::Unit
+                self.sub(ty, Ty::BOOL, expr)?;
+                Ty::UNIT
             }
             ExprKind::Lit(ref lit) => self.analyze_lit(lit)?,
             ExprKind::Ident(ident) => self.read_ident(ident, expr_span)?,
             ExprKind::Unary { expr, op } => 'outer: {
                 let operand = self.analyze_expr(expr)?;
                 let ty = match op {
-                    UnaryOp::Neg => &TyKind::Int,
-                    UnaryOp::Not => &TyKind::Bool,
+                    UnaryOp::Neg => Ty::INT,
+                    UnaryOp::Not => Ty::BOOL,
                     UnaryOp::Ref => break 'outer self.tcx.intern(TyKind::Ref(operand)),
                     UnaryOp::Deref => {
                         let operand = self.tcx.infer_shallow(operand);
-                        let TyKind::Ref(inner) = operand else {
+                        let TyKind::Ref(inner) = operand.0 else {
                             return Err(self.cannot_deref(operand, expr_span));
                         };
-                        break 'outer inner;
+                        break 'outer *inner;
                     }
                 };
                 self.sub(operand, ty, id)?;
@@ -385,7 +380,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
             ExprKind::Index { expr, index } => self.index(expr, index, expr_span)?,
             ExprKind::FnCall { function, ref args } => {
                 let fn_ty = self.analyze_expr(function)?;
-                let TyKind::Function(Function { params, ret }) = fn_ty else {
+                let TyKind::Function(Function { params, ret }) = fn_ty.0 else {
                     let fn_span = self.ast.exprs[function].span;
                     return Err(self.expected_function(fn_ty, fn_span));
                 };
@@ -401,9 +396,9 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
 
                 for (&arg_id, param) in std::iter::zip(args, params) {
                     let arg = self.analyze_expr(arg_id)?;
-                    self.sub(arg, param, arg_id)?;
+                    self.sub(arg, *param, arg_id)?;
                 }
-                ret
+                *ret
             }
             ExprKind::MethodCall { expr, method, ref args } => {
                 let ty = self.tcx.infer_shallow(self.analyze_expr(expr)?);
@@ -427,7 +422,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
 
                 for (&arg_id, param) in args.iter().zip(&params[1..]) {
                     let arg = self.analyze_expr(arg_id)?;
-                    self.sub(arg, param, arg_id)?;
+                    self.sub(arg, *param, arg_id)?;
                 }
 
                 let fn_ty = self.tcx.intern(TyKind::Function(func));
@@ -436,7 +431,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 ret
             }
             ExprKind::FnDecl(ref decl) => self.analyze_fndecl(decl, id)?,
-            ExprKind::Struct { .. } => &TyKind::Unit,
+            ExprKind::Struct { .. } => Ty::UNIT,
             ExprKind::Let { ident, ty, expr } => {
                 let expr_ty = self.analyze_expr(expr)?;
                 let ty = if let Some(ty) = ty {
@@ -447,7 +442,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                     expr_ty
                 };
                 self.insert_var(ident, ty, Var::Let);
-                &TyKind::Unit
+                Ty::UNIT
             }
             ExprKind::Const { ident, ty, expr } => {
                 let within_const = std::mem::replace(&mut self.within_const, true);
@@ -464,15 +459,15 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                     return Err(self.cannot_infer(ty, self.ast.spans([expr])));
                 }
                 self.insert_var(ident, ty, Var::Const);
-                &TyKind::Unit
+                Ty::UNIT
             }
             ExprKind::For { ident, iter, body } => {
                 // for now only allow ranges
                 let iter_ty = self.analyze_expr(iter)?;
                 self.tcx.infer_shallow(iter_ty);
-                let ident_ty = match iter_ty {
-                    TyKind::Range => &TyKind::Int,
-                    TyKind::Array(of) => of,
+                let ident_ty = match iter_ty.0 {
+                    TyKind::Range => Ty::INT,
+                    TyKind::Array(of) => *of,
                     _ => return Err(self.cannot_iter(iter_ty, self.ast.exprs[iter].span)),
                 };
 
@@ -481,23 +476,23 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 self.current().loops += 1;
                 let out = self.analyze_block(body)?;
                 self.current().loops -= 1;
-                self.sub_block(out, &TyKind::Unit, body)?;
-                &TyKind::Unit
+                self.sub_block(out, Ty::UNIT, body)?;
+                Ty::UNIT
             }
             ExprKind::While { condition, block } => {
                 let condition_ty = self.analyze_expr(condition)?;
-                self.sub(condition_ty, &TyKind::Bool, condition)?;
+                self.sub(condition_ty, Ty::BOOL, condition)?;
                 self.current().loops += 1;
                 self.analyze_block(block)?;
                 self.current().loops -= 1;
-                &TyKind::Unit
+                Ty::UNIT
             }
             ExprKind::If { ref arms, els } => {
                 let mut expected_ty = None;
 
                 for arm in arms {
                     let ty = self.analyze_expr(arm.condition)?;
-                    self.sub(ty, &TyKind::Bool, id)?;
+                    self.sub(ty, Ty::BOOL, id)?;
                     let block_ty = self.analyze_block(arm.body)?;
                     if let Some(expected_ty) = expected_ty {
                         self.eq_block(expected_ty, block_ty, arm.body)?;
@@ -511,7 +506,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                     self.sub_block(expected_ty, block_ty, els)?;
                 } else {
                     // TODO: specialized error message here.
-                    self.sub(expected_ty, &TyKind::Unit, id)?;
+                    self.sub(expected_ty, Ty::UNIT, id)?;
                 }
                 expected_ty
             }
@@ -525,31 +520,31 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                     ty.unwrap()
                 } else {
                     self.analyze_block(block_id)?;
-                    &TyKind::Unit
+                    Ty::UNIT
                 }
             }
             ExprKind::Return(expr) => {
-                let ty = expr.map_or(Ok(&TyKind::Unit), |expr| self.analyze_expr(expr))?;
+                let ty = expr.map_or(Ok(Ty::UNIT), |expr| self.analyze_expr(expr))?;
                 let expected = self.current().ret;
                 self.sub(ty, expected, expr.unwrap_or(id))?;
-                &TyKind::Never
+                Ty::NEVER
             }
             ExprKind::Break => {
                 if self.current().loops == 0 {
                     return Err(self.cannot_break(self.ast.exprs[id].span));
                 }
-                &TyKind::Never
+                Ty::NEVER
             }
             ExprKind::Continue => {
                 if self.current().loops == 0 {
                     return Err(self.cannot_continue(self.ast.exprs[id].span));
                 }
-                &TyKind::Never
+                Ty::NEVER
             }
-            ExprKind::Unreachable => &TyKind::Never,
+            ExprKind::Unreachable => Ty::NEVER,
             ExprKind::FieldAccess { expr, field } => {
                 let expr = self.tcx.infer_shallow(self.analyze_expr(expr)?);
-                let TyKind::Struct { symbols, fields, .. } = expr else {
+                let TyKind::Struct { symbols, fields, .. } = expr.0 else {
                     return Err(self.field_error(expr, field));
                 };
                 let field = symbols
@@ -566,16 +561,16 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
     fn anyref_sub(&mut self, mut lhs: Ty<'tcx>, mut rhs: Ty<'tcx>, expr: ExprId) -> Result<()> {
         loop {
             lhs = self.tcx.infer_shallow(lhs);
-            match lhs {
-                TyKind::Ref(of) => lhs = of,
+            match lhs.0 {
+                TyKind::Ref(of) => lhs = *of,
                 _ => break,
             }
         }
 
         loop {
             rhs = self.tcx.infer_shallow(rhs);
-            match rhs {
-                TyKind::Ref(of) => rhs = of,
+            match rhs.0 {
+                TyKind::Ref(of) => rhs = *of,
                 _ => break,
             }
         }
@@ -610,11 +605,11 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
             | B::SubAssign
             | B::MulAssign
             | B::DivAssign
-            | B::ModAssign => &TyKind::Unit,
+            | B::ModAssign => Ty::UNIT,
             B::And | B::Or | B::Less | B::Greater | B::LessEq | B::GreaterEq | B::Eq | B::Neq => {
-                &TyKind::Bool
+                Ty::BOOL
             }
-            B::RangeInclusive | B::Range => &TyKind::Range,
+            B::RangeInclusive | B::Range => Ty::RANGE,
             B::Add | B::Sub | B::Mul | B::Div | B::Mod => lhs_ty,
         })
     }
@@ -633,7 +628,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
 
         let lhs = self.tcx.infer_shallow(lhs);
 
-        let matches = match lhs {
+        let matches = match lhs.0 {
             TyKind::Int => op.is_op_assign() | op.is_arithmetic() | op.is_compare() | op.is_range(),
             TyKind::Str => op.is_compare() | op.is_add(),
             TyKind::Bool => op.is_eq() | op.is_logical(),
@@ -660,12 +655,12 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
     }
 
     fn index_ty(&self, lhs: Ty<'tcx>, rhs: Ty<'tcx>, span: Span) -> Result<Ty<'tcx>> {
-        Ok(match (lhs, rhs) {
-            (TyKind::Str, TyKind::Range) => &TyKind::Str,
+        Ok(match (lhs.0, rhs.0) {
+            (TyKind::Str, TyKind::Range) => Ty::STR,
             (TyKind::Array(_), TyKind::Range) => lhs,
             (TyKind::Array(of), TyKind::Int) => *of,
-            (TyKind::Str, TyKind::Int) => &TyKind::Char,
-            (TyKind::Ref(lhs), rhs) => return self.index_ty(lhs, rhs, span),
+            (TyKind::Str, TyKind::Int) => Ty::CHAR,
+            (TyKind::Ref(lhs), _) => return self.index_ty(*lhs, rhs, span),
             _ => return Err(self.cannot_index(lhs, span)),
         })
     }
@@ -689,7 +684,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         let (fn_ty, _) = self
             .read_ident_raw(decl.ident.symbol, Span::ZERO)
             .expect("fndecl ident should have been inserted already");
-        let TyKind::Function(fn_ty) = fn_ty else { unreachable!() };
+        let TyKind::Function(fn_ty) = fn_ty.0 else { unreachable!() };
         self.fndecl_inner(&decl.params, block_id, fn_ty)
     }
 
@@ -700,14 +695,14 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         fn_ty: &'tcx Function<'tcx>,
     ) -> Result<Ty<'tcx>> {
         let Function { params: param_tys, ret, .. } = fn_ty;
-        let mut body = Body::new(ret);
+        let mut body = Body::new(*ret);
         for (param, &ty) in std::iter::zip(params, param_tys) {
             body.insert_var(param.ident, ty, Var::Let);
         }
         let block = &self.ast.blocks[block_id];
         let body_ret = self.analyze_body_with(block, body)?.0;
-        self.sub_block(body_ret, ret, block_id)?;
-        Ok(&TyKind::Unit)
+        self.sub_block(body_ret, *ret, block_id)?;
+        Ok(Ty::UNIT)
     }
 
     fn analyze_trait(&mut self, trait_: &Trait, id: ExprId) -> Result<Ty<'tcx>> {
@@ -725,12 +720,12 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
             let ExprKind::FnDecl(func) = &self.ast.exprs[method_id].kind else { unreachable!() };
             self.analyze_method(ty, func, method_id)?;
         }
-        Ok(&TyKind::Unit)
+        Ok(Ty::UNIT)
     }
 
     fn read_ident(&self, ident: Symbol, span: Span) -> Result<Ty<'tcx>> {
         Ok(match self.read_ident_raw(ident, span)? {
-            (TyKind::Function(func), Var::Const) => {
+            (Interned(TyKind::Function(func)), Var::Const) => {
                 self.tcx.intern(TyKind::Function(func.caller(self.tcx)))
             }
             (other, _) => other,
@@ -753,13 +748,13 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 for &segment in fstr {
                     self.analyze_expr(segment)?;
                 }
-                &TyKind::Str
+                Ty::STR
             }
-            Lit::Unit => &TyKind::Unit,
-            Lit::Bool(..) => &TyKind::Bool,
-            Lit::Int(..) => &TyKind::Int,
-            Lit::Char(..) => &TyKind::Char,
-            Lit::Str(..) => &TyKind::Str,
+            Lit::Unit => Ty::UNIT,
+            Lit::Bool(..) => Ty::BOOL,
+            Lit::Int(..) => Ty::INT,
+            Lit::Char(..) => Ty::CHAR,
+            Lit::Str(..) => Ty::STR,
             Lit::Array { segments } => 'block: {
                 let mut segments = segments.iter();
                 let Some(first) = segments.next() else {
@@ -768,14 +763,14 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 let first_ty = self.analyze_expr(first.expr)?;
                 if let Some(repeated) = first.repeated {
                     let ty = self.analyze_expr(repeated)?;
-                    self.eq(ty, &TyKind::Int, repeated)?;
+                    self.eq(ty, Ty::INT, repeated)?;
                 }
                 for seg in segments {
                     let seg_ty = self.analyze_expr(seg.expr)?;
                     self.eq(first_ty, seg_ty, seg.expr)?;
                     if let Some(repeated) = seg.repeated {
                         let ty = self.analyze_expr(repeated)?;
-                        self.eq(ty, &TyKind::Int, repeated)?;
+                        self.eq(ty, Ty::INT, repeated)?;
                     }
                 }
                 self.tcx.intern(TyKind::Array(first_ty))

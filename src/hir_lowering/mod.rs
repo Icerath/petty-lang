@@ -119,17 +119,17 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
         self.mono(self.hir.exprs[id].ty)
     }
     fn mono(&self, ty: Ty<'tcx>) -> Ty<'tcx> {
-        match ty {
+        match ty.0 {
             TyKind::Generic(id) => self.generic_map.as_ref().unwrap()[id],
-            TyKind::Array(of) => self.tcx.intern(TyKind::Array(self.mono(of))),
+            TyKind::Array(of) => self.tcx.intern(TyKind::Array(self.mono(*of))),
             TyKind::Function(ty::Function { params, ret }) => {
-                let params = params.iter().map(|param| self.mono(param)).collect();
-                let ret = self.mono(ret);
+                let params = params.iter().map(|param| self.mono(*param)).collect();
+                let ret = self.mono(*ret);
                 self.tcx.intern(TyKind::Function(ty::Function { params, ret }))
             }
-            TyKind::Ref(of) => self.tcx.intern(TyKind::Ref(self.mono(of))),
+            TyKind::Ref(of) => self.tcx.intern(TyKind::Ref(self.mono(*of))),
             // TyKind::Struct { .. } => todo!(),
-            ty => ty,
+            _ => ty,
         }
     }
 
@@ -239,7 +239,7 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
 
         match self.hir.exprs[id].kind {
             ExprKind::ForLoop { ident, iter, ref body } => {
-                match self.ty(iter) {
+                match self.ty(iter).0 {
                     TyKind::Range => self.range_for(ident, iter, body),
                     TyKind::Array(..) => self.array_for(ident, iter, body),
                     _ => unreachable!(),
@@ -439,7 +439,7 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
             return RValue::from(Constant::Func(location));
         };
 
-        let TyKind::Function(fn_ty) = ty else { unreachable!("{}", self.tcx.display(ty)) };
+        let TyKind::Function(fn_ty) = ty.0 else { unreachable!("{}", self.tcx.display(ty)) };
         let params = fn_ty.params.len();
 
         let mut new = false;
@@ -495,7 +495,7 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
     }
 
     fn get_binary_op(ty: Ty, op: hir::BinaryOp) -> BinaryOp {
-        match (ty, op) {
+        match (ty.0, op) {
             (TyKind::Int, op) => match op {
                 hir::BinaryOp::Add => mir::BinaryOp::IntAdd,
                 hir::BinaryOp::Sub => mir::BinaryOp::IntSub,
@@ -574,9 +574,9 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
 
     fn fully_deref(&mut self, rvalue: impl Into<RValue>, mut ty: Ty<'tcx>) -> (RValue, Ty<'tcx>) {
         let mut rvalue = rvalue.into();
-        while let TyKind::Ref(of) = ty {
+        while let TyKind::Ref(of) = ty.0 {
             rvalue = self.deref_operand(rvalue).into();
-            ty = of;
+            ty = *of;
         }
         (rvalue, ty)
     }
@@ -615,7 +615,7 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
             hir::BinaryOp::GreaterEq,
             (RValue::local(array_len), rhs_ty),
         );
-        let condition = self.process(binary_op, &TyKind::Bool);
+        let condition = self.process(binary_op, Ty::BOOL);
         let next = self.current_block() + 1;
         let to_fix = self.finish_with(Terminator::Branch {
             condition,
@@ -662,8 +662,8 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
 
                 let local = self.lower_place_inner(expr, proj);
                 let mut expr_ty = self.ty(expr);
-                while let TyKind::Ref(of) = expr_ty {
-                    expr_ty = of;
+                while let TyKind::Ref(of) = expr_ty.0 {
+                    expr_ty = *of;
                     proj.push(Projection::Deref);
                 }
 
@@ -772,7 +772,7 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
         let mut mir_segments = vec![];
         for &segment in segments {
             let seg_rvalue = self.format_expr(segment);
-            mir_segments.push(self.process(seg_rvalue, &TyKind::Str));
+            mir_segments.push(self.process(seg_rvalue, Ty::STR));
         }
         RValue::StrJoin(mir_segments)
     }
@@ -791,7 +791,7 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
 
         let operand = self.process(rvalue, ty);
 
-        match ty {
+        match ty.0 {
             TyKind::Generic(_) | TyKind::Ref(_) | TyKind::Infer(_) | TyKind::Str => {
                 unreachable!("{ty:?}");
             }
@@ -802,7 +802,7 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
             TyKind::Char => RValue::Unary { op: UnaryOp::CharToStr, operand },
             TyKind::Range => RValue::Unary { op: UnaryOp::RangeToStr, operand },
             TyKind::Struct { id, fields, .. } => self.format_struct(*id, fields, operand),
-            TyKind::Array(of) => self.format_array(of, operand),
+            TyKind::Array(of) => self.format_array(*of, operand),
             TyKind::Function(..) => {
                 RValue::from(Constant::Str(self.tcx.display(ty).to_string().into()))
             }
@@ -839,7 +839,7 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
     }
 
     fn generate_array_func(&mut self, ty: Ty<'tcx>) -> BodyId {
-        if let Some(body) = self.array_display_bodies.get(ty) {
+        if let Some(body) = self.array_display_bodies.get(&ty) {
             return *body;
         }
         let previous = mem::take(&mut self.bodies);
@@ -880,7 +880,7 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
                 };
 
                 let formatted_elem = lower.format_rvalue(Operand::Place(elem), ty);
-                let rhs = lower.process(formatted_elem, &TyKind::Str);
+                let rhs = lower.process(formatted_elem, Ty::STR);
 
                 lower.assign_new(RValue::Binary {
                     lhs: Operand::Ref(Place::local(strings)),
@@ -927,7 +927,7 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
             }
             let projections = vec![Projection::Deref, Projection::Field(i as _)];
             let field = Operand::Place(Place { local: Local::from(0), projections });
-            let field_str = self.format_rvalue(field, ty);
+            let field_str = self.format_rvalue(field, *ty);
             segments.push(Operand::local(self.assign_new(field_str)));
         }
         segments.push(str!(")"));
@@ -995,15 +995,15 @@ fn generic_map_ty<'tcx>(
     mono: Ty<'tcx>,
     into: &mut HashMap<GenericId, Ty<'tcx>>,
 ) {
-    match (generic, mono) {
-        (TyKind::Generic(id), mono) => _ = into.insert(*id, mono),
+    match (generic.0, mono.0) {
+        (TyKind::Generic(id), _) => _ = into.insert(*id, mono),
         (TyKind::Function(generic), TyKind::Function(mono)) => {
             generic.params.iter().zip(&mono.params).for_each(|(&g, &m)| generic_map_ty(g, m, into));
             generic_map_ty(generic.ret, mono.ret, into);
         }
         (TyKind::Struct { .. }, TyKind::Struct { .. }) => todo!(),
         (TyKind::Array(generic), TyKind::Array(mono))
-        | (TyKind::Ref(generic), TyKind::Ref(mono)) => generic_map_ty(generic, mono, into),
+        | (TyKind::Ref(generic), TyKind::Ref(mono)) => generic_map_ty(*generic, *mono, into),
         _ => {}
     }
 }

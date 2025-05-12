@@ -1,10 +1,12 @@
 mod generic_range;
+mod interned;
 mod kind;
 
 use std::{cell::RefCell, cmp::Ordering, collections::BTreeMap, hash::Hash};
 
 pub use generic_range::GenericRange;
 use index_vec::IndexVec;
+pub use interned::Interned;
 pub use kind::TyKind;
 use petty_intern::Interner;
 use thin_vec::ThinVec;
@@ -13,7 +15,25 @@ type TyInterner<'tcx> = &'tcx Interner<TyKind<'tcx>>;
 
 use crate::{HashMap, ast::Identifier, define_id, symbol::Symbol};
 
-pub type Ty<'tcx> = &'tcx TyKind<'tcx>;
+pub type Ty<'tcx> = Interned<'tcx, TyKind<'tcx>>;
+
+static NEVER: TyKind = TyKind::Never;
+static UNIT: TyKind = TyKind::Unit;
+static BOOL: TyKind = TyKind::Bool;
+static INT: TyKind = TyKind::Int;
+static CHAR: TyKind = TyKind::Char;
+static STR: TyKind = TyKind::Str;
+static RANGE: TyKind = TyKind::Range;
+
+impl Ty<'_> {
+    pub const NEVER: Self = Self(&NEVER);
+    pub const UNIT: Self = Self(&UNIT);
+    pub const BOOL: Self = Self(&BOOL);
+    pub const INT: Self = Self(&INT);
+    pub const CHAR: Self = Self(&CHAR);
+    pub const STR: Self = Self(&STR);
+    pub const RANGE: Self = Self(&RANGE);
+}
 
 define_id!(pub TyVid = u32);
 define_id!(pub GenericId = u32);
@@ -75,14 +95,25 @@ impl<'tcx> TyCtx<'tcx> {
     }
     pub fn get_method(&self, ty: Ty<'tcx>, name: Symbol) -> Option<&'tcx Function<'tcx>> {
         let ty = self.inner.borrow().get_method(ty, name)?;
-        let TyKind::Function(func) = ty else { unreachable!() };
+        let TyKind::Function(func) = ty.0 else { unreachable!() };
         Some(func)
     }
     pub fn struct_name(&self, id: StructId) -> Symbol {
         self.inner.borrow().struct_names[id]
     }
     pub fn intern(&self, kind: TyKind<'tcx>) -> Ty<'tcx> {
-        self.interner.intern(kind)
+        #[cfg(debug_assertions)]
+        match kind {
+            TyKind::Unit
+            | TyKind::Never
+            | TyKind::Bool
+            | TyKind::Int
+            | TyKind::Char
+            | TyKind::Str
+            | TyKind::Infer(..) => unreachable!(),
+            _ => {}
+        }
+        Interned(self.interner.intern(kind))
     }
     pub fn new_infer(&self) -> Ty<'tcx> {
         self.inner.borrow_mut().new_infer(self.interner)
@@ -130,12 +161,13 @@ impl Ord for TyKey<'_> {
     #[expect(clippy::match_same_arms)]
     fn cmp(&self, other: &Self) -> Ordering {
         use TyKind as T;
-        match (self.0, other.0) {
-            (T::Generic(..), _) | (_, T::Generic(..)) => Ordering::Equal,
-            (T::Array(lhs), T::Array(rhs)) => TyKey(lhs).cmp(&TyKey(rhs)),
-            (T::Ref(lhs), T::Ref(rhs)) => TyKey(lhs).cmp(&TyKey(rhs)),
-            (T::Ref(ref_), val) | (val, T::Ref(ref_)) => TyKey(ref_).cmp(&TyKey(val)),
-            _ => self.0.cmp(other.0),
+        match (self.0.0, other.0.0) {
+            (T::Generic(_), _) | (_, T::Generic(_)) => Ordering::Equal,
+            (&T::Array(lhs), &T::Array(rhs)) => TyKey(lhs).cmp(&TyKey(rhs)),
+            (&T::Ref(lhs), &T::Ref(rhs)) => TyKey(lhs).cmp(&TyKey(rhs)),
+            (&T::Ref(ref_), _) => TyKey(ref_).cmp(&TyKey(other.0)),
+            (_, &T::Ref(ref_)) => TyKey(self.0).cmp(&TyKey(ref_)),
+            _ => self.0.cmp(&other.0),
         }
     }
 }
@@ -172,7 +204,7 @@ impl<'tcx> TyCtxInner<'tcx> {
 
     fn new_infer(&mut self, intern: TyInterner<'tcx>) -> Ty<'tcx> {
         let id = self.subs.next_idx();
-        let ty = intern.insert_arena(TyKind::Infer(id));
+        let ty = Interned(intern.insert_arena(TyKind::Infer(id)));
         self.subs.push(ty);
         ty
     }
@@ -186,40 +218,47 @@ impl<'tcx> TyCtxInner<'tcx> {
     }
 
     fn try_infer_deep(&self, ty: Ty<'tcx>, intern: TyInterner<'tcx>) -> Result<Ty<'tcx>, Ty<'tcx>> {
-        Ok(match self.try_infer_shallow(ty)? {
+        macro_rules! intern {
+            ($inner: expr) => {
+                Interned(intern.intern($inner))
+            };
+        }
+
+        let inferred = self.try_infer_shallow(ty)?;
+        Ok(match inferred.0 {
             TyKind::Array(of) => {
-                intern.intern(TyKind::Array(self.try_infer_deep(of, intern).map_err(|_| ty)?))
+                intern!(TyKind::Array(self.try_infer_deep(*of, intern).map_err(|_| ty)?))
             }
             TyKind::Ref(of) => {
-                intern.intern(TyKind::Ref(self.try_infer_deep(of, intern).map_err(|_| ty)?))
+                intern!(TyKind::Ref(self.try_infer_deep(*of, intern).map_err(|_| ty)?))
             }
             TyKind::Function(Function { params, ret }) => {
                 let params = params
                     .iter()
-                    .map(|param| self.try_infer_deep(param, intern))
+                    .map(|param| self.try_infer_deep(*param, intern))
                     .collect::<Result<_, _>>()?;
 
-                let ret = self.try_infer_deep(ret, intern)?;
-                intern.intern(TyKind::Function(Function { params, ret }))
+                let ret = self.try_infer_deep(*ret, intern)?;
+                intern!(TyKind::Function(Function { params, ret }))
             }
-            ty => ty,
+            _ => inferred,
         })
     }
 
     #[expect(clippy::match_same_arms)]
     fn eq(&mut self, lhs: Ty<'tcx>, rhs: Ty<'tcx>) -> Result<(), [Ty<'tcx>; 2]> {
-        match (lhs, rhs) {
+        match (lhs.0, rhs.0) {
+            (lhs, rhs) if lhs == rhs => Ok(()),
             (TyKind::Infer(l), TyKind::Infer(r)) if l == r => Ok(()),
             (TyKind::Infer(var), _) => self.insertl(*var, rhs),
             (_, TyKind::Infer(var)) => self.insertr(lhs, *var),
-            (TyKind::Array(lhs), TyKind::Array(rhs)) => self.eq(lhs, rhs),
-            (TyKind::Ref(lhs), TyKind::Ref(rhs)) => self.eq(lhs, rhs),
+            (TyKind::Array(lhs), TyKind::Array(rhs)) => self.eq(*lhs, *rhs),
+            (TyKind::Ref(lhs), TyKind::Ref(rhs)) => self.eq(*lhs, *rhs),
             (TyKind::Function(lhs), TyKind::Function(rhs)) => {
                 assert_eq!(lhs.params.len(), rhs.params.len());
-                lhs.params.iter().zip(&rhs.params).try_for_each(|(l, r)| self.eq(l, r))?;
+                lhs.params.iter().zip(&rhs.params).try_for_each(|(l, r)| self.eq(*l, *r))?;
                 self.eq(lhs.ret, rhs.ret)
             }
-            (lhs, rhs) if lhs == rhs => Ok(()),
             (..) => Err([lhs, rhs]),
         }
     }
@@ -273,19 +312,19 @@ impl<'tcx> TyCtxInner<'tcx> {
     }
 }
 
-impl<'tcx> TyKind<'tcx> {
-    pub fn fully_deref(&'tcx self) -> Ty<'tcx> {
+impl<'tcx> Ty<'tcx> {
+    pub fn fully_deref(self) -> Ty<'tcx> {
         let mut ty = self;
-        while let TyKind::Ref(of) = ty {
-            ty = of;
+        while let TyKind::Ref(of) = ty.0 {
+            ty = *of;
         }
         ty
     }
-    pub fn ref_depth(&'tcx self) -> usize {
+    pub fn ref_depth(self) -> usize {
         let mut depth = 0;
         let mut ty = self;
-        while let TyKind::Ref(of) = ty {
-            ty = of;
+        while let TyKind::Ref(of) = ty.0 {
+            ty = *of;
             depth += 1;
         }
         depth

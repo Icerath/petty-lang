@@ -54,7 +54,7 @@ impl Lowering<'_, '_, '_> {
                 RValue::Binary { lhs: arg!(0), op: BinaryOp::$name, rhs: arg!(1) }
             };
         }
-        Some(match (ty, name) {
+        Some(match (ty.map(|ty| ty.0), name) {
             (Some(TyKind::Str), "len") => unary!(StrLen),
             (Some(TyKind::Str), "find") => binary!(StrFind),
             (Some(TyKind::Str), "rfind") => binary!(StrRFind),

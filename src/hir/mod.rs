@@ -3,12 +3,7 @@ mod display;
 use index_vec::IndexVec;
 use thin_vec::ThinVec;
 
-use crate::{
-    define_id,
-    source::span::Span,
-    symbol::Symbol,
-    ty::{Ty, TyKind},
-};
+use crate::{define_id, source::span::Span, symbol::Symbol, ty::Ty};
 
 #[derive(Default, Debug)]
 pub struct Hir<'tcx> {
@@ -25,9 +20,9 @@ pub struct Expr<'tcx> {
 }
 
 impl Expr<'_> {
-    pub const UNIT: Self = ExprKind::Literal(Lit::Unit).with(&TyKind::Unit);
-    pub const BREAK: Self = ExprKind::Break.with(&TyKind::Never);
-    pub const CONTINUE: Self = ExprKind::Continue.with(&TyKind::Never);
+    pub const UNIT: Self = ExprKind::Literal(Lit::Unit).with(Ty::UNIT);
+    pub const BREAK: Self = ExprKind::Break.with(Ty::NEVER);
+    pub const CONTINUE: Self = ExprKind::Continue.with(Ty::NEVER);
 }
 
 #[derive(Debug)]
@@ -58,7 +53,7 @@ pub enum ExprKind<'tcx> {
 
 impl<'tcx> From<FnDecl<'tcx>> for Expr<'tcx> {
     fn from(decl: FnDecl<'tcx>) -> Self {
-        ExprKind::FnDecl(Box::new(decl)).with(&TyKind::Unit)
+        ExprKind::FnDecl(Box::new(decl)).with(Ty::UNIT)
     }
 }
 

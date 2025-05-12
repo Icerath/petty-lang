@@ -22,53 +22,53 @@ pub enum TyKind<'tcx> {
     Ref(Ty<'tcx>),
 }
 
-impl<'tcx> TyKind<'tcx> {
-    pub fn generics(&self, f: &mut impl FnMut(GenericId)) {
-        match *self {
-            Self::Generic(id) => f(id),
-            Self::Array(ty) | Self::Ref(ty) => ty.generics(f),
-            Self::Function(ref func) => func.generics(f),
-            Self::Struct { ref fields, .. } => {
+impl<'tcx> Ty<'tcx> {
+    pub fn generics(self, f: &mut impl FnMut(GenericId)) {
+        match *self.0 {
+            TyKind::Generic(id) => f(id),
+            TyKind::Array(ty) | TyKind::Ref(ty) => ty.generics(f),
+            TyKind::Function(ref func) => func.generics(f),
+            TyKind::Struct { ref fields, .. } => {
                 // this seems wrong.
                 fields.iter().for_each(|field| field.generics(f));
             }
-            Self::Infer(..)
-            | Self::Unit
-            | Self::Bool
-            | Self::Char
-            | Self::Int
-            | Self::Never
-            | Self::Range
-            | Self::Str => {}
+            TyKind::Infer(..)
+            | TyKind::Unit
+            | TyKind::Bool
+            | TyKind::Char
+            | TyKind::Int
+            | TyKind::Never
+            | TyKind::Range
+            | TyKind::Str => {}
         }
     }
 
     pub fn replace_generics(
-        &'tcx self,
+        self,
         tcx: &'tcx TyCtx<'tcx>,
         mut f: impl FnMut(GenericId) -> Ty<'tcx> + Copy,
     ) -> Ty<'tcx> {
-        match *self {
-            Self::Generic(id) => f(id),
-            Self::Ref(ty) => tcx.intern(TyKind::Ref(ty.replace_generics(tcx, f))),
-            Self::Array(ty) => tcx.intern(TyKind::Array(ty.replace_generics(tcx, f))),
-            Self::Function(Function { ref params, ret, .. }) => {
+        match *self.0 {
+            TyKind::Generic(id) => f(id),
+            TyKind::Ref(ty) => tcx.intern(TyKind::Ref(ty.replace_generics(tcx, f))),
+            TyKind::Array(ty) => tcx.intern(TyKind::Array(ty.replace_generics(tcx, f))),
+            TyKind::Function(Function { ref params, ret, .. }) => {
                 let params = params.iter().map(|param| param.replace_generics(tcx, f)).collect();
                 let ret = ret.replace_generics(tcx, f);
                 tcx.intern(TyKind::Function(Function { params, ret }))
             }
-            Self::Struct { ref fields, ref symbols, id } => {
+            TyKind::Struct { ref fields, ref symbols, id } => {
                 let fields = fields.iter().map(|field| field.replace_generics(tcx, f)).collect();
-                tcx.intern(Self::Struct { id, symbols: symbols.clone(), fields })
+                tcx.intern(TyKind::Struct { id, symbols: symbols.clone(), fields })
             }
-            Self::Infer(..) => unreachable!(),
-            Self::Unit
-            | Self::Bool
-            | Self::Char
-            | Self::Int
-            | Self::Never
-            | Self::Range
-            | Self::Str => self,
+            TyKind::Infer(..) => unreachable!(),
+            TyKind::Unit
+            | TyKind::Bool
+            | TyKind::Char
+            | TyKind::Int
+            | TyKind::Never
+            | TyKind::Range
+            | TyKind::Str => self,
         }
     }
 }
@@ -106,7 +106,7 @@ impl TyCtx<'_> {
         impl fmt::Display for Display<'_, '_, '_> {
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
                 let Self(tcx, ty) = self;
-                match ty {
+                match ty.0 {
                     TyKind::Bool => write!(f, "bool"),
                     TyKind::Char => write!(f, "char"),
                     TyKind::Int => write!(f, "int"),
@@ -114,16 +114,16 @@ impl TyCtx<'_> {
                     TyKind::Unit => write!(f, "()"),
                     TyKind::Never => write!(f, "!"),
                     TyKind::Range => write!(f, "Range"),
-                    TyKind::Array(of) => write!(f, "[{}]", tcx.display(of)),
-                    TyKind::Ref(of) => write!(f, "&{}", tcx.display(of)),
+                    TyKind::Array(of) => write!(f, "[{}]", tcx.display(*of)),
+                    TyKind::Ref(of) => write!(f, "&{}", tcx.display(*of)),
                     TyKind::Function(Function { params, ret }) => {
                         write!(f, "fn(")?;
                         for (i, param) in params.iter().enumerate() {
                             let prefix = if i == 0 { "" } else { ", " };
-                            write!(f, "{prefix}{}", tcx.display(param))?;
+                            write!(f, "{prefix}{}", tcx.display(*param))?;
                         }
                         write!(f, ")")?;
-                        write!(f, " -> {}", tcx.display(ret))
+                        write!(f, " -> {}", tcx.display(*ret))
                     }
                     TyKind::Infer(_) => write!(f, "_"),
                     TyKind::Generic(id) => write!(f, "{}", tcx.generic_symbol(*id)),

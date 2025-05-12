@@ -185,7 +185,7 @@ impl Dump for Param<'_> {
 
 impl Dump for Ty<'_> {
     fn write(&self, w: &mut Writer<'_, '_>) {
-        format!("{}", w.tcx.display(self)).as_str().write(w);
+        format!("{}", w.tcx.display(*self)).as_str().write(w);
     }
 }
 
