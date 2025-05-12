@@ -28,7 +28,7 @@ pub struct Function<'tcx> {
 impl<'tcx> Function<'tcx> {
     pub fn caller(&self, tcx: &'tcx TyCtx<'tcx>) -> Self {
         let mut map = HashMap::default();
-        self.generics(&mut |id| _ = map.entry(id).or_insert_with(|| tcx.new_vid()));
+        self.generics(&mut |id| _ = map.entry(id).or_insert_with(|| tcx.new_infer()));
         let f = |id| map[&id];
         let params = self.params.iter().map(|param| param.replace_generics(tcx, f)).collect();
         let ret = self.ret.replace_generics(tcx, f);
@@ -84,11 +84,8 @@ impl<'tcx> TyCtx<'tcx> {
     pub fn intern(&self, kind: TyKind<'tcx>) -> Ty<'tcx> {
         self.interner.intern(kind)
     }
-    pub fn new_vid(&self) -> TyVid {
-        self.inner.borrow_mut().vid(self.interner)
-    }
     pub fn new_infer(&self) -> Ty<'tcx> {
-        self.interner.intern(TyKind::Infer(self.new_vid()))
+        self.inner.borrow_mut().new_infer(self.interner)
     }
     pub fn try_infer_shallow(&self, ty: Ty<'tcx>) -> Result<Ty<'tcx>, Ty<'tcx>> {
         self.inner.borrow().try_infer_shallow(ty)
@@ -173,9 +170,11 @@ impl<'tcx> TyCtxInner<'tcx> {
         self.generic_names.push(symbol)
     }
 
-    fn vid(&mut self, intern: TyInterner<'tcx>) -> TyVid {
+    fn new_infer(&mut self, intern: TyInterner<'tcx>) -> Ty<'tcx> {
         let id = self.subs.next_idx();
-        self.subs.push(intern.intern_new(TyKind::Infer(id)))
+        let ty = intern.insert_arena(TyKind::Infer(id));
+        self.subs.push(ty);
+        ty
     }
 
     fn try_infer_shallow(&self, ty: Ty<'tcx>) -> Result<Ty<'tcx>, Ty<'tcx>> {
