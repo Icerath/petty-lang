@@ -1,6 +1,6 @@
 mod errors;
 
-use std::path::Path;
+use std::{ops::Index, path::Path};
 
 use index_vec::IndexVec;
 use miette::Result;
@@ -23,6 +23,13 @@ pub struct TyInfo<'tcx> {
     pub type_ids: IndexVec<TypeId, Ty<'tcx>>,
     pub struct_types: HashMap<Span, Ty<'tcx>>,
     pub method_types: HashMap<ExprId, Ty<'tcx>>,
+}
+
+impl<'tcx> Index<TypeId> for TyInfo<'tcx> {
+    type Output = Ty<'tcx>;
+    fn index(&self, index: TypeId) -> &Self::Output {
+        &self.type_ids[index]
+    }
 }
 
 #[derive(Debug)]
@@ -175,7 +182,9 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         };
         let params = params
             .iter()
-            .map(|param| self.read_ast_ty_with(param.ty, None, [GenericRange::EMPTY, generics]))
+            .map(|param| {
+                self.read_ast_ty_with(param.ty.unwrap(), None, [GenericRange::EMPTY, generics])
+            })
             .collect::<Result<_>>()?;
         let prev = body.insert_var(
             *ident,
@@ -202,7 +211,12 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         };
         let params = params
             .iter()
-            .map(|param| self.read_ast_ty_with(param.ty, Some(ty), [impl_generics, generics]))
+            .map(|param| match param.ty {
+                Some(param_ty) => {
+                    self.read_ast_ty_with(param_ty, Some(ty), [impl_generics, generics])
+                }
+                None => Ok(ty),
+            })
             .collect::<Result<_>>()?;
 
         let fn_ty = Function { params, ret };

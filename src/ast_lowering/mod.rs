@@ -54,7 +54,7 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
             ast::ExprKind::Impl(ref impl_) => {
                 let mut block = thin_vec![];
                 for method in &impl_.methods {
-                    let expr = self.lower_fn_decl(Some(self.ty_info.type_ids[impl_.ty]), method);
+                    let expr = self.lower_fn_decl(Some(self.ty_info[impl_.ty]), method);
                     block.push(self.hir.exprs.push(expr));
                 }
                 hir::ExprKind::Block(block).with(&TyKind::Unit)
@@ -159,7 +159,7 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
                 let fields: ThinVec<_> = (fields.iter())
                     .map(|field| hir::Param {
                         ident: field.ident.symbol,
-                        ty: self.ty_info.type_ids[field.ty],
+                        ty: self.ty_info[field.ty],
                     })
                     .collect();
 
@@ -291,13 +291,13 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
 
         let block = block.unwrap();
 
-        let ret = ret.map_or(&TyKind::Unit, |ret| self.ty_info.type_ids[ret]);
+        let ret = ret.map_or(&TyKind::Unit, |ret| self.ty_info[ret]);
 
         let params = params
             .iter()
             .map(|param| hir::Param {
                 ident: param.ident.symbol,
-                ty: self.ty_info.type_ids[param.ty],
+                ty: param.ty.map_or_else(|| for_ty.unwrap(), |param_ty| self.ty_info[param_ty]),
             })
             .collect();
         let (_, body) = self.lower_block_inner(block);

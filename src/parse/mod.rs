@@ -11,7 +11,7 @@ use token::{Token, TokenKind};
 
 use crate::{
     ast::{
-        ArraySeg, Ast, BinOpKind, BinaryOp, Block, BlockId, Expr, ExprId, ExprKind, FnDecl,
+        ArraySeg, Ast, BinOpKind, BinaryOp, Block, BlockId, Expr, ExprId, ExprKind, Field, FnDecl,
         Identifier, IfStmt, Impl, Lit, Param, Trait, Ty, TyKind, TypeId,
     },
     errors,
@@ -361,6 +361,20 @@ impl Parse for ArraySeg {
 }
 
 impl Parse for Param {
+    fn parse(stream: &mut Stream) -> Result<Self> {
+        let ident = stream.parse()?;
+
+        let mut ty = None;
+        let next = stream.clone().any(&[TokenKind::Comma, TokenKind::Colon, TokenKind::RParen])?;
+        if next.kind == TokenKind::Colon {
+            _ = stream.next();
+            ty = Some(stream.parse()?);
+        }
+        Ok(Self { ident, ty })
+    }
+}
+
+impl Parse for Field {
     fn parse(stream: &mut Stream) -> Result<Self> {
         let ident = stream.parse()?;
         stream.expect(TokenKind::Colon)?;

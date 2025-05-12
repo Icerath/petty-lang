@@ -5,17 +5,17 @@ fn __arraypop<T>(arr: &[T]) -> T { unreachable }
 fn __strjoin(arr: [str]) -> str { unreachable }
 
 impl str {
-    fn len(self: self) -> int { unreachable }
-    fn find(self: self, needle: str) -> int { unreachable }
-    fn rfind(self: self, needle: str) -> int { unreachable }
+    fn len(self) -> int { unreachable }
+    fn find(self, needle: str) -> int { unreachable }
+    fn rfind(self, needle: str) -> int { unreachable }
 }
 
 impl int {
-    fn chr(self: self) -> char { unreachable }
+    fn chr(self) -> char { unreachable }
 }
 
 impl char {
-    fn ord(self: self) -> int { unreachable }
+    fn ord(self) -> int { unreachable }
 }
 
 fn print<T>(val: T) {
@@ -39,7 +39,7 @@ impl<T> [T] {
 }
 
 impl [str] {
-    fn join(self: self, seperator: str) -> str {
+    fn join(self, seperator: str) -> str {
         let arr = [];
         for i in self {
             arr.push(i);

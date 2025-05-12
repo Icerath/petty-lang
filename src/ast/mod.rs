@@ -47,6 +47,12 @@ pub struct Identifier {
 #[derive(Debug)]
 pub struct Param {
     pub ident: Identifier,
+    pub ty: Option<TypeId>,
+}
+
+#[derive(Debug)]
+pub struct Field {
+    pub ident: Identifier,
     pub ty: TypeId,
 }
 
@@ -89,7 +95,7 @@ pub enum ExprKind {
     Trait(Trait),
     Impl(Impl),
     FnDecl(FnDecl),
-    Struct { ident: Identifier, fields: ThinVec<Param> },
+    Struct { ident: Identifier, fields: ThinVec<Field> },
 }
 
 #[derive(Debug)]

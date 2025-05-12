@@ -5,7 +5,7 @@ use std::{
 
 use thin_vec::ThinVec;
 
-use super::{ArraySeg, ExprKind, FnDecl, Identifier, Impl, Param, Trait, TyKind, TypeId};
+use super::{ArraySeg, ExprKind, Field, FnDecl, Identifier, Impl, Param, Trait, TyKind, TypeId};
 use crate::{
     ast::{Ast, BinaryOp, BlockId, ExprId, Lit, UnaryOp},
     symbol::Symbol,
@@ -146,6 +146,12 @@ impl Dump for ThinVec<Param> {
     }
 }
 
+impl Dump for ThinVec<Field> {
+    fn write(&self, w: &mut Writer) {
+        ("(", Sep(self, ", "), ")").write(w);
+    }
+}
+
 struct Generics<'a>(&'a ThinVec<Identifier>);
 
 impl Dump for Generics<'_> {
@@ -222,6 +228,12 @@ impl Dump for ThinVec<FnDecl> {
 }
 
 impl Dump for Param {
+    fn write(&self, w: &mut Writer) {
+        (self.ident, self.ty.map(|ty| (": ", ty))).write(w);
+    }
+}
+
+impl Dump for Field {
     fn write(&self, w: &mut Writer) {
         (self.ident, ": ", self.ty).write(w);
     }
