@@ -9,6 +9,9 @@ use crate::{
 };
 
 impl<'tcx> Collector<'_, '_, 'tcx> {
+    pub fn param_missing_ty(&self, span: Span) -> Error {
+        self.raw_error("parameters must be given an explicit type", [(span, "needs explicit type")])
+    }
     pub fn invalid_self(&self, span: Span) -> Error {
         self.raw_error(
             "the `self` type cannot be used outside of an impl block",

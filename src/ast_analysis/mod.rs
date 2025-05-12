@@ -183,7 +183,10 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         let params = params
             .iter()
             .map(|param| {
-                self.read_ast_ty_with(param.ty.unwrap(), None, [GenericRange::EMPTY, generics])
+                let Some(param_ty) = param.ty else {
+                    return Err(self.param_missing_ty(param.ident.span));
+                };
+                self.read_ast_ty_with(param_ty, None, [GenericRange::EMPTY, generics])
             })
             .collect::<Result<_>>()?;
         let prev = body.insert_var(
@@ -211,11 +214,13 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         };
         let params = params
             .iter()
-            .map(|param| match param.ty {
+            .enumerate()
+            .map(|(i, param)| match param.ty {
                 Some(param_ty) => {
                     self.read_ast_ty_with(param_ty, Some(ty), [impl_generics, generics])
                 }
-                None => Ok(ty),
+                None if i == 0 && param.ident.symbol == "self" => Ok(ty),
+                None => Err(self.param_missing_ty(param.ident.span)),
             })
             .collect::<Result<_>>()?;
 
