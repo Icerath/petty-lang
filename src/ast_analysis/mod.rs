@@ -647,24 +647,11 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         })
     }
 
-    fn analyze_method(&mut self, impl_: &Impl, decl: &FnDecl) -> Result<Ty<'tcx>> {
+    fn analyze_method(&mut self, ty: Ty<'tcx>, decl: &FnDecl) -> Result<Ty<'tcx>> {
         let &FnDecl { ident, ref params, block, .. } = decl;
         let block_id = block.unwrap();
-        let impl_generics = self.tcx.new_generics(&impl_.generics);
-
-        let ty = self.read_ast_ty_with(impl_.ty, None, [GenericRange::EMPTY, impl_generics])?;
         let fn_ty = self.tcx.get_method(ty, ident.symbol).unwrap();
-
-        let Function { params: param_tys, ret, .. } = fn_ty;
-
-        let mut body = Body::new(ret);
-        for (param, &ty) in std::iter::zip(params, param_tys) {
-            body.insert_var(param.ident, ty, Var::Let);
-        }
-        let block = &self.ast.blocks[block_id];
-        let body_ret = self.analyze_body_with(block, body)?.0;
-        self.sub_block(body_ret, ret, block_id)?;
-        Ok(&TyKind::Unit)
+        self.fndecl_inner(params, block_id, fn_ty)
     }
 
     fn analyze_fndecl(&mut self, decl: &FnDecl) -> Result<Ty<'tcx>> {
@@ -674,9 +661,17 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         let (fn_ty, _) = self
             .read_ident_raw(ident.symbol, Span::ZERO)
             .expect("fndecl ident should have been inserted already");
-        let TyKind::Function(Function { params: param_tys, ret, .. }) = fn_ty else {
-            unreachable!()
-        };
+        let TyKind::Function(fn_ty) = fn_ty else { unreachable!() };
+        self.fndecl_inner(params, block_id, fn_ty)
+    }
+
+    fn fndecl_inner(
+        &mut self,
+        params: &[ast::Param],
+        block_id: BlockId,
+        fn_ty: &'tcx Function<'tcx>,
+    ) -> Result<Ty<'tcx>> {
+        let Function { params: param_tys, ret, .. } = fn_ty;
         let mut body = Body::new(ret);
         for (param, &ty) in std::iter::zip(params, param_tys) {
             body.insert_var(param.ident, ty, Var::Let);
@@ -700,10 +695,10 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
     fn analyze_impl(&mut self, impl_: &Impl, id: ExprId) -> Result<Ty<'tcx>> {
         _ = id;
         let &Impl { ty, ref generics, ref methods } = impl_;
-        _ = ty;
-        _ = generics;
+        let generics = self.tcx.new_generics(generics);
+        let ty = self.read_ast_ty_with(ty, None, [GenericRange::EMPTY, generics])?;
         for func in methods {
-            self.analyze_method(impl_, func)?;
+            self.analyze_method(ty, func)?;
         }
         Ok(&TyKind::Unit)
     }
