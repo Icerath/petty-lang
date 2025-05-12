@@ -227,6 +227,10 @@ impl Parse for Impl {
         let ty = stream.parse()?;
         stream.expect(TokenKind::LBrace)?;
         let methods = parse_trait_methods(stream)?;
+        let methods = methods
+            .into_iter()
+            .map(|decl| stream.ast.exprs.push(ExprKind::FnDecl(decl).todo_span()))
+            .collect();
         Ok(Self { generics, ty, methods })
     }
 }
@@ -241,7 +245,7 @@ impl Parse for Trait {
 }
 
 fn parse_trait_methods(stream: &mut Stream) -> Result<ThinVec<FnDecl>> {
-    let mut methods = ThinVec::<FnDecl>::new();
+    let mut methods = ThinVec::new();
 
     loop {
         let next = stream.any(&[TokenKind::Fn, TokenKind::RBrace])?;

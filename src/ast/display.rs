@@ -227,6 +227,27 @@ impl Dump for ThinVec<FnDecl> {
     }
 }
 
+impl Dump for ThinVec<ExprId> {
+    fn write(&self, w: &mut Writer) {
+        w.f.push(' ');
+        w.inside_expr = false;
+        if self.is_empty() {
+            w.f.push_str("{}");
+            return;
+        }
+        w.indent += 1;
+        ("{", Line).write(w);
+        for (index, decl) in self.iter().enumerate() {
+            decl.write(w);
+            if index + 1 == self.len() {
+                w.indent -= 1;
+            }
+            (Line).write(w);
+        }
+        w.f.push('}');
+    }
+}
+
 impl Dump for Param {
     fn write(&self, w: &mut Writer) {
         (self.ident, self.ty.map(|ty| (": ", ty))).write(w);

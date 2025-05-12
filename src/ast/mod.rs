@@ -117,7 +117,7 @@ pub struct Trait {
 pub struct Impl {
     pub generics: ThinVec<Identifier>,
     pub ty: TypeId,
-    pub methods: ThinVec<FnDecl>,
+    pub methods: ThinVec<ExprId>,
 }
 
 #[derive(Debug)]

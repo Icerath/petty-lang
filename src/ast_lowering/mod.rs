@@ -53,8 +53,11 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
             ast::ExprKind::Trait(..) => hir::Expr::UNIT,
             ast::ExprKind::Impl(ref impl_) => {
                 let mut block = thin_vec![];
-                for method in &impl_.methods {
-                    let expr = self.lower_fn_decl(Some(self.ty_info[impl_.ty]), method);
+                for &method in &impl_.methods {
+                    let ast::ExprKind::FnDecl(decl) = &self.ast.exprs[method].kind else {
+                        unreachable!()
+                    };
+                    let expr = self.lower_fn_decl(Some(self.ty_info[impl_.ty]), decl);
                     block.push(self.hir.exprs.push(expr));
                 }
                 hir::ExprKind::Block(block).with(&TyKind::Unit)
