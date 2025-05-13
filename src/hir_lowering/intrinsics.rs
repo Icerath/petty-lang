@@ -16,7 +16,7 @@ impl Lowering<'_, '_, '_> {
     }
     // will return a RValue::Call if this fails
     pub fn try_call_intrinsic(
-        &mut self,
+        &self,
         function: Operand,
         ty: Option<Ty>,
         args: ThinVec<Operand>,

@@ -175,7 +175,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                         let ExprKind::FnDecl(func) = &self.ast.exprs[method_id].kind else {
                             unreachable!()
                         };
-                        self.preanalyze_method(&mut body, ty, func, method_id)?;
+                        self.preanalyze_method(&body, ty, func, method_id)?;
                     }
                 }
                 _ => {}
@@ -219,7 +219,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
 
     fn preanalyze_method(
         &mut self,
-        body: &mut Body<'tcx>,
+        body: &Body<'tcx>,
         ty: Ty<'tcx>,
         fndecl: &FnDecl,
         id: ExprId,
@@ -558,7 +558,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         Ok(ty)
     }
 
-    fn anyref_sub(&mut self, mut lhs: Ty<'tcx>, mut rhs: Ty<'tcx>, expr: ExprId) -> Result<()> {
+    fn anyref_sub(&self, mut lhs: Ty<'tcx>, mut rhs: Ty<'tcx>, expr: ExprId) -> Result<()> {
         loop {
             lhs = self.tcx.infer_shallow(lhs);
             match lhs.0 {
@@ -705,7 +705,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         Ok(Ty::UNIT)
     }
 
-    fn analyze_trait(&mut self, trait_: &Trait, id: ExprId) -> Result<Ty<'tcx>> {
+    fn analyze_trait(&self, trait_: &Trait, id: ExprId) -> Result<Ty<'tcx>> {
         _ = trait_;
         _ = id;
         todo!()

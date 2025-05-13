@@ -2,7 +2,6 @@
 
 macro_rules! opts {
     ($($name:ident),* $(,)?) => {
-        #[derive(Clone, )]
         pub struct CodegenOpts {$(
             pub $name: bool,
         )*}

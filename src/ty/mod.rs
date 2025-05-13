@@ -312,8 +312,8 @@ impl<'tcx> TyCtxInner<'tcx> {
     }
 }
 
-impl<'tcx> Ty<'tcx> {
-    pub fn fully_deref(self) -> Ty<'tcx> {
+impl Ty<'_> {
+    pub fn fully_deref(self) -> Self {
         let mut ty = self;
         while let TyKind::Ref(of) = ty.0 {
             ty = *of;

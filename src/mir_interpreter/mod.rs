@@ -110,7 +110,7 @@ impl Interpreter<'_, '_> {
         }
     }
 
-    fn operand(&mut self, operand: &Operand, locals: &Places) -> Value {
+    fn operand(&self, operand: &Operand, locals: &Places) -> Value {
         match operand {
             Operand::Ref(place) => Value::Ref(self.load_place(place, locals)),
             Operand::Constant(constant) => const_value(constant),
@@ -119,7 +119,7 @@ impl Interpreter<'_, '_> {
     }
 
     #[expect(clippy::unused_self)]
-    fn load_place(&mut self, place: &Place, locals: &Places) -> Allocation {
+    fn load_place(&self, place: &Place, locals: &Places) -> Allocation {
         let mut alloc = locals[place.local].clone();
         for projection in &place.projections {
             alloc = match *projection {

@@ -171,7 +171,7 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
                 (hir::FnDecl {
                     ident: ident.symbol,
                     for_ty: None,
-                    params: fields.clone().into(),
+                    params: fields.into(),
                     ret: struct_ty,
                     body,
                 })

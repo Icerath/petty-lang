@@ -125,7 +125,7 @@ pub struct ArraySeg {
     pub repeated: Option<ExprId>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Param<'tcx> {
     pub ident: Symbol,
     pub ty: Ty<'tcx>,
@@ -153,11 +153,11 @@ impl TryFrom<crate::ast::BinOpKind> for OpAssign {
     type Error = ();
     fn try_from(op: crate::ast::BinOpKind) -> Result<Self, Self::Error> {
         Ok(match op {
-            crate::ast::BinOpKind::AddAssign => OpAssign::Add,
-            crate::ast::BinOpKind::SubAssign => OpAssign::Sub,
-            crate::ast::BinOpKind::MulAssign => OpAssign::Mul,
-            crate::ast::BinOpKind::DivAssign => OpAssign::Div,
-            crate::ast::BinOpKind::ModAssign => OpAssign::Mod,
+            crate::ast::BinOpKind::AddAssign => Self::Add,
+            crate::ast::BinOpKind::SubAssign => Self::Sub,
+            crate::ast::BinOpKind::MulAssign => Self::Mul,
+            crate::ast::BinOpKind::DivAssign => Self::Div,
+            crate::ast::BinOpKind::ModAssign => Self::Mod,
             _ => return Err(()),
         })
     }
