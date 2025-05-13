@@ -20,6 +20,7 @@ pub enum TyKind<'tcx> {
     Generic(GenericId),
     Infer(TyVid),
     Ref(Ty<'tcx>),
+    Poison,
 }
 
 impl<'tcx> Ty<'tcx> {
@@ -32,7 +33,8 @@ impl<'tcx> Ty<'tcx> {
                 // this seems wrong.
                 fields.iter().for_each(|field| field.generics(f));
             }
-            TyKind::Infer(..)
+            TyKind::Poison
+            | TyKind::Infer(..)
             | TyKind::Unit
             | TyKind::Bool
             | TyKind::Char
@@ -62,7 +64,8 @@ impl<'tcx> Ty<'tcx> {
                 tcx.intern(TyKind::Struct { id, symbols: symbols.clone(), fields })
             }
             TyKind::Infer(..) => unreachable!(),
-            TyKind::Unit
+            TyKind::Poison
+            | TyKind::Unit
             | TyKind::Bool
             | TyKind::Char
             | TyKind::Int
@@ -107,6 +110,7 @@ impl TyCtx<'_> {
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
                 let Self(tcx, ty) = self;
                 match ty.0 {
+                    TyKind::Poison => write!(f, "<poisoned>"),
                     TyKind::Bool => write!(f, "bool"),
                     TyKind::Char => write!(f, "char"),
                     TyKind::Int => write!(f, "int"),

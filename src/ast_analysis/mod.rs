@@ -3,7 +3,7 @@ mod errors;
 use std::{ops::Index, path::Path};
 
 use index_vec::IndexVec;
-use miette::Result;
+use miette::{Error, Result};
 use thin_vec::ThinVec;
 
 use crate::{
@@ -83,6 +83,7 @@ struct Collector<'src, 'ast, 'tcx> {
     impl_generics: GenericRange,
     // the generics created by preanalyze impl/fndecl
     produced_generics: HashMap<ExprId, GenericRange>,
+    errors: Vec<Error>,
 }
 
 fn setup_ty_info<'tcx>(ast: &Ast) -> TyInfo<'tcx> {
@@ -100,7 +101,7 @@ pub fn analyze<'tcx>(
     src: &str,
     ast: &Ast,
     tcx: &'tcx TyCtx<'tcx>,
-) -> Result<TyInfo<'tcx>> {
+) -> Result<TyInfo<'tcx>, Vec<Error>> {
     let ty_info = setup_ty_info(ast);
     let body = global_body();
     let mut collector = Collector {
@@ -114,14 +115,19 @@ pub fn analyze<'tcx>(
         fn_generics: GenericRange::EMPTY,
         impl_generics: GenericRange::EMPTY,
         produced_generics: HashMap::default(),
+        errors: vec![],
     };
     let top_level_exprs = ast.top_level.iter().copied().collect();
     let top_level = ast::Block { span: Span::ZERO, stmts: top_level_exprs, is_expr: false };
-    collector.analyze_body_with(&top_level, Body::new(Ty::NEVER))?;
+    collector.analyze_body_with(&top_level, Body::new(Ty::NEVER)).map_err(|err| vec![err])?;
+
+    if !collector.errors.is_empty() {
+        return Err(collector.errors);
+    }
 
     let mut ty_info = std::mem::take(&mut collector.ty_info);
     for (expr, ty) in std::iter::zip(&ast.exprs, &mut ty_info.expr_tys) {
-        *ty = tcx.try_infer_deep(*ty).map_err(|ty| collector.cannot_infer(ty, expr.span))?;
+        *ty = tcx.try_infer_deep(*ty).map_err(|ty| vec![collector.cannot_infer(ty, expr.span)])?;
     }
     ty_info.type_ids.iter_mut().for_each(|ty| *ty = tcx.infer_deep(*ty));
     ty_info.method_types.values_mut().for_each(|ty| *ty = tcx.infer_deep(*ty));
@@ -202,10 +208,12 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         let params = params
             .iter()
             .map(|param| {
-                let Some(param_ty) = param.ty else {
-                    return Err(self.param_missing_ty(param.ident.span));
-                };
-                self.read_ast_ty(param_ty)
+                if let Some(param_ty) = param.ty {
+                    self.read_ast_ty(param_ty)
+                } else {
+                    self.errors.push(self.param_missing_ty(param.ident.span));
+                    Ok(Ty::POISON)
+                }
             })
             .collect::<Result<_>>()?;
         let prev = body.insert_var(

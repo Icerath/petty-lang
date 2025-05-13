@@ -792,7 +792,11 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
         let operand = self.process(rvalue, ty);
 
         match ty.0 {
-            TyKind::Generic(_) | TyKind::Ref(_) | TyKind::Infer(_) | TyKind::Str => {
+            TyKind::Poison
+            | TyKind::Generic(_)
+            | TyKind::Ref(_)
+            | TyKind::Infer(_)
+            | TyKind::Str => {
                 unreachable!("{ty:?}");
             }
             TyKind::Never => str!("!"),

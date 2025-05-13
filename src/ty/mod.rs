@@ -24,6 +24,7 @@ static INT: TyKind = TyKind::Int;
 static CHAR: TyKind = TyKind::Char;
 static STR: TyKind = TyKind::Str;
 static RANGE: TyKind = TyKind::Range;
+static POISON: TyKind = TyKind::Poison;
 
 impl Ty<'_> {
     pub const NEVER: Self = Self(&NEVER);
@@ -33,6 +34,7 @@ impl Ty<'_> {
     pub const CHAR: Self = Self(&CHAR);
     pub const STR: Self = Self(&STR);
     pub const RANGE: Self = Self(&RANGE);
+    pub const POISON: Self = Self(&POISON);
 }
 
 define_id!(pub TyVid = u32);
@@ -249,6 +251,7 @@ impl<'tcx> TyCtxInner<'tcx> {
     fn eq(&mut self, lhs: Ty<'tcx>, rhs: Ty<'tcx>) -> Result<(), [Ty<'tcx>; 2]> {
         match (lhs.0, rhs.0) {
             (lhs, rhs) if lhs == rhs => Ok(()),
+            (TyKind::Poison, _) | (_, TyKind::Poison) => Ok(()),
             (TyKind::Infer(l), TyKind::Infer(r)) if l == r => Ok(()),
             (TyKind::Infer(var), _) => self.insertl(*var, rhs),
             (_, TyKind::Infer(var)) => self.insertr(lhs, *var),

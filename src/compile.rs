@@ -5,7 +5,7 @@ use std::{
     time::Instant,
 };
 
-use miette::IntoDiagnostic;
+use miette::{Error, IntoDiagnostic};
 use petty_intern::Interner;
 
 use crate::{
@@ -14,7 +14,7 @@ use crate::{
 };
 
 #[cfg(test)]
-pub fn compile_test(path: impl Into<std::path::PathBuf>) -> miette::Result<Vec<u8>> {
+pub fn compile_test(path: impl Into<std::path::PathBuf>) -> Result<Vec<u8>, Vec<Error>> {
     use crate::cli::Command;
 
     let path = path.into();
@@ -35,10 +35,10 @@ pub fn compile_test(path: impl Into<std::path::PathBuf>) -> miette::Result<Vec<u
     Ok(w2)
 }
 
-pub fn compile(args: &Args, w: &mut dyn Write) -> miette::Result<()> {
-    let src = fs::read_to_string(&args.path).into_diagnostic()?;
+pub fn compile(args: &Args, w: &mut dyn Write) -> miette::Result<(), Vec<Error>> {
+    let src = fs::read_to_string(&args.path).into_diagnostic().map_err(|e| vec![e])?;
     if let Some(target) = &args.dump {
-        create_new_dir(target).into_diagnostic()?;
+        create_new_dir(target).into_diagnostic().map_err(|e| vec![e])?;
     }
 
     let ty_intern = Interner::default();
@@ -50,7 +50,7 @@ pub fn compile(args: &Args, w: &mut dyn Write) -> miette::Result<()> {
                 let filename = concat!("dump-", stringify!($name), ".txt");
                 let content = $what;
                 let path: PathBuf = [target.as_path(), filename.as_ref()].into_iter().collect();
-                fs::write(path, content).into_diagnostic()?;
+                fs::write(path, content).into_diagnostic().map_err(|e| vec![e])?;
             }
         };
         ($what:ident) => {
@@ -62,7 +62,7 @@ pub fn compile(args: &Args, w: &mut dyn Write) -> miette::Result<()> {
     }
     let start = Instant::now();
     let src = crate::STD.to_string() + &src;
-    let ast = parse(&src, Some(&args.path))?;
+    let ast = parse(&src, Some(&args.path)).map_err(|e| vec![e])?;
     dump!(ast);
     let analysis = ast_analysis::analyze(Some(&args.path), &src, &ast, &tcx)?;
     let hir = ast_lowering::lower(&src, Some(&args.path), ast, analysis);

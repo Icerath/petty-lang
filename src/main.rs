@@ -37,7 +37,11 @@ fn main() {
                 }
             }
         }
-        Err(err) => eprintln!("{err:?}"),
+        Err(errors) => {
+            for err in errors {
+                eprintln!("{err:?}");
+            }
+        }
     }
 }
 
