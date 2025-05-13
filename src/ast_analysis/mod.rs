@@ -156,7 +156,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
             };
             let symbols: ThinVec<_> = fields.iter().map(|field| field.ident.symbol).collect();
             let fields: ThinVec<_> =
-                fields.iter().map(|field| self.read_ast_ty(field.ty)).collect::<Result<_>>()?;
+                fields.iter().map(|field| self.read_ast_ty(field.ty)).collect();
             let params = fields.clone();
             let struct_ty = self.tcx.new_struct(ident.symbol, symbols, fields);
             self.current().ty_names.insert(ident.symbol, struct_ty);
@@ -176,12 +176,12 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                     let generics = self.tcx.new_generics(&impl_.generics);
                     self.impl_generics = generics;
                     self.produced_generics.insert(id, self.impl_generics);
-                    let ty = self.read_ast_ty_with(impl_.ty, None)?;
+                    let ty = self.read_ast_ty_with(impl_.ty, None);
                     for &method_id in &impl_.methods {
                         let ExprKind::FnDecl(func) = &self.ast.exprs[method_id].kind else {
                             unreachable!()
                         };
-                        self.preanalyze_method(&body, ty, func, method_id)?;
+                        self.preanalyze_method(&body, ty, func, method_id);
                     }
                 }
                 _ => {}
@@ -202,7 +202,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         self.fn_generics = self.tcx.new_generics(generics);
         self.produced_generics.insert(id, self.fn_generics);
         let ret = match ret {
-            Some(ret) => self.read_ast_ty(*ret)?,
+            Some(ret) => self.read_ast_ty(*ret),
             None => Ty::UNIT,
         };
         let params = params
@@ -212,10 +212,10 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                     self.read_ast_ty(param_ty)
                 } else {
                     self.errors.push(self.param_missing_ty(param.ident.span));
-                    Ok(Ty::POISON)
+                    Ty::POISON
                 }
             })
-            .collect::<Result<_>>()?;
+            .collect();
         let prev = body.insert_var(
             *ident,
             self.tcx.intern(TyKind::Function(Function { params, ret })),
@@ -225,19 +225,13 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         if prev.is_some() { Err(self.already_defined(*ident)) } else { Ok(()) }
     }
 
-    fn preanalyze_method(
-        &mut self,
-        body: &Body<'tcx>,
-        ty: Ty<'tcx>,
-        fndecl: &FnDecl,
-        id: ExprId,
-    ) -> Result<()> {
+    fn preanalyze_method(&mut self, body: &Body<'tcx>, ty: Ty<'tcx>, fndecl: &FnDecl, id: ExprId) {
         _ = body;
         let FnDecl { ident, generics, params, ret, .. } = fndecl;
         self.fn_generics = self.tcx.new_generics(generics);
         self.produced_generics.insert(id, self.fn_generics);
         let ret = match ret {
-            Some(ret) => self.read_ast_ty_with(*ret, Some(ty))?,
+            Some(ret) => self.read_ast_ty_with(*ret, Some(ty)),
             None => Ty::UNIT,
         };
         let params = params
@@ -245,14 +239,16 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
             .enumerate()
             .map(|(i, param)| match param.ty {
                 Some(param_ty) => self.read_ast_ty_with(param_ty, Some(ty)),
-                None if i == 0 && param.ident.symbol == "self" => Ok(ty),
-                None => Err(self.param_missing_ty(param.ident.span)),
+                None if i == 0 && param.ident.symbol == "self" => ty,
+                None => {
+                    self.errors.push(self.param_missing_ty(param.ident.span));
+                    Ty::POISON
+                }
             })
-            .collect::<Result<_>>()?;
+            .collect();
 
         let fn_ty = Function { params, ret };
         self.tcx.add_method(ty, ident.symbol, fn_ty);
-        Ok(())
     }
 
     fn current(&mut self) -> &mut Body<'tcx> {
@@ -280,55 +276,56 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         })
     }
 
-    fn read_ast_ty(&mut self, id: ast::TypeId) -> Result<Ty<'tcx>> {
+    fn read_ast_ty(&mut self, id: ast::TypeId) -> Ty<'tcx> {
         self.read_ast_ty_with(id, None)
     }
 
-    fn read_ast_ty_with(&mut self, id: ast::TypeId, for_ty: Option<Ty<'tcx>>) -> Result<Ty<'tcx>> {
+    fn read_ast_ty_with(&mut self, id: ast::TypeId, for_ty: Option<Ty<'tcx>>) -> Ty<'tcx> {
         let ast_ty = &self.ast.types[id];
         let ty = match ast_ty.kind {
-            ast::TyKind::Ref(of) => {
-                self.tcx.intern(TyKind::Ref(self.read_ast_ty_with(of, for_ty)?))
-            }
+            ast::TyKind::Ref(of) => self.tcx.intern(TyKind::Ref(self.read_ast_ty_with(of, for_ty))),
             ast::TyKind::Func { ref params, ret } => {
                 let ret = match ret {
-                    Some(ty) => self.read_ast_ty_with(ty, for_ty)?,
+                    Some(ty) => self.read_ast_ty_with(ty, for_ty),
                     None => Ty::UNIT,
                 };
-                let params = params
-                    .iter()
-                    .map(|param| self.read_ast_ty_with(*param, for_ty))
-                    .collect::<Result<_>>()?;
+                let params =
+                    params.iter().map(|param| self.read_ast_ty_with(*param, for_ty)).collect();
                 self.tcx.intern(TyKind::Function(Function { params, ret }))
             }
             ast::TyKind::Never => Ty::NEVER,
             ast::TyKind::Unit => Ty::UNIT,
             ast::TyKind::Array(of) => {
-                self.tcx.intern(TyKind::Array(self.read_ast_ty_with(of, for_ty)?))
+                self.tcx.intern(TyKind::Array(self.read_ast_ty_with(of, for_ty)))
             }
             ast::TyKind::Name(name) if name == "_" => self.tcx.new_infer(),
-            ast::TyKind::Name(name) if name == "self" => match for_ty {
-                Some(ty) => ty,
-                None => return Err(self.invalid_self(ast_ty.span)),
-            },
+            ast::TyKind::Name(name) if name == "self" => {
+                if let Some(ty) = for_ty {
+                    ty
+                } else {
+                    self.errors.push(self.invalid_self(ast_ty.span));
+                    Ty::POISON
+                }
+            }
             ast::TyKind::Name(name) => {
                 match ([self.impl_generics, self.fn_generics].iter().copied().flatten())
                     .find(|&g| self.tcx.generic_symbol(g) == name)
                 {
                     Some(id) => self.tcx.intern(TyKind::Generic(id)),
-                    None => self.read_named_ty(name, ast_ty.span)?,
+                    None => self.read_named_ty(name, ast_ty.span),
                 }
             }
         };
         self.ty_info.type_ids[id] = ty;
-        Ok(ty)
+        ty
     }
 
-    fn read_named_ty(&self, name: Symbol, span: Span) -> Result<Ty<'tcx>> {
+    fn read_named_ty(&mut self, name: Symbol, span: Span) -> Ty<'tcx> {
         if let Some(&ty) = self.bodies.iter().rev().find_map(|body| body.ty_names.get(&name)) {
-            return Ok(ty);
+            return ty;
         }
-        Err(self.unknown_type_err(name, span))
+        self.errors.push(self.unknown_type_err(name, span));
+        Ty::POISON
     }
 
     fn eq(&self, lhs: Ty<'tcx>, rhs: Ty<'tcx>, expr: ExprId) -> Result<()> {
@@ -443,7 +440,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
             ExprKind::Let { ident, ty, expr } => {
                 let expr_ty = self.analyze_expr(expr)?;
                 let ty = if let Some(ty) = ty {
-                    let ty = self.read_ast_ty(ty)?;
+                    let ty = self.read_ast_ty(ty);
                     self.sub(expr_ty, ty, expr)?;
                     ty
                 } else {
@@ -457,7 +454,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 let expr_ty = self.analyze_expr(expr)?;
                 self.within_const = within_const;
                 let ty = if let Some(ty) = ty {
-                    let ty = self.read_ast_ty(ty)?;
+                    let ty = self.read_ast_ty(ty);
                     self.sub(expr_ty, ty, expr)?;
                     ty
                 } else {
@@ -723,7 +720,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         _ = id;
         let &Impl { ty, ref methods, .. } = impl_;
         self.impl_generics = self.produced_generics[&id];
-        let ty = self.read_ast_ty(ty)?;
+        let ty = self.read_ast_ty(ty);
         for &method_id in methods {
             let ExprKind::FnDecl(func) = &self.ast.exprs[method_id].kind else { unreachable!() };
             self.analyze_method(ty, func, method_id)?;
