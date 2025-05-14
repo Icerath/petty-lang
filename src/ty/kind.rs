@@ -101,6 +101,9 @@ impl TyKind<'_> {
     pub const fn is_array(&self) -> bool {
         matches!(*self, TyKind::Array(..))
     }
+    pub const fn is_poison(&self) -> bool {
+        matches!(*self, TyKind::Poison)
+    }
 }
 
 impl TyCtx<'_> {
