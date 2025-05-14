@@ -687,19 +687,22 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         let expr = self.analyze_expr(expr)?;
         let index = self.analyze_expr(index)?;
         let expr = self.tcx.infer_shallow(expr);
-        self.index_ty(expr, index, span)
+        Ok(self.index_ty(expr, index, span))
     }
 
-    fn index_ty(&self, lhs: Ty<'tcx>, rhs: Ty<'tcx>, span: Span) -> Result<Ty<'tcx>> {
-        Ok(match (lhs.0, rhs.0) {
-            (TyKind::Poison, _) | (_, TyKind::Poison) => return Ok(Ty::POISON),
+    fn index_ty(&mut self, lhs: Ty<'tcx>, rhs: Ty<'tcx>, span: Span) -> Ty<'tcx> {
+        match (lhs.0, rhs.0) {
+            (TyKind::Poison, _) | (_, TyKind::Poison) => Ty::POISON,
             (TyKind::Str, TyKind::Range) => Ty::STR,
             (TyKind::Array(_), TyKind::Range) => lhs,
             (TyKind::Array(of), TyKind::Int) => *of,
             (TyKind::Str, TyKind::Int) => Ty::CHAR,
-            (TyKind::Ref(lhs), _) => return self.index_ty(*lhs, rhs, span),
-            _ => return Err(self.cannot_index(lhs, span)),
-        })
+            (TyKind::Ref(lhs), _) => self.index_ty(*lhs, rhs, span),
+            _ => {
+                self.errors.push(self.cannot_index(lhs, span));
+                Ty::POISON
+            }
+        }
     }
 
     fn analyze_method(
