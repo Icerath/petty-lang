@@ -88,7 +88,7 @@ pub enum ExprKind {
     While { condition: ExprId, block: BlockId },
     For { ident: Identifier, iter: ExprId, body: BlockId },
     If { arms: ThinVec<IfStmt>, els: Option<BlockId> },
-    Match { expr: ExprId, arms: ThinVec<MatchArm> },
+    Match { scrutinee: ExprId, arms: ThinVec<MatchArm> },
     Return(Option<ExprId>),
     Assert(ExprId),
     Break,

@@ -38,8 +38,8 @@ impl Writer<'_> {
             ExprKind::Impl(Impl { ref generics, ty, ref methods }) => {
                 ("impl", Generics(generics), " ", ty, methods).write(self);
             }
-            ExprKind::Match { expr, ref arms } => {
-                ("match ", expr, " {").write(self);
+            ExprKind::Match { scrutinee, ref arms } => {
+                ("match ", scrutinee, " {").write(self);
                 self.indent += 1;
                 (Line, Sep(arms, (",", Line))).write(self);
                 self.indent -= 1;

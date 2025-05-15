@@ -329,12 +329,12 @@ fn parse_for(stream: &mut Stream) -> Result<Expr> {
 }
 
 fn parse_match(stream: &mut Stream, tok: Token) -> Result<Expr> {
-    let expr = stream.parse()?;
+    let scrutinee = stream.parse()?;
     stream.expect(TokenKind::LBrace)?;
     let arms = stream.parse_separated(TokenKind::Comma, TokenKind::RBrace)?;
     let end = stream.lexer.current_pos() as usize;
     let span = Span::new(tok.span.start() as usize..end, tok.span.source());
-    Ok((ExprKind::Match { expr, arms }).with_span(span))
+    Ok((ExprKind::Match { scrutinee, arms }).with_span(span))
 }
 
 fn parse_ifchain(stream: &mut Stream, if_tok: Token) -> Result<Expr> {

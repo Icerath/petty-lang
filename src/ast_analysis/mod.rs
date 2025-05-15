@@ -519,10 +519,21 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 self.current().loops -= 1;
                 Ty::UNIT
             }
-            ExprKind::Match { expr, ref arms } => {
-                _ = expr;
-                _ = arms;
-                todo!()
+            ExprKind::Match { scrutinee, ref arms } => {
+                let mut ty = None;
+                let scrutinee = self.analyze_expr(scrutinee)?;
+                for arm in arms {
+                    self.analyze_pat(arm.pattern, scrutinee);
+                    let arm_ty = self.analyze_expr(arm.body)?;
+                    match ty {
+                        None => ty = Some(arm_ty),
+                        Some(ty) => {
+                            self.eq(arm_ty, ty, arm.body);
+                        }
+                    }
+                }
+                // TODO: produce error here instead
+                ty.unwrap_or_else(|| self.tcx.new_infer())
             }
             ExprKind::If { ref arms, els } => {
                 let mut expected_ty = None;
@@ -616,6 +627,21 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
 
     fn insert_var(&mut self, ident: Identifier, ty: Ty<'tcx>, kind: Var) {
         self.current().insert_var(ident, ty, kind);
+    }
+
+    fn analyze_pat(&mut self, pat: ExprId, scrutinee: Ty<'tcx>) {
+        let pat_span = self.ast.exprs[pat].span;
+        match self.ast.exprs[pat].kind {
+            ExprKind::Ident(ident) => {
+                // TODO: ...
+                let ident = Identifier { symbol: ident, span: pat_span };
+                self.insert_var(ident, scrutinee, Var::Let);
+            }
+            ExprKind::Lit(Lit::Str(..)) => {
+                self.sub(scrutinee, Ty::STR, pat);
+            }
+            _ => self.errors.push(self.invalid_pat(pat_span)),
+        }
     }
 
     fn analyze_binary_expr(&mut self, lhs: ExprId, op: BinaryOp, rhs: ExprId) -> Result<Ty<'tcx>> {
