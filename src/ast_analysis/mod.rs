@@ -496,27 +496,32 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
             ExprKind::For { ident, iter, body } => {
                 // for now only allow ranges
                 let iter_ty = self.analyze_expr(iter)?;
-                self.tcx.infer_shallow(iter_ty);
+                let iter_ty = self.tcx.infer_shallow(iter_ty);
                 let ident_ty = match iter_ty.0 {
                     TyKind::Range => Ty::INT,
                     TyKind::Array(of) => *of,
                     _ => return Err(self.cannot_iter(iter_ty, self.ast.exprs[iter].span)),
                 };
 
+                self.current().scopes.push(Scope::default());
                 self.insert_var(ident, ident_ty, Var::Let);
 
                 self.current().loops += 1;
                 let out = self.analyze_block(body)?;
                 self.current().loops -= 1;
+                self.current().scopes.pop().unwrap();
+
                 self.sub_block(out, Ty::UNIT, body);
                 Ty::UNIT
             }
             ExprKind::While { condition, block } => {
                 let condition_ty = self.analyze_expr(condition)?;
+                self.current().scopes.push(Scope::default());
                 self.sub(condition_ty, Ty::BOOL, condition);
                 self.current().loops += 1;
                 self.analyze_block(block)?;
                 self.current().loops -= 1;
+                self.current().scopes.pop().unwrap();
                 Ty::UNIT
             }
             ExprKind::Match { scrutinee, ref arms } => {
