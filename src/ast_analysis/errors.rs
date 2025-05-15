@@ -235,12 +235,14 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
     }
 
     fn find_best_name(&self, name: Symbol) -> Option<Symbol> {
+        let max_distance = name.len() / 3;
         self.current_ref()
             .scopes
             .iter()
             .rev()
             .flat_map(|scope| scope.variables.keys())
-            .min_by_key(|ident| strsim::levenshtein(ident, &name))
-            .copied()
+            .map(|ident| (*ident, strsim::levenshtein(ident, &name)))
+            .min_by_key(|(_, d)| *d)
+            .and_then(|(name, distance)| (distance <= max_distance).then_some(name))
     }
 }
