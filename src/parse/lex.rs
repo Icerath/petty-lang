@@ -75,6 +75,7 @@ impl Iterator for Lexer<'_> {
                     TokenKind::DotDot
                 }
             }
+            '=' if self.try_next('>') => TokenKind::FatArrow,
             '-' if self.try_next('>') => TokenKind::ThinArrow,
             '+' if self.try_next('=') => TokenKind::PlusEq,
             '-' if self.try_next('=') => TokenKind::MinusEq,
@@ -212,6 +213,7 @@ fn ident_kind(str: &str) -> TokenKind {
         "struct" => TokenKind::Struct,
         "true" => TokenKind::True,
         "while" => TokenKind::While,
+        "match" => TokenKind::Match,
         _ => TokenKind::Ident,
     }
 }

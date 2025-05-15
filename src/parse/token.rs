@@ -11,6 +11,7 @@ pub enum TokenKind {
     Semicolon,
     Colon,
     ThinArrow,
+    FatArrow,
     Ampersand,
 
     LBrace,
@@ -59,6 +60,7 @@ pub enum TokenKind {
     While,
     For,
     In,
+    Match,
     Unreachable,
     Trait,
     Impl,
@@ -133,7 +135,9 @@ impl TokenKind {
             Self::Star => "*",
             Self::Str => "string",
             Self::ThinArrow => "->",
+            Self::FatArrow => "=>",
             Self::Struct => "struct",
+            Self::Match => "match",
         }
     }
 }
