@@ -12,17 +12,42 @@ pub fn error<S: Into<String>>(
     src: &str,
     labels: impl IntoIterator<Item = (Span, S)>,
 ) -> Error {
-    let labels: Vec<_> = labels
-        .into_iter()
-        .map(|(span, msg)| LabeledSpan::at(offset_span(span).into_range_usize(), msg))
-        .collect();
-    error_inner(error, path, src, labels)
+    error_with(error, path, src, labels, None)
 }
 
 #[inline(never)]
 #[cold]
-fn error_inner(error: &str, path: Option<&Path>, src: &str, labels: Vec<LabeledSpan>) -> Error {
-    miette::miette!(labels = labels, "{error}").with_source_code(source(src, path))
+pub fn error_with<S: Into<String>>(
+    error: &str,
+    path: Option<&Path>,
+    src: &str,
+    labels: impl IntoIterator<Item = (Span, S)>,
+    help: Option<&str>,
+) -> Error {
+    let labels: Vec<_> = labels
+        .into_iter()
+        .map(|(span, msg)| LabeledSpan::at(offset_span(span).into_range_usize(), msg))
+        .collect();
+    error_inner(error, path, src, labels, help)
+}
+
+#[inline(never)]
+#[cold]
+fn error_inner(
+    error: &str,
+    path: Option<&Path>,
+    src: &str,
+    labels: Vec<LabeledSpan>,
+    extra: Option<&str>,
+) -> Error {
+    let suggest = extra.map(str::to_string);
+    miette::Report::from({
+        let mut diag = miette::MietteDiagnostic::new(error.to_string());
+        diag.help = suggest;
+        diag.labels = Some(labels);
+        diag
+    })
+    .with_source_code(source(src, path))
 }
 
 fn source(src: &str, path: Option<&Path>) -> NamedSource<String> {

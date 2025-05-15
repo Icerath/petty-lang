@@ -265,6 +265,9 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         self.tcx.add_method(ty, ident.symbol, fn_ty);
     }
 
+    fn current_ref(&self) -> &Body<'tcx> {
+        self.bodies.last().unwrap()
+    }
     fn current(&mut self) -> &mut Body<'tcx> {
         self.bodies.last_mut().unwrap()
     }

@@ -153,9 +153,13 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         )
     }
     pub fn ident_not_found(&self, ident: Symbol, span: Span) -> Error {
-        self.raw_error(
+        let help = self
+            .find_best_name(ident)
+            .map(|suggest| format!("a local variable with a similar name exists: `{suggest}`"));
+        self.raw_error_help(
             &format!("cannot find '{ident}' in this scope"),
             [(span, format!("'{ident}' not found"))],
+            help.as_deref(),
         )
     }
     pub fn unknown_type_err(&self, name: Symbol, span: Span) -> Error {
@@ -216,6 +220,27 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
     where
         S: Into<String>,
     {
-        crate::errors::error(msg, self.path, self.src, labels)
+        self.raw_error_help(msg, labels, None)
+    }
+    fn raw_error_help<S>(
+        &self,
+        msg: &str,
+        labels: impl IntoIterator<Item = (Span, S)>,
+        help: Option<&str>,
+    ) -> Error
+    where
+        S: Into<String>,
+    {
+        crate::errors::error_with(msg, self.path, self.src, labels, help)
+    }
+
+    fn find_best_name(&self, name: Symbol) -> Option<Symbol> {
+        self.current_ref()
+            .scopes
+            .iter()
+            .rev()
+            .flat_map(|scope| scope.variables.keys())
+            .min_by_key(|ident| strsim::levenshtein(ident, &name))
+            .copied()
     }
 }
