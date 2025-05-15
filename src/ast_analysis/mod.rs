@@ -519,6 +519,11 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 self.current().loops -= 1;
                 Ty::UNIT
             }
+            ExprKind::Match { expr, ref arms } => {
+                _ = expr;
+                _ = arms;
+                todo!()
+            }
             ExprKind::If { ref arms, els } => {
                 let mut expected_ty = None;
 

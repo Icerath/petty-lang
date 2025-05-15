@@ -88,6 +88,7 @@ pub enum ExprKind {
     While { condition: ExprId, block: BlockId },
     For { ident: Identifier, iter: ExprId, body: BlockId },
     If { arms: ThinVec<IfStmt>, els: Option<BlockId> },
+    Match { expr: ExprId, arms: ThinVec<MatchArm> },
     Return(Option<ExprId>),
     Assert(ExprId),
     Break,
@@ -96,6 +97,12 @@ pub enum ExprKind {
     Impl(Impl),
     FnDecl(FnDecl),
     Struct { ident: Identifier, fields: ThinVec<Field> },
+}
+
+#[derive(Debug)]
+pub struct MatchArm {
+    pub pattern: ExprId,
+    pub body: ExprId,
 }
 
 #[derive(Debug)]

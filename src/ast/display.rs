@@ -5,7 +5,9 @@ use std::{
 
 use thin_vec::ThinVec;
 
-use super::{ArraySeg, ExprKind, Field, FnDecl, Identifier, Impl, Param, Trait, TyKind, TypeId};
+use super::{
+    ArraySeg, ExprKind, Field, FnDecl, Identifier, Impl, MatchArm, Param, Trait, TyKind, TypeId,
+};
 use crate::{
     ast::{Ast, BinaryOp, BlockId, ExprId, Lit, UnaryOp},
     symbol::Symbol,
@@ -35,6 +37,13 @@ impl Writer<'_> {
         match self.ast.exprs[expr].kind {
             ExprKind::Impl(Impl { ref generics, ty, ref methods }) => {
                 ("impl", Generics(generics), " ", ty, methods).write(self);
+            }
+            ExprKind::Match { expr, ref arms } => {
+                ("match ", expr, " {").write(self);
+                self.indent += 1;
+                (Line, Sep(arms, (",", Line))).write(self);
+                self.indent -= 1;
+                (Line, "}").write(self);
             }
             ExprKind::Unreachable => "unreachable".write(self),
             ExprKind::Assert(expr) => ("assert ", expr).write(self),
@@ -137,6 +146,12 @@ impl<T: Dump, S: Dump> Dump for Sep<'_, T, S> {
         for (i, arg) in self.0.iter().enumerate() {
             ((i != 0).then_some(&self.1), arg).write(w);
         }
+    }
+}
+
+impl Dump for MatchArm {
+    fn write(&self, w: &mut Writer) {
+        (self.pattern, " => ", self.body).write(w);
     }
 }
 

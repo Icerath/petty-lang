@@ -12,7 +12,7 @@ use token::{Token, TokenKind};
 use crate::{
     ast::{
         ArraySeg, Ast, BinOpKind, BinaryOp, Block, BlockId, Expr, ExprId, ExprKind, Field, FnDecl,
-        Identifier, IfStmt, Impl, Lit, Param, Trait, Ty, TyKind, TypeId,
+        Identifier, IfStmt, Impl, Lit, MatchArm, Param, Trait, Ty, TyKind, TypeId,
     },
     errors,
     span::Span,
@@ -328,6 +328,15 @@ fn parse_for(stream: &mut Stream) -> Result<Expr> {
     Ok((ExprKind::For { ident, iter, body }).todo_span())
 }
 
+fn parse_match(stream: &mut Stream, tok: Token) -> Result<Expr> {
+    let expr = stream.parse()?;
+    stream.expect(TokenKind::LBrace)?;
+    let arms = stream.parse_separated(TokenKind::Comma, TokenKind::RBrace)?;
+    let end = stream.lexer.current_pos() as usize;
+    let span = Span::new(tok.span.start() as usize..end, tok.span.source());
+    Ok((ExprKind::Match { expr, arms }).with_span(span))
+}
+
 fn parse_ifchain(stream: &mut Stream, if_tok: Token) -> Result<Expr> {
     let mut arms = thin_vec![];
     let els = loop {
@@ -361,6 +370,15 @@ impl Parse for ArraySeg {
             None
         };
         Ok(Self { expr, repeated })
+    }
+}
+
+impl Parse for MatchArm {
+    fn parse(stream: &mut Stream) -> Result<Self> {
+        let pattern = stream.parse()?;
+        stream.expect(TokenKind::FatArrow)?;
+        let body = stream.parse()?;
+        Ok(Self { pattern, body })
     }
 }
 
@@ -484,6 +502,7 @@ fn parse_atom_with(stream: &mut Stream, tok: Token) -> Result<ExprId> {
         TokenKind::Const | TokenKind::Let => parse_var(stream, tok),
         TokenKind::While => parse_while(stream),
         TokenKind::For => parse_for(stream),
+        TokenKind::Match => parse_match(stream, tok),
         TokenKind::If => parse_ifchain(stream, tok),
         TokenKind::True => lit!(Lit::Bool(true)),
         TokenKind::False => lit!(Lit::Bool(false)),
