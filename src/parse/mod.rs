@@ -25,7 +25,7 @@ pub fn parse(src: &str, path: Option<&Path>) -> Result<Ast> {
     let mut stream = Stream { lexer, ast: &mut ast, path };
     let mut top_level = vec![];
     while let Some(next) = stream.lexer.clone().next() {
-        if next?.kind == TokenKind::Semicolon {
+        if next.kind == TokenKind::Semicolon {
             _ = stream.lexer.next();
             continue;
         }
@@ -44,7 +44,7 @@ struct Stream<'src, 'path> {
 impl Stream<'_, '_> {
     fn next(&mut self) -> Result<Token> {
         if let Some(result) = self.lexer.next() {
-            return result;
+            return Ok(result);
         }
         Err(self.handle_eof())
     }
@@ -533,8 +533,7 @@ fn parse_atom_with(stream: &mut Stream, tok: Token) -> Result<ExprId> {
             Ok(ExprKind::Assert(expr).with_span(stream.ast.exprs[expr].span))
         }
         TokenKind::Return => {
-            if (stream.lexer.clone().next().transpose()?).is_none_or(|tok| tok.kind.is_terminator())
-            {
+            if (stream.lexer.clone().next()).is_none_or(|tok| tok.kind.is_terminator()) {
                 Ok(ExprKind::Return(None).with_span(tok.span))
             } else {
                 let expr = stream.parse()?;

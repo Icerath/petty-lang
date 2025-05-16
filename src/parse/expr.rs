@@ -45,7 +45,7 @@ fn parse_expr(stream: &mut Stream, precedence: u8) -> Result<ExprId> {
     };
     let mut root = parse_expr(stream, precedence + 1)?;
     loop {
-        let Some(token) = stream.lexer.clone().next().transpose()? else { break };
+        let Some(token) = stream.lexer.clone().next() else { break };
         let Ok(op) = BinaryOp::try_from(token) else { break };
         if !ops.contains(&op.kind) {
             break;
@@ -63,7 +63,7 @@ fn parse_leaf_expr(stream: &mut Stream, next: Token) -> Result<ExprId> {
     let mut expr = parse_atom_with(stream, next)?;
 
     loop {
-        let Some(token) = stream.lexer.clone().next().transpose()? else { break };
+        let Some(token) = stream.lexer.clone().next() else { break };
         match token.kind {
             TokenKind::LParen => {
                 _ = stream.next();

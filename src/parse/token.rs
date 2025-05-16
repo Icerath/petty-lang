@@ -69,6 +69,8 @@ pub enum TokenKind {
     Int,
     Str,
     Ident,
+
+    Unknown,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -138,6 +140,7 @@ impl TokenKind {
             Self::FatArrow => "=>",
             Self::Struct => "struct",
             Self::Match => "match",
+            Self::Unknown => "unknown",
         }
     }
 }

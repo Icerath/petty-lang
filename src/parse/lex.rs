@@ -1,9 +1,7 @@
 use std::str::Chars;
 
-use miette::Result;
-
 use super::token::{Token, TokenKind};
-use crate::{errors, span::Span};
+use crate::span::Span;
 
 #[derive(Clone)]
 pub struct Lexer<'src> {
@@ -53,7 +51,7 @@ impl<'src> Lexer<'src> {
 }
 
 impl Iterator for Lexer<'_> {
-    type Item = Result<Token>;
+    type Item = Token;
 
     #[expect(clippy::cast_possible_truncation)]
     fn next(&mut self) -> Option<Self::Item> {
@@ -116,16 +114,9 @@ impl Iterator for Lexer<'_> {
             '"' => self.str(),
             '0'..='9' => self.int(),
             'a'..='z' | 'A'..='Z' | '_' => self.ident(self.token_start),
-            _ => {
-                return Some(Err(errors::error(
-                    "unknown token",
-                    None,
-                    self.src,
-                    [(self.span(), "here")],
-                )));
-            }
+            _ => TokenKind::Unknown,
         };
-        Some(Ok(Token { span: Span::from(self.token_start..self.current_pos()), kind }))
+        Some(Token { span: Span::from(self.token_start..self.current_pos()), kind })
     }
 }
 
