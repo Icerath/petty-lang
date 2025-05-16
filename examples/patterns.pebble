@@ -23,3 +23,11 @@ match array {
     ["foo", bar] | ["baz", bar] => println(bar),
 //    ..
 }
+
+// You can compare against expressions by wrapping them in {}
+let foo = 10;
+let bar = 10;
+match foo {
+    { bar } => println("Foo is equal to bar"),
+    other => println("Foo is equal to ${other}, not bar"),
+}
