@@ -388,6 +388,7 @@ impl Parse for PatKind {
         match next.kind {
             TokenKind::Ident => Ok(Self::Ident(Symbol::from(&stream.lexer.src()[next.span]))),
             TokenKind::Str => Ok(Self::Str(Symbol::from(&stream.lexer.src()[next.span]))),
+            TokenKind::Int => Ok(Self::Int(stream.lexer.src()[next.span].parse::<i64>().unwrap())),
             _ => unreachable!(),
         }
     }

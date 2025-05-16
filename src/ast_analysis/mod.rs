@@ -649,7 +649,12 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 self.insert_var(ident, scrutinee, Var::Let);
             }
             PatKind::Str(..) => _ = self.sub_span(scrutinee, Ty::STR, pat.span),
-            _ => self.errors.push(self.invalid_pat(pat.span)),
+            PatKind::Int(..) => _ = self.sub_span(scrutinee, Ty::INT, pat.span),
+            PatKind::Or(ref patterns) => {
+                for pat in patterns {
+                    self.analyze_pat(pat, scrutinee);
+                }
+            }
         }
     }
 

@@ -9,9 +9,6 @@ use crate::{
 };
 
 impl<'tcx> Collector<'_, '_, 'tcx> {
-    pub fn invalid_pat(&self, span: Span) -> Error {
-        self.raw_error("invalid pattern", [(span, "invalid pattern")])
-    }
     pub fn param_missing_ty(&self, span: Span) -> Error {
         self.raw_error("parameters must be given an explicit type", [(span, "needs explicit type")])
     }

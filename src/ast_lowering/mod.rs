@@ -308,11 +308,15 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
         .with(self.ty_info.expr_tys[id])
     }
 
+    #[expect(clippy::only_used_in_recursion)]
     fn lower_pat(&mut self, pat: &ast::Pat) -> Pat {
         match pat.kind {
             ast::PatKind::Ident(ident) => Pat::Ident(ident),
             ast::PatKind::Str(str) => Pat::Str(str),
-            _ => todo!(),
+            ast::PatKind::Int(int) => Pat::Int(int),
+            ast::PatKind::Or(ref patterns) => {
+                Pat::Or(patterns.iter().map(|pat| self.lower_pat(pat)).collect())
+            }
         }
     }
 

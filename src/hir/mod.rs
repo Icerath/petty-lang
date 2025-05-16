@@ -68,6 +68,8 @@ pub struct MatchArm {
 pub enum Pat {
     Ident(Symbol),
     Str(Symbol),
+    Int(i64),
+    Or(ThinVec<Pat>),
 }
 
 #[derive(Debug)]
