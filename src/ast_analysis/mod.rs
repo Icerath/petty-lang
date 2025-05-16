@@ -535,6 +535,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 let mut ty = None;
                 let scrutinee = self.analyze_expr(scrutinee)?;
                 for arm in arms {
+                    self.current().scopes.push(Scope::default());
                     self.analyze_pat(&arm.pat, scrutinee)?;
                     let arm_ty = self.analyze_expr(arm.body)?;
                     match ty {
@@ -543,6 +544,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                             self.eq(arm_ty, ty, arm.body);
                         }
                     }
+                    self.current().scopes.pop().unwrap();
                 }
                 // TODO: produce error here instead
                 ty.unwrap_or_else(|| self.tcx.new_infer())
