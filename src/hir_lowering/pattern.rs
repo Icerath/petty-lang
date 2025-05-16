@@ -1,7 +1,7 @@
 use super::Lowering;
 use crate::{
     hir::{self, ExprId, MatchArm, Pat},
-    mir::{BlockId, Operand, RValue, Terminator},
+    mir::{BlockId, Constant, Operand, RValue, Terminator},
     ty::Ty,
 };
 
@@ -54,7 +54,37 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
                 let rhs_ty = self.ty(expr);
                 self.binary_op_inner((scrutinee.into(), ty), hir::BinaryOp::Eq, (rhs, rhs_ty))
             }
-            Pat::Or(..) => todo!(),
+            Pat::Or(ref patterns) => {
+                // TODO: optimize control flow with lower_match
+                let output = self.new_local();
+                let mut placeholders = vec![];
+                let condition_local = self.new_local();
+                let mut set_condition = false;
+                for pat in patterns {
+                    match self.try_pattern(scrutinee.clone(), ty, pat) {
+                        Some(condition) => {
+                            set_condition = true;
+                            self.assign(condition_local, condition);
+                            let next = self.current_block() + 1;
+                            placeholders.push(self.finish_with(Terminator::Branch {
+                                condition: Operand::local(condition_local),
+                                fals: next,
+                                tru: BlockId::PLACEHOLDER,
+                            }));
+                        }
+                        None => self.assign(output, Constant::Bool(true)),
+                    }
+                }
+                let current = self.current_block();
+                for placeholder in placeholders {
+                    self.body_mut().blocks[placeholder].terminator.complete(current);
+                }
+                if set_condition {
+                    RValue::local(condition_local)
+                } else {
+                    return None;
+                }
+            }
         })
     }
 }
