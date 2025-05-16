@@ -100,8 +100,22 @@ pub enum ExprKind {
 }
 
 #[derive(Debug)]
+pub struct Pat {
+    pub kind: PatKind,
+    pub span: Span,
+}
+
+#[derive(Debug)]
+pub enum PatKind {
+    Str(Symbol),
+    Int(i64),
+    Or(ThinVec<Pat>),
+    Ident(Symbol),
+}
+
+#[derive(Debug)]
 pub struct MatchArm {
-    pub pattern: ExprId,
+    pub pat: Pat,
     pub body: ExprId,
 }
 

@@ -173,6 +173,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
     pub fn subtype_err(&self, lhs: Ty<'tcx>, rhs: Ty<'tcx>, expr: ExprId) -> Error {
         self.subtype_err_inner(lhs, rhs, self.invalid_type_span(expr))
     }
+
     #[cold]
     #[inline(never)]
     pub fn subtype_err_block(&self, lhs: Ty<'tcx>, rhs: Ty<'tcx>, block: BlockId) -> Error {
@@ -181,7 +182,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
 
     #[cold]
     #[inline(never)]
-    fn subtype_err_inner(&self, lhs: Ty<'tcx>, rhs: Ty<'tcx>, spans: Vec<Span>) -> Error {
+    pub fn subtype_err_inner(&self, lhs: Ty<'tcx>, rhs: Ty<'tcx>, spans: Vec<Span>) -> Error {
         let lhs = self.tcx.try_infer_deep(lhs).unwrap_or_else(|ty| ty);
         let rhs = self.tcx.try_infer_deep(rhs).unwrap_or_else(|ty| ty);
         self.raw_error(

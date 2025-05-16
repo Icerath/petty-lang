@@ -300,7 +300,7 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
             arms: arms
                 .iter()
                 .map(|arm| hir::MatchArm {
-                    pat: self.lower_pat(arm.pattern),
+                    pat: self.lower_pat(&arm.pat),
                     body: self.lower(arm.body),
                 })
                 .collect(),
@@ -308,10 +308,10 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
         .with(self.ty_info.expr_tys[id])
     }
 
-    fn lower_pat(&mut self, expr: ast::ExprId) -> Pat {
-        match self.ast.exprs[expr].kind {
-            ast::ExprKind::Ident(ident) => Pat::Ident(ident),
-            ast::ExprKind::Lit(ast::Lit::Str(str)) => Pat::Str(str),
+    fn lower_pat(&mut self, pat: &ast::Pat) -> Pat {
+        match pat.kind {
+            ast::PatKind::Ident(ident) => Pat::Ident(ident),
+            ast::PatKind::Str(str) => Pat::Str(str),
             _ => todo!(),
         }
     }

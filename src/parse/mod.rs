@@ -12,7 +12,7 @@ use token::{Token, TokenKind};
 use crate::{
     ast::{
         ArraySeg, Ast, BinOpKind, BinaryOp, Block, BlockId, Expr, ExprId, ExprKind, Field, FnDecl,
-        Identifier, IfStmt, Impl, Lit, MatchArm, Param, Trait, Ty, TyKind, TypeId,
+        Identifier, IfStmt, Impl, Lit, MatchArm, Param, Pat, PatKind, Trait, Ty, TyKind, TypeId,
     },
     errors,
     span::Span,
@@ -373,12 +373,32 @@ impl Parse for ArraySeg {
     }
 }
 
+impl Parse for Pat {
+    fn parse(stream: &mut Stream) -> Result<Self> {
+        let start = stream.lexer.current_pos();
+        let kind = stream.parse()?;
+        Ok(Self { kind, span: Span::from(start..stream.lexer.current_pos()) })
+    }
+}
+
+impl Parse for PatKind {
+    fn parse(stream: &mut Stream) -> Result<Self> {
+        let next = stream.any(&[TokenKind::Ident, TokenKind::Str, TokenKind::Int])?;
+
+        match next.kind {
+            TokenKind::Ident => Ok(Self::Ident(Symbol::from(&stream.lexer.src()[next.span]))),
+            TokenKind::Str => Ok(Self::Str(Symbol::from(&stream.lexer.src()[next.span]))),
+            _ => unreachable!(),
+        }
+    }
+}
+
 impl Parse for MatchArm {
     fn parse(stream: &mut Stream) -> Result<Self> {
-        let pattern = stream.parse()?;
+        let pat = stream.parse()?;
         stream.expect(TokenKind::FatArrow)?;
         let body = stream.parse()?;
-        Ok(Self { pattern, body })
+        Ok(Self { pat, body })
     }
 }
 

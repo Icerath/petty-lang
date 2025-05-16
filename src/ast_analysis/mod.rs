@@ -10,7 +10,7 @@ use crate::{
     HashMap,
     ast::{
         self, Ast, BinOpKind, BinaryOp, Block, BlockId, ExprId, ExprKind, FnDecl, Identifier, Impl,
-        Lit, Trait, TypeId, UnaryOp,
+        Lit, Pat, PatKind, Trait, TypeId, UnaryOp,
     },
     span::Span,
     symbol::Symbol,
@@ -365,6 +365,14 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         Infer { out: Ok(()) }
     }
 
+    fn sub_span(&mut self, lhs: Ty<'tcx>, rhs: Ty<'tcx>, span: Span) -> Infer {
+        if let Err([lhs, rhs]) = self.tcx.sub(lhs, rhs) {
+            self.errors.push(self.subtype_err_inner(lhs, rhs, vec![span]));
+            return Infer { out: Err(()) };
+        }
+        Infer { out: Ok(()) }
+    }
+
     fn sub_block(&mut self, lhs: Ty<'tcx>, rhs: Ty<'tcx>, block: BlockId) -> Infer {
         if let Err([lhs, rhs]) = self.tcx.sub(lhs, rhs) {
             self.errors.push(self.subtype_err_block(lhs, rhs, block));
@@ -527,7 +535,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 let mut ty = None;
                 let scrutinee = self.analyze_expr(scrutinee)?;
                 for arm in arms {
-                    self.analyze_pat(arm.pattern, scrutinee);
+                    self.analyze_pat(&arm.pat, scrutinee);
                     let arm_ty = self.analyze_expr(arm.body)?;
                     match ty {
                         None => ty = Some(arm_ty),
@@ -633,18 +641,15 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         self.current().insert_var(ident, ty, kind);
     }
 
-    fn analyze_pat(&mut self, pat: ExprId, scrutinee: Ty<'tcx>) {
-        let pat_span = self.ast.exprs[pat].span;
-        match self.ast.exprs[pat].kind {
-            ExprKind::Ident(ident) => {
+    fn analyze_pat(&mut self, pat: &Pat, scrutinee: Ty<'tcx>) {
+        match pat.kind {
+            PatKind::Ident(ident) => {
                 // TODO: ...
-                let ident = Identifier { symbol: ident, span: pat_span };
+                let ident = Identifier { symbol: ident, span: pat.span };
                 self.insert_var(ident, scrutinee, Var::Let);
             }
-            ExprKind::Lit(Lit::Str(..)) => {
-                self.sub(scrutinee, Ty::STR, pat);
-            }
-            _ => self.errors.push(self.invalid_pat(pat_span)),
+            PatKind::Str(..) => _ = self.sub_span(scrutinee, Ty::STR, pat.span),
+            _ => self.errors.push(self.invalid_pat(pat.span)),
         }
     }
 
