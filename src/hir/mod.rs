@@ -60,8 +60,13 @@ impl<'tcx> From<FnDecl<'tcx>> for Expr<'tcx> {
 
 #[derive(Debug)]
 pub struct MatchArm {
-    pub pat: ExprId,
+    pub pat: Pat,
     pub body: ExprId,
+}
+
+#[derive(Debug)]
+pub enum Pat {
+    Ident(Symbol),
 }
 
 #[derive(Debug)]

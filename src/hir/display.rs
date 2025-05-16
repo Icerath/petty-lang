@@ -3,7 +3,7 @@ use std::{
     mem,
 };
 
-use super::{ArraySeg, ExprKind, FnDecl, MatchArm, OpAssign, Param};
+use super::{ArraySeg, ExprKind, FnDecl, MatchArm, OpAssign, Param, Pat};
 use crate::{
     hir::{BinaryOp, ExprId, Hir, Lit, UnaryOp},
     symbol::Symbol,
@@ -29,7 +29,15 @@ impl Hir<'_> {
 
 impl Dump for MatchArm {
     fn write(&self, w: &mut Writer) {
-        (self.pat, " => ", self.body).write(w);
+        (&self.pat, " => ", self.body).write(w);
+    }
+}
+
+impl Dump for Pat {
+    fn write(&self, w: &mut Writer) {
+        match self {
+            Self::Ident(ident) => ident.write(w),
+        }
     }
 }
 

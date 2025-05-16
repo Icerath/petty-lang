@@ -12,7 +12,7 @@ use index_vec::IndexVec;
 
 use crate::{
     HashMap, errors,
-    hir::{self, ArraySeg, ExprId, ExprKind, FnDecl, Hir, Lit, OpAssign},
+    hir::{self, ArraySeg, ExprId, ExprKind, FnDecl, Hir, Lit, MatchArm, OpAssign, Pat},
     mir::{
         self, BinaryOp, Block, BlockId, Body, BodyId, Constant, Local, Mir, Operand, Place,
         Projection, RValue, Statement, Terminator, UnaryOp,
@@ -342,7 +342,7 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
                 );
                 RValue::UNIT
             }
-            ExprKind::Match { .. } => todo!(),
+            ExprKind::Match { scrutinee, ref arms } => self.lower_match(scrutinee, arms),
             ExprKind::If { ref arms, ref els } => {
                 let mut jump_to_ends = Vec::with_capacity(arms.len());
                 let out_local = self.new_local();
@@ -433,6 +433,25 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
             }
             ExprKind::Block(ref exprs) => self.block_expr(exprs),
         }
+    }
+
+    fn lower_match(&mut self, scrutinee: ExprId, arms: &[MatchArm]) -> RValue {
+        // let ty = self.ty(scrutinee);
+        let scrutinee = self.lower(scrutinee);
+        let output = self.new_local();
+        for arm in arms {
+            match arm.pat {
+                Pat::Ident(ident) => {
+                    let ident_var = self.assign_new(scrutinee.clone());
+
+                    self.current_mut().scope().variables.insert(ident, ident_var);
+
+                    let body = self.lower(arm.body);
+                    self.assign(output, body);
+                }
+            }
+        }
+        RValue::UNIT
     }
 
     fn mono_fn(&mut self, ident: Symbol, location: BodyId, ty: Ty<'tcx>) -> RValue {
