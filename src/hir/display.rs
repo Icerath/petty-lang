@@ -37,8 +37,7 @@ impl Dump for Pat {
     fn write(&self, w: &mut Writer) {
         match *self {
             Self::Ident(ident) => ident.write(w),
-            Self::Str(str) => Lit::String(str).write(w),
-            Self::Int(int) => Lit::Int(int).write(w),
+            Self::Expr(expr) => ("{", expr, " }").write(w),
             Self::Or(ref patterns) => Sep(patterns, " or ").write(w),
         }
     }

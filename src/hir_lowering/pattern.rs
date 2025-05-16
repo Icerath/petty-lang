@@ -1,20 +1,21 @@
 use super::Lowering;
 use crate::{
-    hir::{ExprId, MatchArm, Pat},
-    mir::{BinaryOp, BlockId, Constant, Operand, RValue, Terminator},
+    hir::{self, ExprId, MatchArm, Pat},
+    mir::{BlockId, Operand, RValue, Terminator},
+    ty::Ty,
 };
 
-impl Lowering<'_, '_, '_> {
+impl<'tcx> Lowering<'_, 'tcx, '_> {
     pub(super) fn lower_match(&mut self, scrutinee: ExprId, arms: &[MatchArm]) -> RValue {
         // TODO: take refs into account
 
-        // let ty = self.ty(scrutinee);
+        let ty = self.ty(scrutinee);
         let scrutinee = self.lower(scrutinee);
         let output = self.new_local();
         let mut placeholders = vec![];
 
         for arm in arms {
-            let placeholder = match self.try_pattern(scrutinee.clone(), &arm.pat) {
+            let placeholder = match self.try_pattern(scrutinee.clone(), ty, &arm.pat) {
                 Some(condition) => {
                     let condition = self.assign_new(condition);
                     let next = self.current_block() + 1;
@@ -40,10 +41,7 @@ impl Lowering<'_, '_, '_> {
         }
         RValue::local(output)
     }
-}
-
-impl Lowering<'_, '_, '_> {
-    fn try_pattern(&mut self, scrutinee: Operand, pat: &Pat) -> Option<RValue> {
+    fn try_pattern(&mut self, scrutinee: Operand, ty: Ty<'tcx>, pat: &Pat) -> Option<RValue> {
         Some(match *pat {
             Pat::Ident(ident) => {
                 let ident_var = self.assign_new(scrutinee);
@@ -51,13 +49,10 @@ impl Lowering<'_, '_, '_> {
 
                 return None;
             }
-            Pat::Str(str) => {
-                let rhs = Constant::Str(str.as_str().into()).into();
-                RValue::Binary { lhs: scrutinee, op: BinaryOp::StrEq, rhs }
-            }
-            Pat::Int(int) => {
-                let rhs = Constant::Int(int).into();
-                RValue::Binary { lhs: scrutinee, op: BinaryOp::IntEq, rhs }
+            Pat::Expr(expr) => {
+                let rhs = self.lower_rvalue(expr);
+                let rhs_ty = self.ty(expr);
+                self.binary_op_inner((scrutinee.into(), ty), hir::BinaryOp::Eq, (rhs, rhs_ty))
             }
             Pat::Or(..) => todo!(),
         })
