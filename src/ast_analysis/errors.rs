@@ -236,7 +236,8 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
 
     fn find_best_name(&self, name: Symbol) -> Option<Symbol> {
         let max_distance = name.len() / 3;
-        self.current_ref()
+        self.bodies
+            .last()?
             .scopes
             .iter()
             .rev()
