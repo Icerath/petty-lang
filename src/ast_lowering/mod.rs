@@ -317,6 +317,10 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
             ast::PatKind::Int(int) => {
                 Pat::Expr(self.hir.exprs.push(ExprKind::Literal(hir::Lit::Int(int)).with(Ty::INT)))
             }
+            ast::PatKind::Expr(block) => {
+                let expr = self.lower_block(block);
+                Pat::Expr(self.hir.exprs.push(expr))
+            }
             ast::PatKind::Or(ref patterns) => {
                 Pat::Or(patterns.iter().map(|pat| self.lower_pat(pat)).collect())
             }

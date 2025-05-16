@@ -376,7 +376,12 @@ impl Parse for ArraySeg {
 impl Parse for Pat {
     fn parse(stream: &mut Stream) -> Result<Self> {
         fn parse_single(stream: &mut Stream) -> Result<Pat> {
-            let tok = stream.any(&[TokenKind::Ident, TokenKind::Str, TokenKind::Int])?;
+            let tok = stream.any(&[
+                TokenKind::Ident,
+                TokenKind::Str,
+                TokenKind::Int,
+                TokenKind::LBrace,
+            ])?;
             let kind = match tok.kind {
                 TokenKind::Ident => PatKind::Ident(Symbol::from(&stream.lexer.src()[tok.span])),
                 TokenKind::Str => {
@@ -384,6 +389,10 @@ impl Parse for Pat {
                 }
                 TokenKind::Int => {
                     PatKind::Int(stream.lexer.src()[tok.span].parse::<i64>().unwrap())
+                }
+                TokenKind::LBrace => {
+                    let block: BlockId = stream.parse()?;
+                    PatKind::Expr(block)
                 }
                 _ => unreachable!(),
             };

@@ -535,7 +535,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 let mut ty = None;
                 let scrutinee = self.analyze_expr(scrutinee)?;
                 for arm in arms {
-                    self.analyze_pat(&arm.pat, scrutinee);
+                    self.analyze_pat(&arm.pat, scrutinee)?;
                     let arm_ty = self.analyze_expr(arm.body)?;
                     match ty {
                         None => ty = Some(arm_ty),
@@ -641,7 +641,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         self.current().insert_var(ident, ty, kind);
     }
 
-    fn analyze_pat(&mut self, pat: &Pat, scrutinee: Ty<'tcx>) {
+    fn analyze_pat(&mut self, pat: &Pat, scrutinee: Ty<'tcx>) -> Result<()> {
         match pat.kind {
             PatKind::Ident(ident) => {
                 // TODO: ...
@@ -650,12 +650,17 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
             }
             PatKind::Str(..) => _ = self.sub_span(scrutinee, Ty::STR, pat.span),
             PatKind::Int(..) => _ = self.sub_span(scrutinee, Ty::INT, pat.span),
+            PatKind::Expr(block) => {
+                let ty = self.analyze_block(block)?;
+                self.sub_block(ty, scrutinee, block);
+            }
             PatKind::Or(ref patterns) => {
                 for pat in patterns {
-                    self.analyze_pat(pat, scrutinee);
+                    self.analyze_pat(pat, scrutinee)?;
                 }
             }
         }
+        Ok(())
     }
 
     fn analyze_binary_expr(&mut self, lhs: ExprId, op: BinaryOp, rhs: ExprId) -> Result<Ty<'tcx>> {

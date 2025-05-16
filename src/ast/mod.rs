@@ -109,6 +109,7 @@ pub struct Pat {
 pub enum PatKind {
     Str(Symbol),
     Int(i64),
+    Expr(BlockId),
     Or(ThinVec<Pat>),
     Ident(Symbol),
 }
