@@ -67,6 +67,7 @@ pub struct MatchArm {
 #[derive(Debug)]
 pub enum Pat {
     Ident(Symbol),
+    Str(Symbol),
 }
 
 #[derive(Debug)]

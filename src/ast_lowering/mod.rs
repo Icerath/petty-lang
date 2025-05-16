@@ -311,6 +311,7 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
     fn lower_pat(&mut self, expr: ast::ExprId) -> Pat {
         match self.ast.exprs[expr].kind {
             ast::ExprKind::Ident(ident) => Pat::Ident(ident),
+            ast::ExprKind::Lit(ast::Lit::Str(str)) => Pat::Str(str),
             _ => todo!(),
         }
     }

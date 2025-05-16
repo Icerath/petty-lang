@@ -436,22 +436,52 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
     }
 
     fn lower_match(&mut self, scrutinee: ExprId, arms: &[MatchArm]) -> RValue {
+        // TODO: take refs into account
+
         // let ty = self.ty(scrutinee);
         let scrutinee = self.lower(scrutinee);
         let output = self.new_local();
+        let mut placeholders = vec![];
+
+        macro_rules! eval_body {
+            ($body: expr) => {{
+                let body = self.lower($body);
+                self.assign(output, body);
+                placeholders.push(self.finish_with(Terminator::Goto(BlockId::PLACEHOLDER)));
+            }};
+        }
+
         for arm in arms {
             match arm.pat {
                 Pat::Ident(ident) => {
                     let ident_var = self.assign_new(scrutinee.clone());
-
                     self.current_mut().scope().variables.insert(ident, ident_var);
 
-                    let body = self.lower(arm.body);
-                    self.assign(output, body);
+                    eval_body!(arm.body);
+                }
+                Pat::Str(str) => {
+                    let condition = self.assign_new(RValue::Binary {
+                        lhs: scrutinee.clone(),
+                        op: BinaryOp::StrEq,
+                        rhs: Operand::Constant(Constant::Str(str.as_str().into())),
+                    });
+                    let next = self.current_block() + 1;
+                    let placeholder = self.finish_with(Terminator::Branch {
+                        condition: Operand::local(condition),
+                        fals: BlockId::PLACEHOLDER,
+                        tru: next,
+                    });
+                    eval_body!(arm.body);
+                    let current = self.current_block();
+                    self.body_mut().blocks[placeholder].terminator.complete(current);
                 }
             }
         }
-        RValue::UNIT
+        let current = self.current_block();
+        for placeholder in placeholders {
+            self.body_mut().blocks[placeholder].terminator.complete(current);
+        }
+        RValue::local(output)
     }
 
     fn mono_fn(&mut self, ident: Symbol, location: BodyId, ty: Ty<'tcx>) -> RValue {

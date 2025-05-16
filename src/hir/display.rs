@@ -35,8 +35,9 @@ impl Dump for MatchArm {
 
 impl Dump for Pat {
     fn write(&self, w: &mut Writer) {
-        match self {
+        match *self {
             Self::Ident(ident) => ident.write(w),
+            Self::Str(str) => Lit::String(str).write(w),
         }
     }
 }
