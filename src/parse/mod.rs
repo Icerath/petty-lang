@@ -375,22 +375,37 @@ impl Parse for ArraySeg {
 
 impl Parse for Pat {
     fn parse(stream: &mut Stream) -> Result<Self> {
-        let start = stream.lexer.current_pos();
-        let kind = stream.parse()?;
-        Ok(Self { kind, span: Span::from(start..stream.lexer.current_pos()) })
-    }
-}
-
-impl Parse for PatKind {
-    fn parse(stream: &mut Stream) -> Result<Self> {
-        let next = stream.any(&[TokenKind::Ident, TokenKind::Str, TokenKind::Int])?;
-
-        match next.kind {
-            TokenKind::Ident => Ok(Self::Ident(Symbol::from(&stream.lexer.src()[next.span]))),
-            TokenKind::Str => Ok(Self::Str(Symbol::from(&stream.lexer.src()[next.span]))),
-            TokenKind::Int => Ok(Self::Int(stream.lexer.src()[next.span].parse::<i64>().unwrap())),
-            _ => unreachable!(),
+        fn parse_single(stream: &mut Stream) -> Result<Pat> {
+            let tok = stream.any(&[TokenKind::Ident, TokenKind::Str, TokenKind::Int])?;
+            let kind = match tok.kind {
+                TokenKind::Ident => PatKind::Ident(Symbol::from(&stream.lexer.src()[tok.span])),
+                TokenKind::Str => PatKind::Str(Symbol::from(&stream.lexer.src()[tok.span])),
+                TokenKind::Int => {
+                    PatKind::Int(stream.lexer.src()[tok.span].parse::<i64>().unwrap())
+                }
+                _ => unreachable!(),
+            };
+            let span = Span::new(
+                tok.span.start() as _..stream.lexer.current_pos() as _,
+                tok.span.source(),
+            );
+            Ok(Pat { kind, span })
         }
+        let single = parse_single(stream)?;
+        let single_span = single.span;
+        if stream.peek()?.kind != TokenKind::Or {
+            return Ok(single);
+        }
+        let mut patterns = thin_vec![single];
+        while stream.peek()?.kind == TokenKind::Or {
+            _ = stream.next();
+            patterns.push(parse_single(stream)?);
+        }
+        let span = Span::new(
+            single_span.start() as _..stream.lexer.current_pos() as _,
+            single_span.source(),
+        );
+        Ok(Pat { kind: PatKind::Or(patterns), span })
     }
 }
 

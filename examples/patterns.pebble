@@ -20,7 +20,7 @@ if array is ["foo", bar] {
     println(bar);
 }
 match array {
-    ["foo", bar] | ["baz", bar] => println(bar),
+    ["foo", bar] or ["baz", bar] => println(bar),
 //    ..
 }
 

@@ -162,7 +162,7 @@ impl Dump for PatKind {
             Self::Ident(ident) => ident.write(w),
             Self::Str(str) => Lit::Str(str).write(w),
             Self::Int(int) => Lit::Int(int).write(w),
-            Self::Or(ref pats) => Sep(pats, " | ").write(w),
+            Self::Or(ref pats) => Sep(pats, " or ").write(w),
         }
     }
 }

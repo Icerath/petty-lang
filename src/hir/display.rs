@@ -39,7 +39,7 @@ impl Dump for Pat {
             Self::Ident(ident) => ident.write(w),
             Self::Str(str) => Lit::String(str).write(w),
             Self::Int(int) => Lit::Int(int).write(w),
-            Self::Or(ref patterns) => Sep(patterns, " | ").write(w),
+            Self::Or(ref patterns) => Sep(patterns, " or ").write(w),
         }
     }
 }
