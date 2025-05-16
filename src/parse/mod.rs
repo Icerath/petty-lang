@@ -379,7 +379,9 @@ impl Parse for Pat {
             let tok = stream.any(&[TokenKind::Ident, TokenKind::Str, TokenKind::Int])?;
             let kind = match tok.kind {
                 TokenKind::Ident => PatKind::Ident(Symbol::from(&stream.lexer.src()[tok.span])),
-                TokenKind::Str => PatKind::Str(Symbol::from(&stream.lexer.src()[tok.span])),
+                TokenKind::Str => {
+                    PatKind::Str(Symbol::from(&stream.lexer.src()[tok.span.shrink(1)]))
+                }
                 TokenKind::Int => {
                     PatKind::Int(stream.lexer.src()[tok.span].parse::<i64>().unwrap())
                 }
