@@ -342,6 +342,7 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
                 );
                 RValue::UNIT
             }
+            ExprKind::Match { .. } => todo!(),
             ExprKind::If { ref arms, ref els } => {
                 let mut jump_to_ends = Vec::with_capacity(arms.len());
                 let out_local = self.new_local();

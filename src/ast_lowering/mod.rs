@@ -114,7 +114,9 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
             ast::ExprKind::Let { ident, expr, .. } => self.lower_let_stmt(ident.symbol, expr),
             ast::ExprKind::Const { .. } => todo!(),
             ast::ExprKind::If { ref arms, els } => self.lower_if_stmt(arms, els, expr_id),
-            ast::ExprKind::Match { .. } => todo!(),
+            ast::ExprKind::Match { scrutinee, ref arms } => {
+                self.lower_match(scrutinee, arms, expr_id)
+            }
             ast::ExprKind::While { condition, block } => self.lower_while_loop(condition, block),
             ast::ExprKind::For { ident, iter, body } => {
                 self.lower_for_loop(ident.symbol, iter, body)
@@ -284,6 +286,26 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
 
         let els = els.map_or_else(ThinVec::new, |els| self.lower_block_inner(els).1);
         (ExprKind::If { arms, els }).with(self.get_ty(id))
+    }
+
+    fn lower_match(
+        &mut self,
+        scrutinee: ast::ExprId,
+        arms: &[ast::MatchArm],
+        id: ast::ExprId,
+    ) -> hir::Expr<'tcx> {
+        let scrutinee = self.lower(scrutinee);
+        (hir::ExprKind::Match {
+            scrutinee,
+            arms: arms
+                .iter()
+                .map(|arm| hir::MatchArm {
+                    pat: self.lower(arm.pattern),
+                    body: self.lower(arm.body),
+                })
+                .collect(),
+        })
+        .with(self.ty_info.expr_tys[id])
     }
 
     fn lower_let_stmt(&mut self, ident: Symbol, expr: ast::ExprId) -> hir::Expr<'tcx> {

@@ -3,7 +3,7 @@ use std::{
     mem,
 };
 
-use super::{ArraySeg, ExprKind, FnDecl, OpAssign, Param};
+use super::{ArraySeg, ExprKind, FnDecl, MatchArm, OpAssign, Param};
 use crate::{
     hir::{BinaryOp, ExprId, Hir, Lit, UnaryOp},
     symbol::Symbol,
@@ -27,10 +27,23 @@ impl Hir<'_> {
     }
 }
 
+impl Dump for MatchArm {
+    fn write(&self, w: &mut Writer) {
+        (self.pat, " => ", self.body).write(w);
+    }
+}
+
 impl Writer<'_, '_> {
     fn display_expr(&mut self, expr: ExprId) {
         let inside_expr = mem::replace(&mut self.inside_expr, true);
         match self.hir.exprs[expr].kind {
+            ExprKind::Match { scrutinee, ref arms } => {
+                ("match ", scrutinee, " {").write(self);
+                self.indent += 1;
+                (Line, Sep(arms, (",", Line))).write(self);
+                self.indent -= 1;
+                (Line, "}").write(self);
+            }
             ExprKind::Loop(ref block) => ("loop ", block.as_slice()).write(self),
             ExprKind::StructInit => "<struct init>".write(self),
             ExprKind::Assignment { lhs, expr } => (lhs, " = ", expr).write(self),
