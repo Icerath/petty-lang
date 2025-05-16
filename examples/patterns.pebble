@@ -1,0 +1,25 @@
+// Patterns exist as parts of `is` and `match` expressions
+
+let number = 3;
+match number {
+    3 => println("Yup, It's 3"),
+//    ..
+}
+if number is 3  {
+    println("Yup, It's 3");
+}
+// Patterns can contain wildcards to handle unspecified cases
+let number = 4;
+match number {
+    3 => println("It's 3!"),
+    other => println("Oh no! It's ${other}"),
+}
+// Some patterns can nest other patterns
+let array = ["foo", "bar"];
+if array is ["foo", bar] {
+    println(bar);
+}
+match array {
+    ["foo", bar] | ["baz", bar] => println(bar),
+//    ..
+}
