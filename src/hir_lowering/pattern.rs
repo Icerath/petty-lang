@@ -14,46 +14,24 @@ impl Lowering<'_, '_, '_> {
         let mut placeholders = vec![];
 
         for arm in arms {
-            macro_rules! eval_body {
-                ($body: expr) => {{
-                    let body = self.lower($body);
-                    self.assign(output, body);
-                    placeholders.push(self.finish_with(Terminator::Goto(BlockId::PLACEHOLDER)));
-                }};
-            }
-            macro_rules! branch {
-                ($op:expr, $rhs:expr) => {{
-                    let condition = self.assign_new(RValue::Binary {
-                        lhs: scrutinee.clone(),
-                        op: $op,
-                        rhs: $rhs,
-                    });
+            let placeholder = match self.try_pattern(scrutinee.clone(), &arm.pat) {
+                Some(condition) => {
+                    let condition = self.assign_new(condition);
                     let next = self.current_block() + 1;
-                    let placeholder = self.finish_with(Terminator::Branch {
+                    Some(self.finish_with(Terminator::Branch {
                         condition: Operand::local(condition),
                         fals: BlockId::PLACEHOLDER,
                         tru: next,
-                    });
-                    eval_body!(arm.body);
-                    let current = self.current_block();
-                    self.body_mut().blocks[placeholder].terminator.complete(current);
-                }};
-            }
-            match arm.pat {
-                Pat::Ident(ident) => {
-                    let ident_var = self.assign_new(scrutinee.clone());
-                    self.current_mut().scope().variables.insert(ident, ident_var);
-
-                    eval_body!(arm.body);
+                    }))
                 }
-                Pat::Str(str) => {
-                    branch!(BinaryOp::StrEq, Constant::Str(str.as_str().into()).into());
-                }
-                Pat::Int(int) => branch!(BinaryOp::IntEq, Constant::Int(int).into()),
-                Pat::Or(ref patterns) => {
-                    _ = patterns;
-                    todo!()
-                }
+                None => None,
+            };
+            let body = self.lower(arm.body);
+            self.assign(output, body);
+            placeholders.push(self.finish_with(Terminator::Goto(BlockId::PLACEHOLDER)));
+            if let Some(placeholder) = placeholder {
+                let current = self.current_block();
+                self.body_mut().blocks[placeholder].terminator.complete(current);
             }
         }
         let current = self.current_block();
@@ -61,5 +39,27 @@ impl Lowering<'_, '_, '_> {
             self.body_mut().blocks[placeholder].terminator.complete(current);
         }
         RValue::local(output)
+    }
+}
+
+impl Lowering<'_, '_, '_> {
+    fn try_pattern(&mut self, scrutinee: Operand, pat: &Pat) -> Option<RValue> {
+        Some(match *pat {
+            Pat::Ident(ident) => {
+                let ident_var = self.assign_new(scrutinee);
+                self.current_mut().scope().variables.insert(ident, ident_var);
+
+                return None;
+            }
+            Pat::Str(str) => {
+                let rhs = Constant::Str(str.as_str().into()).into();
+                RValue::Binary { lhs: scrutinee, op: BinaryOp::StrEq, rhs }
+            }
+            Pat::Int(int) => {
+                let rhs = Constant::Int(int).into();
+                RValue::Binary { lhs: scrutinee, op: BinaryOp::IntEq, rhs }
+            }
+            Pat::Or(..) => todo!(),
+        })
     }
 }
