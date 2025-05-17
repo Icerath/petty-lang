@@ -159,7 +159,8 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
             ast::ExprKind::Unary { op, expr } => self.lower(expr).unary(op).with(expr_ty),
             ast::ExprKind::Break => hir::Expr::BREAK,
             ast::ExprKind::Continue => hir::Expr::CONTINUE,
-            ast::ExprKind::Struct { ident, ref fields } => {
+            ast::ExprKind::Struct { ident, ref generics, ref fields } => {
+                _ = generics;
                 let struct_ty = self.ty_info.struct_types[&ident.span];
 
                 let fields: ThinVec<_> = (fields.iter())

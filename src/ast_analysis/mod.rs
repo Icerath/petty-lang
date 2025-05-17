@@ -165,7 +165,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
     ) -> Result<(Ty<'tcx>, Body<'tcx>)> {
         // look for structs/enums first.
         for id in &block.stmts {
-            let ExprKind::Struct { ident, fields } = &self.ast.exprs[*id].kind else {
+            let ExprKind::Struct { ident, fields, .. } = &self.ast.exprs[*id].kind else {
                 continue;
             };
             let symbols: ThinVec<_> = fields.iter().map(|field| field.ident.symbol).collect();

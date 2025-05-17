@@ -285,10 +285,19 @@ impl Parse for FnDecl {
 
 fn parse_struct(stream: &mut Stream) -> Result<Expr> {
     let ident = stream.parse()?;
+    let peek = stream.clone().any(&[TokenKind::Less, TokenKind::LParen])?;
+
+    let generics = if peek.kind == TokenKind::Less {
+        _ = stream.next();
+        stream.parse_separated(TokenKind::Comma, TokenKind::Greater)?
+    } else {
+        ThinVec::new()
+    };
+
     stream.expect(TokenKind::LParen)?;
     let fields = stream.parse_separated(TokenKind::Comma, TokenKind::RParen)?;
 
-    Ok((ExprKind::Struct { ident, fields }).todo_span())
+    Ok((ExprKind::Struct { ident, generics, fields }).todo_span())
 }
 
 fn parse_var(stream: &mut Stream, let_tok: Token) -> Result<Expr> {

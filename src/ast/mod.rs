@@ -96,7 +96,7 @@ pub enum ExprKind {
     Trait(Trait),
     Impl(Impl),
     FnDecl(FnDecl),
-    Struct { ident: Identifier, fields: ThinVec<Field> },
+    Struct { ident: Identifier, generics: ThinVec<Identifier>, fields: ThinVec<Field> },
 }
 
 #[derive(Debug)]
