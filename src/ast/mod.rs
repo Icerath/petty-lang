@@ -56,6 +56,7 @@ pub struct Field {
     pub ty: TypeId,
 }
 
+#[derive(Debug)]
 pub struct Ty {
     pub kind: TyKind,
     pub span: Span,
@@ -65,7 +66,7 @@ pub struct Ty {
 pub enum TyKind {
     Never,
     Unit,
-    Name(Symbol),
+    Name { ident: Symbol, generics: ThinVec<TypeId> },
     Array(TypeId),
     Func { params: ThinVec<TypeId>, ret: Option<TypeId> },
     Ref(TypeId),

@@ -311,8 +311,8 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
             ast::TyKind::Array(of) => {
                 self.tcx.intern(TyKind::Array(self.read_ast_ty_with(of, for_ty)))
             }
-            ast::TyKind::Name(name) if name == "_" => self.tcx.new_infer(),
-            ast::TyKind::Name(name) if name == "self" => {
+            ast::TyKind::Name { ident, .. } if ident == "_" => self.tcx.new_infer(),
+            ast::TyKind::Name { ident, .. } if ident == "self" => {
                 if let Some(ty) = for_ty {
                     ty
                 } else {
@@ -320,12 +320,16 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                     Ty::POISON
                 }
             }
-            ast::TyKind::Name(name) => {
-                match ([self.impl_generics, self.fn_generics].iter().copied().flatten())
-                    .find(|&g| self.tcx.generic_symbol(g) == name)
-                {
-                    Some(id) => self.tcx.intern(TyKind::Generic(id)),
-                    None => self.read_named_ty(name, ast_ty.span),
+            ast::TyKind::Name { ident, ref generics } => {
+                if generics.is_empty() {
+                    match ([self.impl_generics, self.fn_generics].iter().copied().flatten())
+                        .find(|&g| self.tcx.generic_symbol(g) == ident)
+                    {
+                        Some(id) => self.tcx.intern(TyKind::Generic(id)),
+                        None => self.read_named_ty(ident, ast_ty.span),
+                    }
+                } else {
+                    todo!()
                 }
             }
         };

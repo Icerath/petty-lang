@@ -310,7 +310,7 @@ impl Dump for TypeId {
             TyKind::Never => w.f.push('!'),
             TyKind::Unit => w.f.push_str("()"),
             TyKind::Array(of) => ("[", of, "]").write(w),
-            TyKind::Name(name) => w.f.push_str(&name),
+            TyKind::Name { ident, ref generics } => (ident, "<", Sep(generics, ", "), ">").write(w),
         }
     }
 }

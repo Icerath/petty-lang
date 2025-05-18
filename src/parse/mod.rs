@@ -198,7 +198,15 @@ impl Parse for Ty {
                 TyKind::Func { params, ret }
             }
             TokenKind::Not => TyKind::Never,
-            TokenKind::Ident => TyKind::Name(Symbol::from(&stream.lexer.src()[any.span])),
+            TokenKind::Ident => {
+                let generics = if stream.peek()?.kind == TokenKind::Less {
+                    _ = stream.next();
+                    stream.parse_separated(TokenKind::Comma, TokenKind::Greater)?
+                } else {
+                    ThinVec::new()
+                };
+                TyKind::Name { ident: Symbol::from(&stream.lexer.src()[any.span]), generics }
+            }
             TokenKind::LBracket => {
                 let of = stream.parse()?;
                 stream.expect(TokenKind::RBracket)?;
