@@ -86,10 +86,11 @@ impl<'tcx> TyCtx<'tcx> {
     pub fn new_struct(
         &self,
         name: Symbol,
+        generics: GenericRange,
         symbols: ThinVec<Symbol>,
         fields: ThinVec<Ty<'tcx>>,
     ) -> Ty<'tcx> {
-        self.intern(self.inner.borrow_mut().new_struct(name, symbols, fields))
+        self.intern(self.inner.borrow_mut().new_struct(name, generics, symbols, fields))
     }
     pub fn add_method(&self, ty: Ty<'tcx>, name: Symbol, func: Function<'tcx>) {
         let func = self.intern(TyKind::Function(func));
@@ -193,11 +194,12 @@ impl<'tcx> TyCtxInner<'tcx> {
     fn new_struct(
         &mut self,
         name: Symbol,
+        generics: GenericRange,
         symbols: ThinVec<Symbol>,
         fields: ThinVec<Ty<'tcx>>,
     ) -> TyKind<'tcx> {
         let id = self.struct_names.push(name);
-        TyKind::Struct { id, symbols, fields }
+        TyKind::Struct { id, generics, symbols, fields }
     }
 
     fn new_generic(&mut self, symbol: Symbol) -> GenericId {

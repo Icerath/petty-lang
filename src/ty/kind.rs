@@ -2,7 +2,7 @@ use std::fmt;
 
 use thin_vec::ThinVec;
 
-use super::{Function, GenericId, StructId, Ty, TyCtx, TyVid};
+use super::{Function, GenericId, GenericRange, StructId, Ty, TyCtx, TyVid};
 use crate::symbol::Symbol;
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -16,7 +16,12 @@ pub enum TyKind<'tcx> {
     Range,
     Array(Ty<'tcx>),
     Function(Function<'tcx>),
-    Struct { id: StructId, symbols: ThinVec<Symbol>, fields: ThinVec<Ty<'tcx>> },
+    Struct {
+        id: StructId,
+        generics: GenericRange,
+        symbols: ThinVec<Symbol>,
+        fields: ThinVec<Ty<'tcx>>,
+    },
     Generic(GenericId),
     Infer(TyVid),
     Ref(Ty<'tcx>),
@@ -59,9 +64,9 @@ impl<'tcx> Ty<'tcx> {
                 let ret = ret.replace_generics(tcx, f);
                 tcx.intern(TyKind::Function(Function { params, ret }))
             }
-            TyKind::Struct { ref fields, ref symbols, id } => {
+            TyKind::Struct { ref fields, generics, ref symbols, id } => {
                 let fields = fields.iter().map(|field| field.replace_generics(tcx, f)).collect();
-                tcx.intern(TyKind::Struct { id, symbols: symbols.clone(), fields })
+                tcx.intern(TyKind::Struct { id, generics, symbols: symbols.clone(), fields })
             }
             TyKind::Infer(..) => unreachable!(),
             TyKind::Poison

@@ -165,14 +165,15 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
     ) -> Result<(Ty<'tcx>, Body<'tcx>)> {
         // look for structs/enums first.
         for id in &block.stmts {
-            let ExprKind::Struct { ident, fields, .. } = &self.ast.exprs[*id].kind else {
+            let ExprKind::Struct { ident, generics, fields } = &self.ast.exprs[*id].kind else {
                 continue;
             };
             let symbols: ThinVec<_> = fields.iter().map(|field| field.ident.symbol).collect();
             let fields: ThinVec<_> =
                 fields.iter().map(|field| self.read_ast_ty(field.ty)).collect();
             let params = fields.clone();
-            let struct_ty = self.tcx.new_struct(ident.symbol, symbols, fields);
+            let generics = self.tcx.new_generics(generics);
+            let struct_ty = self.tcx.new_struct(ident.symbol, generics, symbols, fields);
             self.current().ty_names.insert(ident.symbol, struct_ty);
             self.ty_info.struct_types.insert(ident.span, struct_ty);
 
@@ -329,7 +330,20 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                         None => self.read_named_ty(ident, ast_ty.span),
                     }
                 } else {
-                    todo!()
+                    let ty = self.read_named_ty(ident, ast_ty.span);
+                    match ty.0 {
+                        TyKind::Struct { generics: generic_range, .. } => {
+                            // TODO: hashmap is not needed
+                            let mut map = HashMap::default();
+                            // TODO: custom error here
+                            assert!(generics.len() == generic_range.len as usize);
+                            for (id, ty) in generic_range.iter().zip(generics) {
+                                map.insert(id, self.read_ast_ty(*ty));
+                            }
+                            ty.replace_generics(self.tcx, |id| map[&id])
+                        }
+                        _ => unreachable!(),
+                    }
                 }
             }
         };
