@@ -139,7 +139,15 @@ impl TyCtx<'_> {
                     }
                     TyKind::Infer(_) => write!(f, "_"),
                     TyKind::Generic(id) => write!(f, "{}", tcx.generic_symbol(*id)),
-                    TyKind::Struct { id, .. } => write!(f, "{}", tcx.struct_name(*id)),
+                    TyKind::Struct { id, fields, .. } => {
+                        write!(f, "{}", tcx.struct_name(*id))?;
+                        write!(f, "<")?;
+                        for (i, field) in fields.iter().enumerate() {
+                            let sep = if i != 0 { ", " } else { "" };
+                            write!(f, "{sep}{}", tcx.display(*field))?;
+                        }
+                        write!(f, ">")
+                    }
                 }
             }
         }

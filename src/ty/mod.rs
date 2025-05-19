@@ -245,6 +245,18 @@ impl<'tcx> TyCtxInner<'tcx> {
                 let ret = self.try_infer_deep(*ret, intern)?;
                 intern!(TyKind::Function(Function { params, ret }))
             }
+            TyKind::Struct { id, generics, symbols, fields } => {
+                let fields = fields
+                    .iter()
+                    .map(|field| self.try_infer_deep(*field, intern))
+                    .collect::<Result<_, _>>()?;
+                intern!(TyKind::Struct {
+                    id: *id,
+                    generics: *generics,
+                    symbols: symbols.clone(),
+                    fields
+                })
+            }
             _ => inferred,
         })
     }
@@ -263,6 +275,19 @@ impl<'tcx> TyCtxInner<'tcx> {
                 assert_eq!(lhs.params.len(), rhs.params.len());
                 lhs.params.iter().zip(&rhs.params).try_for_each(|(l, r)| self.eq(*l, *r))?;
                 self.eq(lhs.ret, rhs.ret)
+            }
+            (
+                TyKind::Struct { id: lid, fields: lfields, .. },
+                TyKind::Struct { id: rid, fields: rfields, .. },
+            ) => {
+                if lid != rid {
+                    return Err([lhs, rhs]);
+                }
+                debug_assert_eq!(lfields.len(), rfields.len());
+                for (lhs, rhs) in lfields.iter().zip(rfields) {
+                    self.eq(*lhs, *rhs)?;
+                }
+                Ok(())
             }
             (..) => Err([lhs, rhs]),
         }

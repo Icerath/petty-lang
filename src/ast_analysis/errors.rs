@@ -54,7 +54,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         )
     }
 
-    pub fn cannot_iter(&self, ty: Ty, span: Span) -> Error {
+    pub fn cannot_iter(&self, ty: Ty<'tcx>, span: Span) -> Error {
         self.raw_error(
             &format!("type `{}` is not iterable", self.tcx.display(ty)),
             [(span, format!("type `{}` is not iterable", self.tcx.display(ty)))],
@@ -85,7 +85,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
 
         self.raw_error("mismatched types", errors)
     }
-    pub fn binop_err(&self, op: BinaryOp, lhs: Ty, rhs: Ty) -> Error {
+    pub fn binop_err(&self, op: BinaryOp, lhs: Ty<'tcx>, rhs: Ty<'tcx>) -> Error {
         let op_name = op.kind.name();
         let msg = if lhs == rhs {
             format!("cannot {op_name} values of type `{}`", self.tcx.display(lhs))

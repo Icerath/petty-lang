@@ -145,6 +145,7 @@ pub fn analyze<'tcx>(
     }
     ty_info.type_ids.iter_mut().for_each(|ty| *ty = tcx.infer_deep(*ty));
     ty_info.method_types.values_mut().for_each(|ty| *ty = tcx.infer_deep(*ty));
+    ty_info.struct_types.values_mut().for_each(|ty| *ty = tcx.infer_deep(*ty));
 
     Ok(ty_info)
 }
@@ -169,10 +170,12 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 continue;
             };
             let symbols: ThinVec<_> = fields.iter().map(|field| field.ident.symbol).collect();
+            let generics = self.tcx.new_generics(generics);
+            self.impl_generics = generics;
+
             let fields: ThinVec<_> =
                 fields.iter().map(|field| self.read_ast_ty(field.ty)).collect();
             let params = fields.clone();
-            let generics = self.tcx.new_generics(generics);
             let struct_ty = self.tcx.new_struct(ident.symbol, generics, symbols, fields);
             self.current().ty_names.insert(ident.symbol, struct_ty);
             self.ty_info.struct_types.insert(ident.span, struct_ty);

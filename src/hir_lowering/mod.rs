@@ -1007,7 +1007,11 @@ fn generic_map_ty<'tcx>(
             generic.params.iter().zip(&mono.params).for_each(|(&g, &m)| generic_map_ty(g, m, into));
             generic_map_ty(generic.ret, mono.ret, into);
         }
-        (TyKind::Struct { .. }, TyKind::Struct { .. }) => todo!(),
+        (TyKind::Struct { fields: lfields, .. }, TyKind::Struct { fields: rfields, .. }) => {
+            for (generic, mono) in lfields.iter().zip(rfields) {
+                generic_map_ty(*generic, *mono, into);
+            }
+        }
         (TyKind::Array(generic), TyKind::Array(mono))
         | (TyKind::Ref(generic), TyKind::Ref(mono)) => generic_map_ty(*generic, *mono, into),
         _ => {}
