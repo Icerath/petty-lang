@@ -24,7 +24,7 @@ pub use codegen_opts::CodegenOpts;
 use rustc_hash::FxHashMap as HashMap;
 use source::span;
 
-const STD: &str = concat!(include_str!("std.pebble"), "\n\n");
+const STD: &str = concat!(include_str!("std.pty"), "\n\n");
 
 fn main() {
     let args = Args::parse();

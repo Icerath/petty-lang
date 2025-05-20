@@ -4,14 +4,14 @@ macro_rules! test {
     {$name: ident} => {
         #[test]
         fn $name() {
-            compile_test(concat!("tests/", stringify!($name), ".pebble")).unwrap();
+            compile_test(concat!("tests/", stringify!($name), ".pty")).unwrap();
         }
     };
     {$fails:literal $name: ident} => {
         #[test]
         #[should_panic = $fails]
         fn $name() {
-            compile_test(concat!("tests/", stringify!($name), ".pebble")).unwrap();
+            compile_test(concat!("tests/", stringify!($name), ".pty")).unwrap();
         }
     };
     {$($name:ident)*  $($fails:literal $fail_name: ident)*} => {
