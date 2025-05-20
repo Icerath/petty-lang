@@ -48,7 +48,9 @@ impl Writer<'_> {
             }
             ExprKind::Unreachable => "unreachable".write(self),
             ExprKind::Assert(expr) => ("assert ", expr).write(self),
-            ExprKind::Struct { ident, ref fields, .. } => ("struct ", ident, fields).write(self),
+            ExprKind::Struct { ident, ref fields, ref generics, .. } => {
+                ("struct ", ident, Generics(generics), fields).write(self);
+            }
             ExprKind::Break => "break".write(self),
             ExprKind::Continue => "continue".write(self),
             ExprKind::Return(expr) => ("return", expr.map(|expr| (" ", expr))).write(self),
@@ -310,6 +312,7 @@ impl Dump for TypeId {
             TyKind::Never => w.f.push('!'),
             TyKind::Unit => w.f.push_str("()"),
             TyKind::Array(of) => ("[", of, "]").write(w),
+            TyKind::Name { ident, ref generics } if generics.is_empty() => ident.write(w),
             TyKind::Name { ident, ref generics } => (ident, "<", Sep(generics, ", "), ">").write(w),
         }
     }
