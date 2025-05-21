@@ -675,6 +675,10 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
             PatKind::Int(..) => _ = self.sub_span(scrutinee, Ty::INT, pat.span),
             PatKind::Expr(block) => {
                 let ty = self.analyze_block(block)?;
+                let op = BinaryOp { span: pat.span, kind: BinOpKind::Eq };
+                if !Self::is_valid_binop(scrutinee, op.kind) {
+                    self.errors.push(self.binop_err(op, scrutinee, ty));
+                }
                 self.sub_block(ty, scrutinee, block);
             }
             PatKind::Or(ref patterns) => {
@@ -737,15 +741,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
             return Ok(());
         }
 
-        let matches = match lhs.0 {
-            TyKind::Int => op.is_op_assign() | op.is_arithmetic() | op.is_compare() | op.is_range(),
-            TyKind::Str => op.is_compare() | op.is_add(),
-            TyKind::Bool => op.is_eq() | op.is_logical(),
-            TyKind::Char | TyKind::Unit => op.is_eq(),
-            _ => false,
-        };
-
-        if matches {
+        if Self::is_valid_binop(lhs, op.kind) {
             Ok(())
         } else {
             Err(if op.is_logical() {
@@ -753,6 +749,16 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
             } else {
                 self.binop_err(op, lhs, rhs)
             })
+        }
+    }
+
+    fn is_valid_binop(ty: Ty<'tcx>, op: BinOpKind) -> bool {
+        match ty.0 {
+            TyKind::Int => op.is_op_assign() | op.is_arithmetic() | op.is_compare() | op.is_range(),
+            TyKind::Str => op.is_compare() | op.is_add(),
+            TyKind::Bool => op.is_eq() | op.is_logical(),
+            TyKind::Char | TyKind::Unit => op.is_eq(),
+            _ => false,
         }
     }
 

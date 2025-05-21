@@ -238,8 +238,9 @@ impl BinOpKind {
             Self::Mul | Self::MulAssign => "multiply",
             Self::Div | Self::DivAssign => "divide",
             Self::Mod | Self::ModAssign => "mod",
-            Self::Less | Self::LessEq | Self::Greater | Self::GreaterEq => "compare",
-            Self::Neq | Self::Eq => "s",
+            Self::Less | Self::LessEq | Self::Greater | Self::GreaterEq | Self::Neq | Self::Eq => {
+                "compare"
+            }
             Self::Assign => "assign",
             Self::Range | Self::RangeInclusive => "produce a range of",
             Self::And => "and",
