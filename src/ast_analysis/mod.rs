@@ -4,7 +4,6 @@ use std::{ops::Index, path::Path};
 
 use index_vec::IndexVec;
 use miette::{Error, Result};
-use thin_vec::ThinVec;
 
 use crate::{
     HashMap,
@@ -169,14 +168,17 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
             let ExprKind::Struct { ident, generics, fields } = &self.ast.exprs[*id].kind else {
                 continue;
             };
-            let symbols: ThinVec<_> = fields.iter().map(|field| field.ident.symbol).collect();
             let generics = self.tcx.new_generics(generics);
             self.impl_generics = generics;
 
-            let fields: ThinVec<_> =
-                fields.iter().map(|field| self.read_ast_ty(field.ty)).collect();
-            let params = fields.clone();
-            let struct_ty = self.tcx.new_struct(ident.symbol, generics, symbols, fields);
+            let (fields, params) = fields
+                .iter()
+                .map(|field| {
+                    let ty = self.read_ast_ty(field.ty);
+                    ((field.ident.symbol, ty), ty)
+                })
+                .collect();
+            let struct_ty = self.tcx.new_struct(ident.symbol, generics, fields);
             self.current().ty_names.insert(ident.symbol, struct_ty);
             self.ty_info.struct_types.insert(ident.span, struct_ty);
 
@@ -335,12 +337,12 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 } else {
                     let ty = self.read_named_ty(ident, ast_ty.span);
                     match ty.0 {
-                        TyKind::Struct { generics: generic_range, .. } => {
+                        TyKind::Struct(strct) => {
                             // TODO: hashmap is not needed
                             let mut map = HashMap::default();
                             // TODO: custom error here
-                            assert!(generics.len() == generic_range.len as usize);
-                            for (id, ty) in generic_range.iter().zip(generics) {
+                            assert!(generics.len() == strct.generics.len as usize);
+                            for (id, ty) in strct.generics.iter().zip(generics) {
                                 map.insert(id, self.read_ast_ty(*ty));
                             }
                             ty.replace_generics(self.tcx, |id| map[&id])
@@ -627,14 +629,14 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
             ExprKind::Unreachable => Ty::NEVER,
             ExprKind::FieldAccess { expr, field } => {
                 let expr = self.tcx.infer_shallow(self.analyze_expr(expr)?);
-                let TyKind::Struct { symbols, fields, .. } = expr.0 else {
+                let TyKind::Struct(strct) = expr.0 else {
                     return Err(self.field_error(expr, field));
                 };
-                let field = symbols
+                strct
+                    .fields
                     .iter()
-                    .position(|&s| s == field.symbol)
-                    .ok_or_else(|| self.field_error(expr, field))?;
-                fields[field]
+                    .find_map(|&(name, ty)| (name == field.symbol).then_some(ty))
+                    .ok_or_else(|| self.field_error(expr, field))?
             }
         };
         self.ty_info.expr_tys[id] = ty;

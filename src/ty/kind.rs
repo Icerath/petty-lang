@@ -1,9 +1,6 @@
 use std::fmt;
 
-use thin_vec::ThinVec;
-
-use super::{Function, GenericId, GenericRange, StructId, Ty, TyCtx, TyVid};
-use crate::symbol::Symbol;
+use super::{Function, GenericId, Struct, Ty, TyCtx, TyVid};
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum TyKind<'tcx> {
@@ -16,12 +13,7 @@ pub enum TyKind<'tcx> {
     Range,
     Array(Ty<'tcx>),
     Function(Function<'tcx>),
-    Struct {
-        id: StructId,
-        generics: GenericRange,
-        symbols: ThinVec<Symbol>,
-        fields: ThinVec<Ty<'tcx>>,
-    },
+    Struct(Box<Struct<'tcx>>),
     Generic(GenericId),
     Infer(TyVid),
     Ref(Ty<'tcx>),
@@ -34,10 +26,7 @@ impl<'tcx> Ty<'tcx> {
             TyKind::Generic(id) => f(id),
             TyKind::Array(ty) | TyKind::Ref(ty) => ty.generics(f),
             TyKind::Function(ref func) => func.generics(f),
-            TyKind::Struct { ref fields, .. } => {
-                // this seems wrong.
-                fields.iter().for_each(|field| field.generics(f));
-            }
+            TyKind::Struct(ref strct) => strct.generics.iter().for_each(f),
             TyKind::Poison
             | TyKind::Infer(..)
             | TyKind::Unit
@@ -64,9 +53,21 @@ impl<'tcx> Ty<'tcx> {
                 let ret = ret.replace_generics(tcx, f);
                 tcx.intern(TyKind::Function(Function { params, ret }))
             }
-            TyKind::Struct { ref fields, generics, ref symbols, id } => {
-                let fields = fields.iter().map(|field| field.replace_generics(tcx, f)).collect();
-                tcx.intern(TyKind::Struct { id, generics, symbols: symbols.clone(), fields })
+            TyKind::Struct(ref strct) => {
+                if strct.generics.len == 0 {
+                    self
+                } else {
+                    let fields = strct
+                        .fields
+                        .iter()
+                        .map(|(name, ty)| (*name, ty.replace_generics(tcx, f)))
+                        .collect();
+                    tcx.intern(TyKind::Struct(Box::new(Struct {
+                        id: strct.id,
+                        fields,
+                        generics: strct.generics,
+                    })))
+                }
             }
             TyKind::Infer(..) => unreachable!(),
             TyKind::Poison
@@ -139,10 +140,10 @@ impl TyCtx<'_> {
                     }
                     TyKind::Infer(_) => write!(f, "_"),
                     TyKind::Generic(id) => write!(f, "{}", tcx.generic_symbol(*id)),
-                    TyKind::Struct { id, fields, .. } => {
-                        write!(f, "{}", tcx.struct_name(*id))?;
+                    TyKind::Struct(strct) => {
+                        write!(f, "{}", tcx.struct_name(strct.id))?;
                         write!(f, "<")?;
-                        for (i, field) in fields.iter().enumerate() {
+                        for (i, (_, field)) in strct.fields.iter().enumerate() {
                             let sep = if i != 0 { ", " } else { "" };
                             write!(f, "{sep}{}", tcx.display(*field))?;
                         }

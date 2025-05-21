@@ -41,6 +41,13 @@ define_id!(pub TyVid = u32);
 define_id!(pub GenericId = u32);
 define_id!(pub StructId = u32);
 
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Struct<'tcx> {
+    pub id: StructId,
+    pub generics: GenericRange,
+    pub fields: Vec<(Symbol, Ty<'tcx>)>,
+}
+
 #[derive(Debug, PartialEq, Eq, Clone, PartialOrd, Ord, Hash)]
 pub struct Function<'tcx> {
     pub params: ThinVec<Ty<'tcx>>,
@@ -87,10 +94,11 @@ impl<'tcx> TyCtx<'tcx> {
         &self,
         name: Symbol,
         generics: GenericRange,
-        symbols: ThinVec<Symbol>,
-        fields: ThinVec<Ty<'tcx>>,
+        fields: Vec<(Symbol, Ty<'tcx>)>,
     ) -> Ty<'tcx> {
-        self.intern(self.inner.borrow_mut().new_struct(name, generics, symbols, fields))
+        Interned(
+            self.interner.intern_new(self.inner.borrow_mut().new_struct(name, generics, fields)),
+        )
     }
     pub fn add_method(&self, ty: Ty<'tcx>, name: Symbol, func: Function<'tcx>) {
         let func = self.intern(TyKind::Function(func));
@@ -195,11 +203,10 @@ impl<'tcx> TyCtxInner<'tcx> {
         &mut self,
         name: Symbol,
         generics: GenericRange,
-        symbols: ThinVec<Symbol>,
-        fields: ThinVec<Ty<'tcx>>,
+        fields: Vec<(Symbol, Ty<'tcx>)>,
     ) -> TyKind<'tcx> {
         let id = self.struct_names.push(name);
-        TyKind::Struct { id, generics, symbols, fields }
+        TyKind::Struct(Box::new(Struct { id, generics, fields }))
     }
 
     fn new_generic(&mut self, symbol: Symbol) -> GenericId {
@@ -245,17 +252,19 @@ impl<'tcx> TyCtxInner<'tcx> {
                 let ret = self.try_infer_deep(*ret, intern)?;
                 intern!(TyKind::Function(Function { params, ret }))
             }
-            TyKind::Struct { id, generics, symbols, fields } => {
-                let fields = fields
+            TyKind::Struct(strct) => {
+                //  { id, generics, symbols, fields }
+                let fields = strct
+                    .fields
                     .iter()
-                    .map(|field| self.try_infer_deep(*field, intern))
+                    .map(|(name, field)| self.try_infer_deep(*field, intern).map(|ty| (*name, ty)))
                     .collect::<Result<_, _>>()?;
-                intern!(TyKind::Struct {
-                    id: *id,
-                    generics: *generics,
-                    symbols: symbols.clone(),
+
+                intern!(TyKind::Struct(Box::new(Struct {
+                    id: strct.id,
+                    generics: strct.generics,
                     fields
-                })
+                })))
             }
             _ => inferred,
         })
@@ -276,15 +285,11 @@ impl<'tcx> TyCtxInner<'tcx> {
                 lhs.params.iter().zip(&rhs.params).try_for_each(|(l, r)| self.eq(*l, *r))?;
                 self.eq(lhs.ret, rhs.ret)
             }
-            (
-                TyKind::Struct { id: lid, fields: lfields, .. },
-                TyKind::Struct { id: rid, fields: rfields, .. },
-            ) => {
-                if lid != rid {
+            (TyKind::Struct(l_struct), TyKind::Struct(r_struct)) => {
+                if l_struct.id != r_struct.id {
                     return Err([lhs, rhs]);
                 }
-                debug_assert_eq!(lfields.len(), rfields.len());
-                for (lhs, rhs) in lfields.iter().zip(rfields) {
+                for ((_, lhs), (_, rhs)) in l_struct.fields.iter().zip(&r_struct.fields) {
                     self.eq(*lhs, *rhs)?;
                 }
                 Ok(())

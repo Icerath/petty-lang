@@ -191,10 +191,10 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
                 (hir::ExprKind::If { arms, els: ThinVec::new() }).with(Ty::UNIT)
             }
             ast::ExprKind::FieldAccess { expr, field, .. } => {
-                let TyKind::Struct { symbols, .. } = self.get_ty(expr).0 else { unreachable!() };
+                let TyKind::Struct(strct) = self.get_ty(expr).0 else { unreachable!() };
                 let expr = self.lower(expr);
 
-                let field = symbols.iter().position(|&s| s == field.symbol).unwrap();
+                let field = strct.fields.iter().position(|&(s, _)| s == field.symbol).unwrap();
                 (hir::ExprKind::Field { expr, field }).with(expr_ty)
             }
         }

@@ -20,7 +20,7 @@ use crate::{
     },
     source::span::Span,
     symbol::Symbol,
-    ty::{self, GenericId, StructId, Ty, TyCtx, TyKey, TyKind},
+    ty::{self, GenericId, Struct, StructId, Ty, TyCtx, TyKey, TyKind},
 };
 
 pub fn lower<'tcx>(hir: &Hir<'tcx>, path: Option<&Path>, src: &str, tcx: &'tcx TyCtx<'tcx>) -> Mir {
@@ -807,7 +807,7 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
             TyKind::Int => RValue::Unary { op: UnaryOp::IntToStr, operand },
             TyKind::Char => RValue::Unary { op: UnaryOp::CharToStr, operand },
             TyKind::Range => RValue::Unary { op: UnaryOp::RangeToStr, operand },
-            TyKind::Struct { id, fields, .. } => self.format_struct(*id, fields, operand),
+            TyKind::Struct(strct) => self.format_struct(strct, operand),
             TyKind::Array(of) => self.format_array(*of, operand),
             TyKind::Function(..) => {
                 RValue::from(Constant::Str(self.tcx.display(ty).to_string().into()))
@@ -835,8 +835,8 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
         RValue::Call { function: Constant::Func(body).into(), args: [ref_array].into() }
     }
 
-    fn format_struct(&mut self, id: StructId, fields: &[Ty<'tcx>], val: Operand) -> RValue {
-        let body = self.generate_struct_func(id, fields);
+    fn format_struct(&mut self, strct: &Struct<'tcx>, val: Operand) -> RValue {
+        let body = self.generate_struct_func(strct);
         let ref_struct = self.ref_of(val);
         RValue::Call {
             function: Operand::Constant(Constant::Func(body)),
@@ -913,21 +913,21 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
         Operand::local(out)
     }
 
-    fn generate_struct_func(&mut self, id: StructId, fields: &[Ty<'tcx>]) -> BodyId {
-        if let Some(Some(body)) = self.struct_display_bodies.get(id) {
+    fn generate_struct_func(&mut self, strct: &Struct<'tcx>) -> BodyId {
+        if let Some(Some(body)) = self.struct_display_bodies.get(strct.id) {
             return *body;
         }
         let previous = mem::take(&mut self.bodies);
         let body_id = self.mir.bodies.push(Body::new(None, 1).with_auto(true));
         self.bodies.push(BodyInfo::new(body_id));
 
-        if self.struct_display_bodies.len() <= id {
-            self.struct_display_bodies.resize(id.index() + 1, None);
+        if self.struct_display_bodies.len() <= strct.id {
+            self.struct_display_bodies.resize(strct.id.index() + 1, None);
         }
-        self.struct_display_bodies[id] = Some(body_id);
+        self.struct_display_bodies[strct.id] = Some(body_id);
 
         let mut segments = vec![str!("(")];
-        for (i, ty) in (0u32..).zip(fields) {
+        for (i, (_, ty)) in (0u32..).zip(&strct.fields) {
             if i != 0 {
                 segments.push(str!(", "));
             }
@@ -1007,8 +1007,8 @@ fn generic_map_ty<'tcx>(
             generic.params.iter().zip(&mono.params).for_each(|(&g, &m)| generic_map_ty(g, m, into));
             generic_map_ty(generic.ret, mono.ret, into);
         }
-        (TyKind::Struct { fields: lfields, .. }, TyKind::Struct { fields: rfields, .. }) => {
-            for (generic, mono) in lfields.iter().zip(rfields) {
+        (TyKind::Struct(lhs), TyKind::Struct(rhs)) => {
+            for ((_, generic), (_, mono)) in lhs.fields.iter().zip(&rhs.fields) {
                 generic_map_ty(*generic, *mono, into);
             }
         }
