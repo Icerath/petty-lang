@@ -112,8 +112,11 @@ impl TyKind<'_> {
     }
 }
 
-impl TyCtx<'_> {
-    pub fn display(&self, ty: Ty) -> impl fmt::Display {
+impl<'tcx> TyCtx<'tcx> {
+    pub fn display<'a>(&self, ty: Ty<'a>) -> impl fmt::Display
+    where
+        'tcx: 'a,
+    {
         struct Display<'a, 'b, 'c>(&'a TyCtx<'b>, Ty<'c>);
         impl fmt::Display for Display<'_, '_, '_> {
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -152,6 +155,7 @@ impl TyCtx<'_> {
                 }
             }
         }
+        let ty = self.try_infer_shallow(ty).unwrap_or(ty);
         Display(self, ty)
     }
 }

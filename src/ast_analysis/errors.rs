@@ -29,7 +29,6 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
 
     pub fn method_not_found(&self, ty: Ty<'tcx>, ident: Identifier) -> Error {
         let Identifier { symbol, span } = ident;
-        let ty = self.tcx.try_infer_deep(ty).unwrap_or(ty);
         self.raw_error(
             &format!("no method `{symbol}` found in type `{}`", self.tcx.display(ty)),
             [(span, format!("method not found in `{}`", self.tcx.display(ty)))],
@@ -130,7 +129,6 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
     }
 
     pub fn expected_function(&self, ty: Ty<'tcx>, span: Span) -> Error {
-        let ty = self.tcx.try_infer_deep(ty).unwrap_or_else(|ty| ty);
         self.raw_error(
             &format!("expected function, found `{}`", self.tcx.display(ty)),
             [(span, format!("`{}` is not callable", self.tcx.display(ty)))],
@@ -159,7 +157,6 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         )
     }
     pub fn cannot_deref(&self, ty: Ty<'tcx>, span: Span) -> Error {
-        let ty = self.tcx.try_infer_deep(ty).unwrap_or_else(|ty| ty);
         self.raw_error(
             &format!("type '{}' cannot be dereferenced", self.tcx.display(ty)),
             [(span, format!("cannot deref `{}`", self.tcx.display(ty)))],
@@ -196,8 +193,6 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
     #[cold]
     #[inline(never)]
     pub fn subtype_err_inner(&self, lhs: Ty<'tcx>, rhs: Ty<'tcx>, spans: Vec<Span>) -> Error {
-        let lhs = self.tcx.try_infer_deep(lhs).unwrap_or_else(|ty| ty);
-        let rhs = self.tcx.try_infer_deep(rhs).unwrap_or_else(|ty| ty);
         self.raw_error(
             "mismatched types",
             spans.into_iter().map(|span| {

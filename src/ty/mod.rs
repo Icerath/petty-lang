@@ -139,7 +139,10 @@ impl<'tcx> TyCtx<'tcx> {
     pub fn new_infer(&self) -> Ty<'tcx> {
         self.inner.borrow_mut().new_infer(self.interner)
     }
-    pub fn try_infer_shallow(&self, ty: Ty<'tcx>) -> Result<Ty<'tcx>, Ty<'tcx>> {
+    pub fn try_infer_shallow<'a>(&self, ty: Ty<'a>) -> Result<Ty<'a>, Ty<'a>>
+    where
+        'tcx: 'a,
+    {
         self.inner.borrow().try_infer_shallow(ty)
     }
     #[track_caller]
