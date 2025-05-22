@@ -159,10 +159,10 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
             help.as_deref(),
         )
     }
-    pub fn unknown_type_err(&self, name: Symbol, span: Span) -> Error {
+    pub fn unknown_type_err(&self, ident: Identifier) -> Error {
         self.raw_error(
-            &format!("cannot find type `{name}` in this scope"),
-            [(span, format!("type `{name}` not found"))],
+            &format!("cannot find type `{}` in this scope", ident.symbol),
+            [(ident.span, format!("type `{}` not found", ident.symbol))],
         )
     }
     #[cold]

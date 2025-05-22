@@ -317,8 +317,8 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
             ast::TyKind::Array(of) => {
                 self.tcx.intern(TyKind::Array(self.read_ast_ty_with(of, for_ty)))
             }
-            ast::TyKind::Name { ident, .. } if ident == "_" => self.tcx.new_infer(),
-            ast::TyKind::Name { ident, .. } if ident == "self" => {
+            ast::TyKind::Name { ident, .. } if ident.symbol == "_" => self.tcx.new_infer(),
+            ast::TyKind::Name { ident, .. } if ident.symbol == "self" => {
                 if let Some(ty) = for_ty {
                     ty
                 } else {
@@ -329,13 +329,13 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
             ast::TyKind::Name { ident, ref generics } => {
                 if generics.is_empty() {
                     match ([self.impl_generics, self.fn_generics].iter().copied().flatten())
-                        .find(|&g| self.tcx.generic_symbol(g) == ident)
+                        .find(|&g| self.tcx.generic_symbol(g) == ident.symbol)
                     {
                         Some(id) => self.tcx.intern(TyKind::Generic(id)),
-                        None => self.read_named_ty(ident, ast_ty.span),
+                        None => self.read_named_ty(ident),
                     }
                 } else {
-                    let ty = self.read_named_ty(ident, ast_ty.span);
+                    let ty = self.read_named_ty(ident);
                     match ty.0 {
                         TyKind::Struct(strct) => {
                             // TODO: hashmap is not needed
@@ -356,11 +356,13 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         ty
     }
 
-    fn read_named_ty(&mut self, name: Symbol, span: Span) -> Ty<'tcx> {
-        if let Some(&ty) = self.bodies.iter().rev().find_map(|body| body.ty_names.get(&name)) {
+    fn read_named_ty(&mut self, ident: Identifier) -> Ty<'tcx> {
+        if let Some(&ty) =
+            self.bodies.iter().rev().find_map(|body| body.ty_names.get(&ident.symbol))
+        {
             return ty;
         }
-        self.errors.push(self.unknown_type_err(name, span));
+        self.errors.push(self.unknown_type_err(ident));
         Ty::POISON
     }
 
@@ -669,7 +671,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
     fn analyze_pat(&mut self, pat: &Pat, scrutinee: Ty<'tcx>) -> Result<()> {
         match pat.kind {
             PatKind::Struct(ident, ref fields) => {
-                let ty = self.read_named_ty(ident.symbol, ident.span);
+                let ty = self.read_named_ty(ident);
                 let TyKind::Struct(strct) = self.tcx.infer_shallow(ty).0 else { todo!() };
                 for PatArg { ident, pat } in fields {
                     let field_ty = strct.field_ty(ident.symbol).unwrap_or_else(|| {

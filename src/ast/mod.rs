@@ -66,7 +66,7 @@ pub struct Ty {
 pub enum TyKind {
     Never,
     Unit,
-    Name { ident: Symbol, generics: ThinVec<TypeId> },
+    Name { ident: Identifier, generics: ThinVec<TypeId> },
     Array(TypeId),
     Func { params: ThinVec<TypeId>, ret: Option<TypeId> },
     Ref(TypeId),

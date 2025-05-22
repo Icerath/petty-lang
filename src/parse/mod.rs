@@ -206,7 +206,8 @@ impl Parse for Ty {
                 } else {
                     ThinVec::new()
                 };
-                TyKind::Name { ident: Symbol::from(&stream.lexer.src()[any.span]), generics }
+                let symbol = Symbol::from(&stream.lexer.src()[any.span]);
+                TyKind::Name { ident: Identifier { symbol, span: any.span }, generics }
             }
             TokenKind::LBracket => {
                 let of = stream.parse()?;
