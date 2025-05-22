@@ -52,6 +52,9 @@ impl<'tcx> Struct<'tcx> {
     pub fn field_ty(&self, target: Symbol) -> Option<Ty<'tcx>> {
         self.fields.iter().find_map(|&(field, ty)| (field == target).then_some(ty))
     }
+    pub fn field_names(&self) -> impl Iterator<Item = Symbol> {
+        self.fields.iter().map(|(name, _)| *name)
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, PartialOrd, Ord, Hash)]

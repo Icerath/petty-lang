@@ -635,7 +635,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                     return Err(self.field_error(expr, field));
                 };
                 strct.field_ty(field.symbol).unwrap_or_else(|| {
-                    self.errors.push(self.field_error(expr, field));
+                    self.errors.push(self.unknown_field_error(strct.field_names(), expr, field));
                     Ty::POISON
                 })
             }
@@ -674,7 +674,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 let TyKind::Struct(strct) = self.tcx.infer_shallow(ty).0 else { todo!() };
                 for PatArg { ident, pat } in fields {
                     let field_ty = strct.field_ty(ident.symbol).unwrap_or_else(|| {
-                        self.errors.push(self.field_error(ty, *ident));
+                        self.errors.push(self.unknown_field_error(strct.field_names(), ty, *ident));
                         Ty::POISON
                     });
                     self.analyze_pat(pat, field_ty)?;

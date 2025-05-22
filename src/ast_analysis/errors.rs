@@ -113,6 +113,22 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         )
     }
 
+    pub fn unknown_field_error(
+        &self,
+        fields: impl Iterator<Item = Symbol>,
+        ty: Ty<'tcx>,
+        field: Identifier,
+    ) -> Error {
+        let help = find_best_name_of(fields, field.symbol)
+            .map(|suggest| format!("a field with a similar name exists: `{suggest}`"));
+
+        self.raw_error_help(
+            &format!("no field `{}` on type `{}`", field.symbol, self.tcx.display(ty)),
+            [(field.span, "unknown field")],
+            help.as_deref(),
+        )
+    }
+
     pub fn expected_function(&self, ty: Ty<'tcx>, span: Span) -> Error {
         let ty = self.tcx.try_infer_deep(ty).unwrap_or_else(|ty| ty);
         self.raw_error(
@@ -233,15 +249,25 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
     }
 
     fn find_best_name(&self, name: Symbol) -> Option<Symbol> {
-        let max_distance = name.len() / 3;
+        let available = self.available_names();
+        find_best_name_of(available, name)
+    }
+
+    fn available_names(&self) -> impl Iterator<Item = Symbol> {
         self.bodies
-            .last()?
-            .scopes
-            .iter()
+            .last()
+            .into_iter()
+            .flat_map(|body| &body.scopes)
             .rev()
             .flat_map(|scope| scope.variables.keys())
-            .map(|ident| (*ident, strsim::levenshtein(ident, &name)))
-            .min_by_key(|(_, d)| *d)
-            .and_then(|(name, distance)| (distance <= max_distance).then_some(name))
+            .copied()
     }
+}
+
+fn find_best_name_of(options: impl Iterator<Item = Symbol>, name: Symbol) -> Option<Symbol> {
+    let max_distance = name.len() / 3;
+    options
+        .map(|ident| (ident, strsim::levenshtein(&ident, &name)))
+        .min_by_key(|(_, d)| *d)
+        .and_then(|(name, distance)| (distance <= max_distance).then_some(name))
 }
