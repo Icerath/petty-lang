@@ -668,6 +668,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
 
     fn analyze_pat(&mut self, pat: &Pat, scrutinee: Ty<'tcx>) -> Result<()> {
         match pat.kind {
+            PatKind::Struct(..) => todo!(),
             PatKind::Ident(ident) => {
                 // TODO: ...
                 let ident = Identifier { symbol: ident, span: pat.span };

@@ -12,7 +12,8 @@ use token::{Token, TokenKind};
 use crate::{
     ast::{
         ArraySeg, Ast, BinOpKind, BinaryOp, Block, BlockId, Expr, ExprId, ExprKind, Field, FnDecl,
-        Identifier, IfStmt, Impl, Lit, MatchArm, Param, Pat, PatKind, Trait, Ty, TyKind, TypeId,
+        Identifier, IfStmt, Impl, Lit, MatchArm, Param, Pat, PatArg, PatKind, Trait, Ty, TyKind,
+        TypeId,
     },
     errors,
     span::Span,
@@ -390,6 +391,15 @@ impl Parse for ArraySeg {
     }
 }
 
+impl Parse for PatArg {
+    fn parse(stream: &mut Stream) -> Result<Self> {
+        let ident = stream.parse()?;
+        stream.expect(TokenKind::Colon)?;
+        let pat = stream.parse()?;
+        Ok(Self { ident, pat })
+    }
+}
+
 impl Parse for Pat {
     fn parse(stream: &mut Stream) -> Result<Self> {
         fn parse_single(stream: &mut Stream) -> Result<Pat> {
@@ -400,6 +410,12 @@ impl Parse for Pat {
                 TokenKind::LBrace,
             ])?;
             let kind = match tok.kind {
+                TokenKind::Ident if stream.peek()?.kind == TokenKind::LParen => {
+                    _ = stream.next();
+                    let ident = Symbol::from(&stream.lexer.src()[tok.span]);
+                    let args = stream.parse_separated(TokenKind::Comma, TokenKind::RParen)?;
+                    PatKind::Struct(ident, args)
+                }
                 TokenKind::Ident => PatKind::Ident(Symbol::from(&stream.lexer.src()[tok.span])),
                 TokenKind::Str => {
                     PatKind::Str(Symbol::from(&stream.lexer.src()[tok.span.shrink(1)]))

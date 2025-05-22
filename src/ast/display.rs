@@ -162,6 +162,7 @@ impl Dump for PatKind {
     fn write(&self, w: &mut Writer) {
         match *self {
             Self::Ident(ident) => ident.write(w),
+            Self::Struct(..) => todo!(),
             Self::Str(str) => Lit::Str(str).write(w),
             Self::Int(int) => Lit::Int(int).write(w),
             Self::Expr(block) => block.write(w),
