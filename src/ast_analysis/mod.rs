@@ -634,11 +634,10 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 let TyKind::Struct(strct) = expr.0 else {
                     return Err(self.field_error(expr, field));
                 };
-                strct
-                    .fields
-                    .iter()
-                    .find_map(|&(name, ty)| (name == field.symbol).then_some(ty))
-                    .ok_or_else(|| self.field_error(expr, field))?
+                strct.field_ty(field.symbol).unwrap_or_else(|| {
+                    self.errors.push(self.field_error(expr, field));
+                    Ty::POISON
+                })
             }
         };
         self.ty_info.expr_tys[id] = ty;
