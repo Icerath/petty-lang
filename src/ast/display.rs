@@ -6,8 +6,8 @@ use std::{
 use thin_vec::ThinVec;
 
 use super::{
-    ArraySeg, ExprKind, Field, FnDecl, Identifier, Impl, MatchArm, Param, Pat, PatKind, Trait,
-    TyKind, TypeId,
+    ArraySeg, ExprKind, Field, FnDecl, Identifier, Impl, MatchArm, Param, Pat, PatArg, PatKind,
+    Trait, TyKind, TypeId,
 };
 use crate::{
     ast::{Ast, BinaryOp, BlockId, ExprId, Lit, UnaryOp},
@@ -162,12 +162,18 @@ impl Dump for PatKind {
     fn write(&self, w: &mut Writer) {
         match *self {
             Self::Ident(ident) => ident.write(w),
-            Self::Struct(..) => todo!(),
+            Self::Struct(ident, ref fields) => (ident, "(", Sep(fields, ", "), ")").write(w),
             Self::Str(str) => Lit::Str(str).write(w),
             Self::Int(int) => Lit::Int(int).write(w),
             Self::Expr(block) => block.write(w),
             Self::Or(ref pats) => Sep(pats, " or ").write(w),
         }
+    }
+}
+
+impl Dump for PatArg {
+    fn write(&self, w: &mut Writer) {
+        (self.ident, ": ", &self.pat).write(w);
     }
 }
 
