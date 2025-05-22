@@ -9,7 +9,7 @@ use crate::{
     HashMap,
     ast::{
         self, Ast, BinOpKind, BinaryOp, Block, BlockId, ExprId, ExprKind, FnDecl, Identifier, Impl,
-        Lit, Pat, PatKind, Trait, TypeId, UnaryOp,
+        Lit, Pat, PatArg, PatKind, Trait, TypeId, UnaryOp,
     },
     span::Span,
     symbol::Symbol,
@@ -668,7 +668,17 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
 
     fn analyze_pat(&mut self, pat: &Pat, scrutinee: Ty<'tcx>) -> Result<()> {
         match pat.kind {
-            PatKind::Struct(..) => todo!(),
+            PatKind::Struct(ident, ref fields) => {
+                let ty = self.read_named_ty(ident.symbol, ident.span);
+                let TyKind::Struct(strct) = self.tcx.infer_shallow(ty).0 else { todo!() };
+                for PatArg { ident, pat } in fields {
+                    let field_ty = strct.field_ty(ident.symbol).unwrap_or_else(|| {
+                        self.errors.push(self.field_error(ty, *ident));
+                        Ty::POISON
+                    });
+                    self.analyze_pat(pat, field_ty)?;
+                }
+            }
             PatKind::Ident(ident) => {
                 // TODO: ...
                 let ident = Identifier { symbol: ident, span: pat.span };

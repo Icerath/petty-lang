@@ -48,6 +48,12 @@ pub struct Struct<'tcx> {
     pub fields: Vec<(Symbol, Ty<'tcx>)>,
 }
 
+impl<'tcx> Struct<'tcx> {
+    pub fn field_ty(&self, target: Symbol) -> Option<Ty<'tcx>> {
+        self.fields.iter().find_map(|&(field, ty)| (field == target).then_some(ty))
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Clone, PartialOrd, Ord, Hash)]
 pub struct Function<'tcx> {
     pub params: ThinVec<Ty<'tcx>>,

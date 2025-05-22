@@ -412,9 +412,9 @@ impl Parse for Pat {
             let kind = match tok.kind {
                 TokenKind::Ident if stream.peek()?.kind == TokenKind::LParen => {
                     _ = stream.next();
-                    let ident = Symbol::from(&stream.lexer.src()[tok.span]);
+                    let symbol = Symbol::from(&stream.lexer.src()[tok.span]);
                     let args = stream.parse_separated(TokenKind::Comma, TokenKind::RParen)?;
-                    PatKind::Struct(ident, args)
+                    PatKind::Struct(Identifier { symbol, span: tok.span }, args)
                 }
                 TokenKind::Ident => PatKind::Ident(Symbol::from(&stream.lexer.src()[tok.span])),
                 TokenKind::Str => {

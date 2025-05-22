@@ -113,7 +113,7 @@ pub enum PatKind {
     Expr(BlockId),
     Or(ThinVec<Pat>),
     Ident(Symbol),
-    Struct(Symbol, ThinVec<PatArg>),
+    Struct(Identifier, ThinVec<PatArg>),
 }
 
 #[derive(Debug)]
