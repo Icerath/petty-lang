@@ -121,6 +121,7 @@ impl<'tcx> TyCtx<'tcx> {
             | TyKind::Int
             | TyKind::Char
             | TyKind::Str
+            | TyKind::Range
             | TyKind::Infer(..) => unreachable!(),
             _ => {}
         }
