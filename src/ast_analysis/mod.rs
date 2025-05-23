@@ -469,7 +469,10 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
             ExprKind::MethodCall { expr, method, ref args } => {
                 let ty = self.tcx.infer_shallow(self.analyze_expr(expr)?);
                 let Some(func) = self.tcx.get_method(ty, method.symbol) else {
-                    return Err(self.method_not_found(ty, method));
+                    if !ty.is_poison() {
+                        self.errors.push(self.method_not_found(ty, method));
+                    }
+                    return Ok(Ty::POISON);
                 };
                 let func = func.caller(self.tcx);
 
