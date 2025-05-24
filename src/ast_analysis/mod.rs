@@ -632,10 +632,11 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 Ty::NEVER
             }
             ExprKind::Unreachable => Ty::NEVER,
-            ExprKind::FieldAccess { expr, field } => {
+            ExprKind::FieldAccess { expr, field } => 'out: {
                 let expr = self.tcx.infer_shallow(self.analyze_expr(expr)?);
                 let TyKind::Struct(strct) = expr.0 else {
-                    return Err(self.field_error(expr, field));
+                    self.errors.push(self.field_error(expr, field));
+                    break 'out Ty::POISON;
                 };
                 strct.field_ty(field.symbol).unwrap_or_else(|| {
                     self.errors.push(self.unknown_field_error(strct.field_names(), expr, field));
