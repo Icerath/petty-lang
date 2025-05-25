@@ -635,7 +635,9 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
             ExprKind::FieldAccess { expr, field } => 'out: {
                 let expr = self.tcx.infer_shallow(self.analyze_expr(expr)?);
                 let TyKind::Struct(strct) = expr.0 else {
-                    self.errors.push(self.field_error(expr, field));
+                    if !expr.is_poison() {
+                        self.errors.push(self.field_error(expr, field));
+                    }
                     break 'out Ty::POISON;
                 };
                 strct.field_ty(field.symbol).unwrap_or_else(|| {
