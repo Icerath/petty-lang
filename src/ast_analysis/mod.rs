@@ -505,7 +505,8 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 let expr_ty = self.analyze_expr(expr)?;
                 let ty = if let Some(ty) = ty {
                     let ty = self.read_ast_ty(ty);
-                    self.sub(expr_ty, ty, expr).then(|| ty)
+                    self.sub(expr_ty, ty, expr);
+                    ty
                 } else {
                     expr_ty
                 };
@@ -518,7 +519,8 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 self.within_const = within_const;
                 let ty = if let Some(ty) = ty {
                     let ty = self.read_ast_ty(ty);
-                    self.sub(expr_ty, ty, expr).then(|| ty)
+                    self.sub(expr_ty, ty, expr);
+                    ty
                 } else {
                     expr_ty
                 };
