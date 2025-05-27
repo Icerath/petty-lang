@@ -191,6 +191,14 @@ impl Ord for TyKey<'_> {
             (&T::Ref(lhs), &T::Ref(rhs)) => TyKey(lhs).cmp(&TyKey(rhs)),
             (&T::Ref(ref_), _) => TyKey(ref_).cmp(&TyKey(other.0)),
             (_, &T::Ref(ref_)) => TyKey(self.0).cmp(&TyKey(ref_)),
+            (T::Struct(lhs), T::Struct(rhs)) => {
+                if lhs.id != rhs.id || lhs.generics.len == 0 {
+                    return lhs.id.cmp(&rhs.id);
+                }
+                let lhs = lhs.fields.iter().map(|(_, ty)| TyKey(*ty));
+                let rhs = rhs.fields.iter().map(|(_, ty)| TyKey(*ty));
+                lhs.cmp(rhs)
+            }
             _ => self.0.cmp(&other.0),
         }
     }

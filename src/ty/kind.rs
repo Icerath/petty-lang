@@ -26,7 +26,8 @@ impl<'tcx> Ty<'tcx> {
             TyKind::Generic(id) => f(id),
             TyKind::Array(ty) | TyKind::Ref(ty) => ty.generics(f),
             TyKind::Function(ref func) => func.generics(f),
-            TyKind::Struct(ref strct) => strct.generics.iter().for_each(f),
+            TyKind::Struct(ref strct) if strct.generics.len == 0 => {}
+            TyKind::Struct(ref strct) => strct.fields.iter().for_each(|(_, ty)| ty.generics(f)),
             TyKind::Poison
             | TyKind::Infer(..)
             | TyKind::Unit

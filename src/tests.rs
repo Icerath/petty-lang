@@ -27,6 +27,7 @@ test! {
     generics
     if_expr
     functions
+    methods
     structs
     ref_assignment
     precedence

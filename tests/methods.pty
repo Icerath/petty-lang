@@ -1,0 +1,22 @@
+struct Foo(val: int);
+
+impl Foo {
+    fn get(self: self) -> int {
+        self.val
+    }
+}
+
+struct Bar<T>(val: T);
+
+impl<T> Bar<T> {
+    fn get(self: self) -> T {
+        self.val
+    }
+}
+
+fn main() {
+    let foo = Foo(1);
+    println(foo.get());
+    let bar = Bar(2);
+    println(bar.get());
+}
