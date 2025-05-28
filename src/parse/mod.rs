@@ -598,7 +598,7 @@ fn parse_atom_with(stream: &mut Stream, tok: Token) -> Result<ExprId> {
         }
         found => {
             return Err(errors::error(
-                &format!("expected `expression`, found {found:?}"),
+                &format!("expected `expression`, found '{}'", found.repr()),
                 stream.path,
                 stream.lexer.src(),
                 [(stream.lexer.span(), "here")],
