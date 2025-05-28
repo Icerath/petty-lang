@@ -55,6 +55,29 @@ impl<'tcx> Struct<'tcx> {
     pub fn field_names(&self) -> impl Iterator<Item = Symbol> {
         self.fields.iter().map(|(name, _)| *name)
     }
+    pub fn infer_generics(&self, tcx: &'tcx TyCtx<'tcx>) -> Self {
+        let mut map = HashMap::default();
+        let new_fields = self
+            .fields
+            .iter()
+            .map(|&(name, ty)| {
+                (
+                    name,
+                    ty.replace_generics(tcx, &mut |id| {
+                        *map.entry(id).or_insert_with(|| tcx.new_infer())
+                    }),
+                )
+            })
+            .collect();
+
+        Self { id: self.id, generics: self.generics, fields: new_fields }
+    }
+    pub fn caller(&self, tcx: &'tcx TyCtx<'tcx>) -> (Ty<'tcx>, &'tcx Self) {
+        let strct = self.infer_generics(tcx);
+        let ty = tcx.intern(TyKind::Struct(Box::new(strct)));
+        let TyKind::Struct(strct) = ty.0 else { unreachable!() };
+        (ty, strct)
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, PartialOrd, Ord, Hash)]
@@ -67,9 +90,9 @@ impl<'tcx> Function<'tcx> {
     pub fn caller(&self, tcx: &'tcx TyCtx<'tcx>) -> Self {
         let mut map = HashMap::default();
         self.generics(&mut |id| _ = map.entry(id).or_insert_with(|| tcx.new_infer()));
-        let f = |id| map[&id];
-        let params = self.params.iter().map(|param| param.replace_generics(tcx, f)).collect();
-        let ret = self.ret.replace_generics(tcx, f);
+        let mut f = |id| map[&id];
+        let params = self.params.iter().map(|param| param.replace_generics(tcx, &mut f)).collect();
+        let ret = self.ret.replace_generics(tcx, &mut f);
         Self { params, ret }
     }
     pub fn generics(&self, f: &mut impl FnMut(GenericId)) {

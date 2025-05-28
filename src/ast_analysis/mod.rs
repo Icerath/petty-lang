@@ -345,7 +345,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                             for (id, ty) in strct.generics.iter().zip(generics) {
                                 map.insert(id, self.read_ast_ty(*ty));
                             }
-                            ty.replace_generics(self.tcx, |id| map[&id])
+                            ty.replace_generics(self.tcx, &mut |id| map[&id])
                         }
                         _ => unreachable!(),
                     }
@@ -570,9 +570,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                     let arm_ty = self.analyze_expr(arm.body)?;
                     match ty {
                         None => ty = Some(arm_ty),
-                        Some(ty) => {
-                            self.eq(arm_ty, ty, arm.body);
-                        }
+                        Some(ty) => _ = self.eq(arm_ty, ty, arm.body),
                     }
                     self.current().scopes.pop().unwrap();
                 }
@@ -680,6 +678,9 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
             PatKind::Struct(ident, ref fields) => {
                 let ty = self.read_named_ty(ident);
                 let TyKind::Struct(strct) = self.tcx.infer_shallow(ty).0 else { todo!() };
+                let (ty, strct) = strct.caller(self.tcx);
+                self.sub_span(ty, scrutinee, pat.span);
+
                 for PatArg { ident, pat } in fields {
                     let field_ty = strct.field_ty(ident.symbol).unwrap_or_else(|| {
                         self.errors.push(self.unknown_field_error(strct.field_names(), ty, *ident));
@@ -693,8 +694,8 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 let ident = Identifier { symbol: ident, span: pat.span };
                 self.insert_var(ident, scrutinee, Var::Let);
             }
-            PatKind::Str(..) => _ = self.sub_span(scrutinee, Ty::STR, pat.span),
-            PatKind::Int(..) => _ = self.sub_span(scrutinee, Ty::INT, pat.span),
+            PatKind::Str(..) => _ = self.sub_span(Ty::STR, scrutinee, pat.span),
+            PatKind::Int(..) => _ = self.sub_span(Ty::INT, scrutinee, pat.span),
             PatKind::Expr(block) => {
                 let ty = self.analyze_block(block)?;
                 let op = BinaryOp { span: pat.span, kind: BinOpKind::Eq };
