@@ -680,7 +680,14 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         match pat.kind {
             PatKind::Struct(ident, ref fields) => {
                 let ty = self.read_named_ty(ident);
-                let TyKind::Struct(strct) = self.tcx.infer_shallow(ty).0 else { todo!() };
+                let strct = match self.tcx.infer_shallow(ty).0 {
+                    TyKind::Struct(strct) => strct,
+                    TyKind::Poison => return Ok(()),
+                    _ => {
+                        self.errors.push(self.expected_struct_pat(ty, ident.span));
+                        return Ok(());
+                    }
+                };
                 let (ty, strct) = strct.caller(self.tcx);
                 self.ty_info.struct_pat_types.insert(ident.span, ty);
                 self.sub_span(ty, scrutinee, pat.span);

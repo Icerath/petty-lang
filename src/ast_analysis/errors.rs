@@ -9,6 +9,12 @@ use crate::{
 };
 
 impl<'tcx> Collector<'_, '_, 'tcx> {
+    pub fn expected_struct_pat(&self, ty: Ty<'tcx>, span: Span) -> Error {
+        self.raw_error(
+            &format!("expected struct, found {}", self.tcx.display(ty)),
+            [(span, "here")],
+        )
+    }
     pub fn param_missing_ty(&self, span: Span) -> Error {
         self.raw_error("parameters must be given an explicit type", [(span, "needs explicit type")])
     }
