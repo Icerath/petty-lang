@@ -438,7 +438,10 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                     UnaryOp::Deref => {
                         let operand = self.tcx.infer_shallow(operand);
                         let TyKind::Ref(inner) = operand.0 else {
-                            return Err(self.cannot_deref(operand, expr_span));
+                            if !operand.is_poison() {
+                                self.errors.push(self.cannot_deref(operand, expr_span));
+                            }
+                            break 'outer Ty::POISON;
                         };
                         break 'outer *inner;
                     }
