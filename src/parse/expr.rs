@@ -5,7 +5,7 @@ use super::{
     token::{Token, TokenKind},
 };
 use crate::{
-    ast::{BinOpKind, BinaryOp, ExprId, ExprKind, UnaryOp},
+    ast::{BinOpKind, BinaryOp, ExprId, ExprKind, Pat, UnaryOp},
     source::span::Span,
 };
 
@@ -39,6 +39,18 @@ fn parse_expr(stream: &mut Stream, precedence: u8) -> Result<ExprId> {
         &[BinOpKind::Add, BinOpKind::Sub],
         &[BinOpKind::Mul, BinOpKind::Div, BinOpKind::Mod],
     ];
+    const EQ_PRECEDENCE: usize = 3;
+    const _: () = {
+        let mut i = 0;
+        let mut found = false;
+        while i < OPS[EQ_PRECEDENCE].len() {
+            if matches!(OPS[EQ_PRECEDENCE][i], BinOpKind::Eq) {
+                found = true;
+            }
+            i += 1;
+        }
+        assert!(found);
+    };
 
     let Some(&ops) = OPS.get(precedence as usize) else {
         return parse_unary_expr(stream);
@@ -46,7 +58,20 @@ fn parse_expr(stream: &mut Stream, precedence: u8) -> Result<ExprId> {
     let mut root = parse_expr(stream, precedence + 1)?;
     loop {
         let Some(token) = stream.lexer.clone().next() else { break };
-        let Ok(op) = BinaryOp::try_from(token) else { break };
+        let Ok(op) = BinaryOp::try_from(token) else {
+            //
+            if precedence as usize == EQ_PRECEDENCE && token.kind == TokenKind::Is {
+                _ = stream.next();
+                let pat: Pat = stream.parse()?;
+                let root_span = stream.ast.exprs[root].span;
+                let span =
+                    Span::new(root_span.start() as _..pat.span.end() as _, root_span.source());
+                root = (stream.ast.exprs)
+                    .push((ExprKind::Is { scrutinee: root, pat }).with_span(span));
+                continue;
+            }
+            break;
+        };
         if !ops.contains(&op.kind) {
             break;
         }

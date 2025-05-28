@@ -585,6 +585,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 // TODO: produce error here instead
                 ty.unwrap_or_else(|| self.tcx.new_infer())
             }
+            ExprKind::Is { .. } => todo!(),
             ExprKind::If { ref arms, els } => {
                 let mut expected_ty = None;
 

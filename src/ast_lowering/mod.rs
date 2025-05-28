@@ -117,6 +117,7 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
             ast::ExprKind::Match { scrutinee, ref arms } => {
                 self.lower_match(scrutinee, arms, expr_id)
             }
+            ast::ExprKind::Is { .. } => todo!(),
             ast::ExprKind::While { condition, block } => self.lower_while_loop(condition, block),
             ast::ExprKind::For { ident, iter, body } => {
                 self.lower_for_loop(ident.symbol, iter, body)

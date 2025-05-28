@@ -90,6 +90,7 @@ pub enum ExprKind {
     For { ident: Identifier, iter: ExprId, body: BlockId },
     If { arms: ThinVec<IfStmt>, els: Option<BlockId> },
     Match { scrutinee: ExprId, arms: ThinVec<MatchArm> },
+    Is { scrutinee: ExprId, pat: Pat },
     Return(Option<ExprId>),
     Assert(ExprId),
     Break,
