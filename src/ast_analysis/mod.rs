@@ -613,19 +613,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 }
                 expected_ty
             }
-            ExprKind::Block(block_id) => {
-                let block = &self.ast.blocks[block_id];
-                if block.is_expr {
-                    let mut ty = None;
-                    for &id in &block.stmts {
-                        ty = Some(self.analyze_expr(id)?);
-                    }
-                    ty.unwrap()
-                } else {
-                    self.analyze_block(block_id)?;
-                    Ty::UNIT
-                }
-            }
+            ExprKind::Block(block_id) => self.analyze_block(block_id)?,
             ExprKind::Return(expr) => {
                 let ty = expr.map_or(Ok(Ty::UNIT), |expr| self.analyze_expr(expr))?;
                 let expected = self.current().ret;
