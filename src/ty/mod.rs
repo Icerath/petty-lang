@@ -55,6 +55,9 @@ impl<'tcx> Struct<'tcx> {
     pub fn field_names(&self) -> impl Iterator<Item = Symbol> {
         self.fields.iter().map(|(name, _)| *name)
     }
+    pub fn field_index(&self, target: Symbol) -> Option<usize> {
+        self.fields.iter().position(|&(name, _)| target == name)
+    }
     pub fn infer_generics(&self, tcx: &'tcx TyCtx<'tcx>) -> Self {
         let mut map = HashMap::default();
         let new_fields = self
