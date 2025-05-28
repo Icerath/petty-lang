@@ -3,7 +3,7 @@ use std::{
     mem,
 };
 
-use super::{ArraySeg, ExprKind, FnDecl, MatchArm, OpAssign, Param, Pat};
+use super::{ArraySeg, ExprKind, FnDecl, MatchArm, OpAssign, Param, Pat, PatField};
 use crate::{
     hir::{BinaryOp, ExprId, Hir, Lit, UnaryOp},
     symbol::Symbol,
@@ -36,10 +36,19 @@ impl Dump for MatchArm {
 impl Dump for Pat {
     fn write(&self, w: &mut Writer) {
         match *self {
+            Self::Struct(ident, ref fields) => {
+                (ident, "(", Sep(fields, ","), ")").write(w);
+            }
             Self::Ident(ident) => ident.write(w),
             Self::Expr(expr) => ("{", expr, " }").write(w),
             Self::Or(ref patterns) => Sep(patterns, " or ").write(w),
         }
+    }
+}
+
+impl Dump for PatField {
+    fn write(&self, w: &mut Writer) {
+        (self.ident, ":", &self.pat).write(w);
     }
 }
 

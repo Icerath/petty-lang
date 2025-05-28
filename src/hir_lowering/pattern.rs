@@ -43,6 +43,7 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
     }
     fn try_pattern(&mut self, scrutinee: Operand, ty: Ty<'tcx>, pat: &Pat) -> Option<RValue> {
         Some(match *pat {
+            Pat::Struct(..) => todo!(),
             Pat::Ident(ident) => {
                 let ident_var = self.assign_new(scrutinee);
                 self.current_mut().scope().variables.insert(ident, ident_var);

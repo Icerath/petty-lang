@@ -6,7 +6,7 @@ use crate::{
     ast::{self, Ast, BinOpKind, BinaryOp},
     ast_analysis::TyInfo,
     errors,
-    hir::{self, ExprKind, Hir, IfStmt, OpAssign, Pat},
+    hir::{self, ExprKind, Hir, IfStmt, OpAssign, Pat, PatField},
     symbol::Symbol,
     ty::{Function, Ty, TyKind},
 };
@@ -311,7 +311,16 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
 
     fn lower_pat(&mut self, pat: &ast::Pat) -> Pat {
         match pat.kind {
-            ast::PatKind::Struct(..) => todo!(),
+            ast::PatKind::Struct(ident, ref fields) => hir::Pat::Struct(
+                ident.symbol,
+                fields
+                    .iter()
+                    .map(|field| PatField {
+                        ident: field.ident.symbol,
+                        pat: self.lower_pat(&field.pat),
+                    })
+                    .collect(),
+            ),
             ast::PatKind::Ident(ident) => Pat::Ident(ident),
             ast::PatKind::Str(str) => Pat::Expr(
                 self.hir.exprs.push(ExprKind::Literal(hir::Lit::String(str)).with(Ty::STR)),

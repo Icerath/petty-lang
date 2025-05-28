@@ -66,9 +66,16 @@ pub struct MatchArm {
 
 #[derive(Debug)]
 pub enum Pat {
+    Struct(Symbol, ThinVec<PatField>),
     Ident(Symbol),
     Expr(ExprId),
     Or(ThinVec<Pat>),
+}
+
+#[derive(Debug)]
+pub struct PatField {
+    pub ident: Symbol,
+    pub pat: Pat,
 }
 
 #[derive(Debug)]
