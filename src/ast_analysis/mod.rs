@@ -459,7 +459,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 };
 
                 if args.len() != params.len() {
-                    return Err(self.invalid_arg_count(
+                    self.errors.push(self.invalid_arg_count(
                         args.len(),
                         params.len(),
                         self.ast.exprs[function].span,
