@@ -428,7 +428,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 Ty::UNIT
             }
             ExprKind::Lit(ref lit) => self.analyze_lit(lit)?,
-            ExprKind::Ident(ident) => self.read_ident(ident, expr_span)?,
+            ExprKind::Ident(ident) => self.read_ident(ident, expr_span),
             ExprKind::Unary { expr, op } => 'outer: {
                 let operand = self.analyze_expr(expr)?;
                 let ty = match op {
@@ -848,10 +848,10 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         self.fn_generics = self.produced_generics[&id];
         let block_id = decl.block.unwrap();
         // call `read_ident_raw` to avoid producing extra inference variables
-        let (fn_ty, _) = self
-            .read_ident_raw(decl.ident.symbol, Span::ZERO)
-            .expect("fndecl ident should have been inserted already");
-        let TyKind::Function(fn_ty) = fn_ty.0 else { unreachable!() };
+        let (fn_ty, _) = self.read_ident_raw(decl.ident.symbol, Span::ZERO);
+        let TyKind::Function(fn_ty) = fn_ty.0 else {
+            unreachable!("should be validated by preanalyze_fndecl")
+        };
         self.fndecl_inner(&decl.params, block_id, fn_ty)
     }
 
@@ -890,23 +890,27 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         Ok(Ty::UNIT)
     }
 
-    fn read_ident(&self, ident: Symbol, span: Span) -> Result<Ty<'tcx>> {
-        Ok(match self.read_ident_raw(ident, span)? {
+    fn read_ident(&mut self, ident: Symbol, span: Span) -> Ty<'tcx> {
+        match self.read_ident_raw(ident, span) {
             (Interned(TyKind::Function(func)), Var::Const) => {
                 self.tcx.intern(TyKind::Function(func.caller(self.tcx)))
             }
             (other, _) => other,
-        })
+        }
     }
 
     // like `read_ident` but will not produce `TyVid`s for generic functions
-    fn read_ident_raw(&self, ident: Symbol, span: Span) -> Result<(Ty<'tcx>, Var)> {
-        self.bodies
-            .iter()
-            .rev()
-            .find_map(|body| body.scopes.iter().rev().find_map(|scope| scope.variables.get(&ident)))
-            .copied()
-            .ok_or_else(|| self.ident_not_found(ident, span))
+    fn read_ident_raw(&mut self, ident: Symbol, span: Span) -> (Ty<'tcx>, Var) {
+        if let Some(&out) =
+            self.bodies.iter().rev().find_map(|body| {
+                body.scopes.iter().rev().find_map(|scope| scope.variables.get(&ident))
+            })
+        {
+            out
+        } else {
+            self.errors.push(self.ident_not_found(ident, span));
+            (Ty::POISON, Var::Let)
+        }
     }
 
     fn analyze_lit(&mut self, lit: &Lit) -> Result<Ty<'tcx>> {
