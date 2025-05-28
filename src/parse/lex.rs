@@ -190,6 +190,7 @@ fn ident_kind(str: &str) -> TokenKind {
         "impl" => TokenKind::Impl,
         "unreachable" => TokenKind::Unreachable,
         "in" => TokenKind::In,
+        "is" => TokenKind::Is,
         "for" => TokenKind::For,
         "assert" => TokenKind::Assert,
         "break" => TokenKind::Break,
