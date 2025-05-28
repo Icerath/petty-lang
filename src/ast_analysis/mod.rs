@@ -447,11 +447,12 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
             }
             ExprKind::Binary { lhs, op, rhs } => self.analyze_binary_expr(lhs, op, rhs)?,
             ExprKind::Index { expr, index } => self.index(expr, index, expr_span)?,
-            ExprKind::FnCall { function, ref args } => {
+            ExprKind::FnCall { function, ref args } => 'out: {
                 let fn_ty = self.analyze_expr(function)?;
                 let TyKind::Function(Function { params, ret }) = fn_ty.0 else {
                     let fn_span = self.ast.exprs[function].span;
-                    return Err(self.expected_function(fn_ty, fn_span));
+                    self.errors.push(self.expected_function(fn_ty, fn_span));
+                    break 'out Ty::POISON;
                 };
 
                 if args.len() != params.len() {
@@ -469,7 +470,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 }
                 *ret
             }
-            ExprKind::MethodCall { expr, method, ref args } => {
+            ExprKind::MethodCall { expr, method, ref args } => 'out: {
                 let ty = self.tcx.infer_shallow(self.analyze_expr(expr)?);
                 let Some(func) = self.tcx.get_method(ty, method.symbol) else {
                     if !ty.is_poison() {
@@ -482,12 +483,13 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 let Function { ref params, ret } = func;
 
                 if args.len() + 1 != params.len() {
-                    return Err(self.invalid_arg_count(
+                    self.errors.push(self.invalid_arg_count(
                         args.len() + 1,
                         params.len(),
                         method.span,
                         expr_span,
                     ));
+                    break 'out ret;
                 }
 
                 self.anyref_sub(ty, params[0], expr);
@@ -624,15 +626,19 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
             }
             ExprKind::Break => {
                 if self.current().loops == 0 {
-                    return Err(self.cannot_break(self.ast.exprs[id].span));
+                    self.errors.push(self.cannot_break(self.ast.exprs[id].span));
+                    Ty::POISON
+                } else {
+                    Ty::NEVER
                 }
-                Ty::NEVER
             }
             ExprKind::Continue => {
                 if self.current().loops == 0 {
-                    return Err(self.cannot_continue(self.ast.exprs[id].span));
+                    self.errors.push(self.cannot_continue(self.ast.exprs[id].span));
+                    Ty::POISON
+                } else {
+                    Ty::NEVER
                 }
-                Ty::NEVER
             }
             ExprKind::Unreachable => Ty::NEVER,
             ExprKind::FieldAccess { expr, field } => 'out: {
