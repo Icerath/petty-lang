@@ -409,8 +409,29 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         Infer { out: Ok(()) }
     }
 
-    #[expect(clippy::too_many_lines)]
     fn analyze_expr(&mut self, id: ExprId) -> Result<Ty<'tcx>> {
+        let pushed_scope = match self.ast.exprs[id].kind {
+            ExprKind::Block(..)
+            | ExprKind::Struct { .. }
+            | ExprKind::Impl(..)
+            | ExprKind::FnDecl { .. }
+            | ExprKind::Let { .. }
+            | ExprKind::Const { .. }
+            | ExprKind::Is { .. } => false,
+            _ => {
+                self.current().scopes.push(Scope::default());
+                true
+            }
+        };
+        let res = self.analyze_expr_inner(id);
+        if pushed_scope {
+            self.current().scopes.pop().unwrap();
+        }
+        res
+    }
+
+    #[expect(clippy::too_many_lines)]
+    fn analyze_expr_inner(&mut self, id: ExprId) -> Result<Ty<'tcx>> {
         let expr_span = self.ast.exprs[id].span;
         if !self.within_const && self.bodies.len() <= 2 && !self.is_item(id) {
             return Err(self.expected_item(id));
@@ -418,7 +439,6 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         if self.within_const && !self.is_const(id) {
             return Err(self.expected_const(id));
         }
-
         let ty = match self.ast.exprs[id].kind {
             ExprKind::Trait(ref trait_) => self.analyze_trait(trait_, id)?,
             ExprKind::Impl(ref impl_) => self.analyze_impl(impl_, id)?,
@@ -430,12 +450,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
             ExprKind::Lit(ref lit) => self.analyze_lit(lit)?,
             ExprKind::Ident(ident) => self.read_ident(ident, expr_span),
             ExprKind::Unary { expr, op } => 'outer: {
-                // we push a new scope to avoid scoping issues with patterns
-                self.current().scopes.push(Scope::default());
-
                 let operand = self.analyze_expr(expr)?;
-
-                self.current().scopes.pop().unwrap();
                 let ty = match op {
                     UnaryOp::Neg => Ty::INT,
                     UnaryOp::Not => Ty::BOOL,
@@ -734,13 +749,8 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
     fn analyze_binary_expr(&mut self, lhs: ExprId, op: BinaryOp, rhs: ExprId) -> Result<Ty<'tcx>> {
         use BinOpKind as B;
 
-        // we push a new scope to avoid scoping issues with patterns
-        self.current().scopes.push(Scope::default());
-
         let mut lhs_ty = self.analyze_expr(lhs)?;
         let mut rhs_ty = self.analyze_expr(rhs)?;
-
-        self.current().scopes.pop().unwrap();
 
         match op.kind {
             BinOpKind::Assign => {}
@@ -848,7 +858,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         // call `read_ident_raw` to avoid producing extra inference variables
         let (fn_ty, _) = self.read_ident_raw(decl.ident.symbol, Span::ZERO);
         let TyKind::Function(fn_ty) = fn_ty.0 else {
-            unreachable!("should be validated by preanalyze_fndecl")
+            unreachable!("should be validated by preanalyze_fndecl - {}", self.tcx.display(fn_ty))
         };
         self.fndecl_inner(&decl.params, block_id, fn_ty)
     }
