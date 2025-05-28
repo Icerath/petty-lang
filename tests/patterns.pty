@@ -1,0 +1,13 @@
+fn main() {
+    match 1 {
+        2 => assert false,
+        other => assert other == 1,
+    }
+
+    struct Foo<T>(val: T);
+
+    match Foo("bar") {
+        Foo(val: "foo" or "bar") => assert true,
+        other => assert false,
+    }
+}
