@@ -46,7 +46,10 @@ impl Writer<'_> {
                 self.indent -= 1;
                 (Line, "}").write(self);
             }
-            ExprKind::Is { scrutinee, ref pat } => (scrutinee, " is ", pat).write(self),
+            ExprKind::Is { scrutinee, ref pat } => {
+                (inside_expr.then_some("("), scrutinee, " is ", pat, inside_expr.then_some(")"))
+                    .write(self);
+            }
             ExprKind::Unreachable => "unreachable".write(self),
             ExprKind::Assert(expr) => ("assert ", expr).write(self),
             ExprKind::Struct { ident, ref fields, ref generics, .. } => {
