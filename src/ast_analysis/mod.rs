@@ -430,7 +430,12 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
             ExprKind::Lit(ref lit) => self.analyze_lit(lit)?,
             ExprKind::Ident(ident) => self.read_ident(ident, expr_span),
             ExprKind::Unary { expr, op } => 'outer: {
+                // we push a new scope to avoid scoping issues with patterns
+                self.current().scopes.push(Scope::default());
+
                 let operand = self.analyze_expr(expr)?;
+
+                self.current().scopes.pop().unwrap();
                 let ty = match op {
                     UnaryOp::Neg => Ty::INT,
                     UnaryOp::Not => Ty::BOOL,
@@ -729,8 +734,13 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
     fn analyze_binary_expr(&mut self, lhs: ExprId, op: BinaryOp, rhs: ExprId) -> Result<Ty<'tcx>> {
         use BinOpKind as B;
 
+        // we push a new scope to avoid scoping issues with patterns
+        self.current().scopes.push(Scope::default());
+
         let mut lhs_ty = self.analyze_expr(lhs)?;
         let mut rhs_ty = self.analyze_expr(rhs)?;
+
+        self.current().scopes.pop().unwrap();
 
         match op.kind {
             BinOpKind::Assign => {}
