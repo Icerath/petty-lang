@@ -595,7 +595,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
 
                 for arm in arms {
                     let ty = self.analyze_expr(arm.condition)?;
-                    self.sub(ty, Ty::BOOL, id);
+                    self.sub(ty, Ty::BOOL, arm.condition);
                     let block_ty = self.analyze_block(arm.body)?;
                     if let Some(expected_ty) = expected_ty {
                         self.eq_block(expected_ty, block_ty, arm.body);
