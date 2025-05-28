@@ -72,7 +72,7 @@ impl Stream<'_, '_> {
                 &format!("expected `{}`, found: `{}`", kind.repr(), token.kind.repr()),
                 self.path,
                 self.lexer.src(),
-                [(self.lexer.span(), "here")],
+                [(self.lexer.span(), format!("expected `{}`", kind.repr()))],
             ));
         }
         Ok(token)
@@ -87,18 +87,13 @@ impl Stream<'_, '_> {
     #[inline(never)]
     #[cold]
     fn any_failed(&self, found: Token, toks: &[TokenKind]) -> Error {
+        let toks =
+            toks.iter().map(|kind| format!("`{}`", kind.repr())).collect::<Vec<_>>().join(" or ");
         errors::error(
-            &format!(
-                "expected one of {}, found `{}`",
-                toks.iter()
-                    .map(|kind| format!("`{}`", kind.repr()))
-                    .collect::<Vec<_>>()
-                    .join(" or "),
-                found.kind.repr()
-            ),
+            &format!("expected one of {toks}, found `{}`", found.kind.repr()),
             self.path,
             self.lexer.src(),
-            [(self.lexer.span(), "here")],
+            [(self.lexer.span(), format!("expected one of '{toks}'"))],
         )
     }
 
@@ -601,7 +596,7 @@ fn parse_atom_with(stream: &mut Stream, tok: Token) -> Result<ExprId> {
                 &format!("expected `expression`, found '{}'", found.repr()),
                 stream.path,
                 stream.lexer.src(),
-                [(stream.lexer.span(), "here")],
+                [(stream.lexer.span(), "expected `expression`")],
             ));
         }
     };
@@ -680,7 +675,7 @@ fn invalid_escape(stream: &mut Stream<'_, '_>, span: Span, char: char) -> Error 
         &format!("invalid escape character {char:?}"),
         stream.path,
         stream.lexer.src(),
-        [(span, "here")],
+        [(span, "invalid escape character")],
     )
 }
 
