@@ -23,6 +23,8 @@ impl Expr<'_> {
     pub const UNIT: Self = ExprKind::Literal(Lit::Unit).with(Ty::UNIT);
     pub const BREAK: Self = ExprKind::Break.with(Ty::NEVER);
     pub const CONTINUE: Self = ExprKind::Continue.with(Ty::NEVER);
+    pub const TRUE: Self = ExprKind::Literal(Lit::Bool(true)).with(Ty::BOOL);
+    pub const FALSE: Self = ExprKind::Literal(Lit::Bool(false)).with(Ty::BOOL);
 }
 
 #[derive(Debug)]
