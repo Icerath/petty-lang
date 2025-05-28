@@ -22,6 +22,7 @@ pub struct TyInfo<'tcx> {
     pub type_ids: IndexVec<TypeId, Ty<'tcx>>,
     pub struct_types: HashMap<Span, Ty<'tcx>>,
     pub method_types: HashMap<ExprId, Ty<'tcx>>,
+    pub struct_pat_types: HashMap<Span, Ty<'tcx>>,
 }
 
 impl<'tcx> Index<TypeId> for TyInfo<'tcx> {
@@ -102,6 +103,7 @@ struct Collector<'src, 'ast, 'tcx> {
 fn setup_ty_info<'tcx>(ast: &Ast) -> TyInfo<'tcx> {
     let shared = Ty::UNIT;
     TyInfo {
+        struct_pat_types: HashMap::default(),
         expr_tys: std::iter::repeat_n(shared, ast.exprs.len()).collect(),
         type_ids: std::iter::repeat_n(shared, ast.types.len()).collect(),
         method_types: HashMap::default(),
@@ -145,6 +147,7 @@ pub fn analyze<'tcx>(
     ty_info.type_ids.iter_mut().for_each(|ty| *ty = tcx.infer_deep(*ty));
     ty_info.method_types.values_mut().for_each(|ty| *ty = tcx.infer_deep(*ty));
     ty_info.struct_types.values_mut().for_each(|ty| *ty = tcx.infer_deep(*ty));
+    ty_info.struct_pat_types.values_mut().for_each(|ty| *ty = tcx.infer_deep(*ty));
 
     Ok(ty_info)
 }
@@ -679,6 +682,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 let ty = self.read_named_ty(ident);
                 let TyKind::Struct(strct) = self.tcx.infer_shallow(ty).0 else { todo!() };
                 let (ty, strct) = strct.caller(self.tcx);
+                self.ty_info.struct_pat_types.insert(ident.span, ty);
                 self.sub_span(ty, scrutinee, pat.span);
 
                 for PatArg { ident, pat } in fields {

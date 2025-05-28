@@ -44,7 +44,7 @@ pub enum ExprKind<'tcx> {
     FnDecl(Box<FnDecl<'tcx>>),
     Let { ident: Symbol, expr: ExprId },
     If { arms: ThinVec<IfStmt>, els: ThinVec<ExprId> },
-    Match { scrutinee: ExprId, arms: ThinVec<MatchArm> },
+    Match { scrutinee: ExprId, arms: ThinVec<MatchArm<'tcx>> },
     Loop(ThinVec<ExprId>),
     ForLoop { ident: Symbol, iter: ExprId, body: ThinVec<ExprId> },
     Break,
@@ -59,23 +59,23 @@ impl<'tcx> From<FnDecl<'tcx>> for Expr<'tcx> {
 }
 
 #[derive(Debug)]
-pub struct MatchArm {
-    pub pat: Pat,
+pub struct MatchArm<'tcx> {
+    pub pat: Pat<'tcx>,
     pub body: ExprId,
 }
 
 #[derive(Debug)]
-pub enum Pat {
-    Struct(Symbol, ThinVec<PatField>),
+pub enum Pat<'tcx> {
+    Struct(Ty<'tcx>, ThinVec<PatField<'tcx>>),
     Ident(Symbol),
     Expr(ExprId),
-    Or(ThinVec<Pat>),
+    Or(ThinVec<Pat<'tcx>>),
 }
 
 #[derive(Debug)]
-pub struct PatField {
+pub struct PatField<'tcx> {
     pub ident: Symbol,
-    pub pat: Pat,
+    pub pat: Pat<'tcx>,
 }
 
 #[derive(Debug)]

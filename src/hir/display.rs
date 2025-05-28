@@ -27,13 +27,13 @@ impl Hir<'_> {
     }
 }
 
-impl Dump for MatchArm {
+impl Dump for MatchArm<'_> {
     fn write(&self, w: &mut Writer) {
         (&self.pat, " => ", self.body).write(w);
     }
 }
 
-impl Dump for Pat {
+impl Dump for Pat<'_> {
     fn write(&self, w: &mut Writer) {
         match *self {
             Self::Struct(ident, ref fields) => {
@@ -46,7 +46,7 @@ impl Dump for Pat {
     }
 }
 
-impl Dump for PatField {
+impl Dump for PatField<'_> {
     fn write(&self, w: &mut Writer) {
         (self.ident, ":", &self.pat).write(w);
     }

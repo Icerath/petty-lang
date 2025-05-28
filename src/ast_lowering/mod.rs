@@ -309,10 +309,10 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
         .with(self.ty_info.expr_tys[id])
     }
 
-    fn lower_pat(&mut self, pat: &ast::Pat) -> Pat {
+    fn lower_pat(&mut self, pat: &ast::Pat) -> Pat<'tcx> {
         match pat.kind {
             ast::PatKind::Struct(ident, ref fields) => hir::Pat::Struct(
-                ident.symbol,
+                self.ty_info.struct_pat_types[&ident.span],
                 fields
                     .iter()
                     .map(|field| PatField {
