@@ -63,14 +63,14 @@ impl<'tcx> Body<'tcx> {
         ident: Identifier,
         ty: Ty<'tcx>,
         kind: Var,
-    ) -> Option<(Ty<'tcx>, Var)> {
-        self.scope().variables.insert(ident.symbol, (ty, kind))
+    ) -> Option<(Ty<'tcx>, Var, Span)> {
+        self.scope().variables.insert(ident.symbol, (ty, kind, ident.span))
     }
 }
 
 #[derive(Debug, Default)]
 struct Scope<'tcx> {
-    variables: HashMap<Symbol, (Ty<'tcx>, Var)>,
+    variables: HashMap<Symbol, (Ty<'tcx>, Var, Span)>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -763,10 +763,9 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                             break;
                         }
 
-                        for (name, &(ty, _)) in &new_scope.variables {
-                            let (new_ty, _) = scope.variables[name];
-                            // FIXME: better span
-                            self.sub_span(new_ty, ty, pat.span);
+                        for (name, &(ty, _, new_span)) in &new_scope.variables {
+                            let (new_ty, _, _) = scope.variables[name];
+                            self.sub_span(new_ty, ty, new_span);
                         }
                     } else {
                         scope = Some(new_scope);
@@ -948,7 +947,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 body.scopes.iter().rev().find_map(|scope| scope.variables.get(&ident))
             })
         {
-            out
+            (out.0, out.1)
         } else {
             self.errors.push(self.ident_not_found(ident, span));
             (Ty::POISON, Var::Let)
