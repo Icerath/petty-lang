@@ -234,8 +234,23 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
         local
     }
 
-    #[expect(clippy::too_many_lines)]
     fn lower_rvalue(&mut self, id: ExprId) -> RValue {
+        let pushed_scope = match self.hir.exprs[id].kind {
+            ExprKind::Let { .. } | ExprKind::FnDecl(..) => false,
+            _ => {
+                self.begin_scope();
+                true
+            }
+        };
+        let rvalue = self.lower_rvalue_unscoped(id);
+        if pushed_scope {
+            self.end_scope();
+        }
+        rvalue
+    }
+
+    #[expect(clippy::too_many_lines)]
+    fn lower_rvalue_unscoped(&mut self, id: ExprId) -> RValue {
         let is_unit = self.ty(id).is_unit();
 
         match self.hir.exprs[id].kind {
