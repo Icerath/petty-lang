@@ -695,6 +695,9 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
     }
 
     fn insert_var(&mut self, ident: Identifier, ty: Ty<'tcx>, kind: Var) {
+        if ident.symbol.as_str() == "_" {
+            return;
+        }
         self.current().insert_var(ident, ty, kind);
     }
 
