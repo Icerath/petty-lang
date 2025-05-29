@@ -9,6 +9,20 @@ use crate::{
 };
 
 impl<'tcx> Collector<'_, '_, 'tcx> {
+    pub fn pat_new_ident(&self, ident: Symbol, span: Span) -> Error {
+        self.raw_error(
+            &format!("pattern set unexpected ident: `{ident}`"),
+            [(span, format!("ident not set in previous patterns: `{ident}`"))],
+        )
+    }
+
+    pub fn pat_missing_ident(&self, ident: Symbol, span: Span) -> Error {
+        self.raw_error(
+            &format!("pattern does not set expected ident: `{ident}`"),
+            [(span, format!("expected pat to set ident: `{ident}`"))],
+        )
+    }
+
     pub fn expected_struct_pat(&self, ty: Ty<'tcx>, span: Span) -> Error {
         self.raw_error(
             &format!("expected struct, found {}", self.tcx.display(ty)),

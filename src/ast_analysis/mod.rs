@@ -739,8 +739,41 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 self.sub_block(ty, scrutinee, block);
             }
             PatKind::Or(ref patterns) => {
+                let mut scope: Option<Scope> = None;
                 for pat in patterns {
+                    self.current().scopes.push(Scope::default());
                     self.analyze_pat(pat, scrutinee)?;
+                    let new_scope = self.current().scopes.pop().unwrap();
+                    if let Some(scope) = &scope {
+                        let mut encountered_error = false;
+                        for ident in scope.variables.keys() {
+                            if !new_scope.variables.contains_key(ident) {
+                                self.errors.push(self.pat_missing_ident(*ident, pat.span));
+                                encountered_error = true;
+                            }
+                        }
+                        for ident in new_scope.variables.keys() {
+                            if !scope.variables.contains_key(ident) {
+                                self.errors.push(self.pat_new_ident(*ident, pat.span));
+                                encountered_error = true;
+                            }
+                        }
+
+                        if encountered_error {
+                            break;
+                        }
+
+                        for (name, &(ty, _)) in &new_scope.variables {
+                            let (new_ty, _) = scope.variables[name];
+                            // FIXME: better span
+                            self.sub_span(new_ty, ty, pat.span);
+                        }
+                    } else {
+                        scope = Some(new_scope);
+                    }
+                }
+                if let Some(scope) = scope {
+                    self.current().scope().variables.extend(scope.variables);
                 }
             }
         }
