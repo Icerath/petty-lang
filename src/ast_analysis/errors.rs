@@ -183,6 +183,11 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         )
     }
     pub fn ident_not_found(&self, ident: Symbol, span: Span) -> Error {
+        if ident.as_str() == "_" {
+            return self
+                .raw_error("cannot use `_` in expressions", [(span, "`_` is not allowed here")]);
+        }
+
         let help = self
             .find_best_name(ident)
             .map(|suggest| format!("a local variable with a similar name exists: `{suggest}`"));
