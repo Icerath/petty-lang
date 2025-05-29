@@ -399,12 +399,7 @@ impl Parse for PatArg {
 impl Parse for Pat {
     fn parse(stream: &mut Stream) -> Result<Self> {
         fn parse_single(stream: &mut Stream) -> Result<Pat> {
-            let tok = stream.any(&[
-                TokenKind::Ident,
-                TokenKind::Str,
-                TokenKind::Int,
-                TokenKind::LBrace,
-            ])?;
+            let tok = stream.next()?;
             let kind = match tok.kind {
                 TokenKind::Ident if stream.peek()?.kind == TokenKind::LParen => {
                     _ = stream.next();
@@ -423,7 +418,14 @@ impl Parse for Pat {
                     let block: BlockId = stream.parse()?;
                     PatKind::Expr(block)
                 }
-                _ => unreachable!(),
+                _ => {
+                    return Err(errors::error(
+                        &format!("expected `pattern`, found '{}'", tok.kind.repr()),
+                        stream.path,
+                        stream.lexer.src(),
+                        [(stream.lexer.span(), "expected `pattern`")],
+                    ));
+                }
             };
             let span = Span::new(
                 tok.span.start() as _..stream.lexer.current_pos() as _,
