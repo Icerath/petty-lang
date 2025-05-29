@@ -205,6 +205,9 @@ pub enum Constant {
 
 #[derive(Debug, PartialEq, PartialOrd, Eq, Hash, Clone, Copy)]
 pub enum BinaryOp {
+    BoolEq,
+    BoolNeq,
+
     IntAdd,
     IntSub,
     IntMul,

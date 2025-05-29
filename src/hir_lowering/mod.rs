@@ -542,6 +542,11 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
                 hir::BinaryOp::Add => mir::BinaryOp::StrAdd,
                 _ => unreachable!("str - {op:?}"),
             },
+            (TyKind::Bool, op) => match op {
+                hir::BinaryOp::Eq => mir::BinaryOp::BoolEq,
+                hir::BinaryOp::Neq => mir::BinaryOp::BoolNeq,
+                _ => unreachable!("bool - {op:?}"),
+            },
             (ty, op) => unreachable!("{ty:?} - {op:?}",),
         }
     }

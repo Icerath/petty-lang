@@ -195,7 +195,9 @@ fn bool_to_str(bool: bool) -> ArcStr {
 #[expect(clippy::needless_pass_by_value)]
 pub fn binary_op(lhs: Value, op: BinaryOp, rhs: Value) -> Value {
     match op {
-        BinaryOp::ArrayPush => lhs.unwrap_ref_array().push(rhs).into(),
+        BinaryOp::BoolEq => Value::Bool(lhs.unwrap_bool() == rhs.unwrap_bool()),
+        BinaryOp::BoolNeq => Value::Bool(lhs.unwrap_bool() != rhs.unwrap_bool()),
+
         BinaryOp::IntAdd => Value::Int(lhs.unwrap_int() + rhs.unwrap_int()),
         BinaryOp::IntSub => Value::Int(lhs.unwrap_int() - rhs.unwrap_int()),
         BinaryOp::IntMul => Value::Int(lhs.unwrap_int() * rhs.unwrap_int()),
@@ -231,6 +233,7 @@ pub fn binary_op(lhs: Value, op: BinaryOp, rhs: Value) -> Value {
             lhs.unwrap_str().rfind(rhs.unwrap_str().as_str()).unwrap().try_into().unwrap(),
         ),
         BinaryOp::ArrayIndexRange => todo!(),
+        BinaryOp::ArrayPush => lhs.unwrap_ref_array().push(rhs).into(),
     }
 }
 
