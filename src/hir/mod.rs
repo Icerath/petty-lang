@@ -46,7 +46,7 @@ pub enum ExprKind<'tcx> {
     FnDecl(Box<FnDecl<'tcx>>),
     Let { ident: Symbol, expr: ExprId },
     If { arms: ThinVec<IfStmt>, els: ThinVec<ExprId> },
-    Match { scrutinee: ExprId, arms: ThinVec<MatchArm<'tcx>> },
+    Match { scrutinee: ExprId, arms: ThinVec<MatchArm<'tcx>>, new_scope: bool },
     Loop(ThinVec<ExprId>),
     ForLoop { ident: Symbol, iter: ExprId, body: ThinVec<ExprId> },
     Break,

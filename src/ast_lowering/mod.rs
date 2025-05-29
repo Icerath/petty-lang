@@ -121,6 +121,7 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
                 let scrutinee = self.lower(scrutinee);
                 let pat = self.lower_pat(pat);
                 (hir::ExprKind::Match {
+                    new_scope: false,
                     scrutinee,
                     arms: [
                         hir::MatchArm { pat, body: self.hir.exprs.push(hir::Expr::TRUE) },
@@ -313,6 +314,7 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
     ) -> hir::Expr<'tcx> {
         let scrutinee = self.lower(scrutinee);
         (hir::ExprKind::Match {
+            new_scope: true,
             scrutinee,
             arms: arms
                 .iter()

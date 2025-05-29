@@ -56,7 +56,7 @@ impl Writer<'_, '_> {
     fn display_expr(&mut self, expr: ExprId) {
         let inside_expr = mem::replace(&mut self.inside_expr, true);
         match self.hir.exprs[expr].kind {
-            ExprKind::Match { scrutinee, ref arms } => {
+            ExprKind::Match { scrutinee, ref arms, .. } => {
                 ("match ", scrutinee, " {").write(self);
                 self.indent += 1;
                 (Line, Sep(arms, (",", Line))).write(self);

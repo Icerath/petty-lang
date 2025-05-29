@@ -236,7 +236,9 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
 
     fn lower_rvalue(&mut self, id: ExprId) -> RValue {
         let pushed_scope = match self.hir.exprs[id].kind {
-            ExprKind::Let { .. } | ExprKind::FnDecl(..) => false,
+            ExprKind::Match { new_scope: false, .. }
+            | ExprKind::Let { .. }
+            | ExprKind::FnDecl(..) => false,
             _ => {
                 self.begin_scope();
                 true
@@ -358,7 +360,7 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
                 );
                 RValue::UNIT
             }
-            ExprKind::Match { scrutinee, ref arms } => self.lower_match(scrutinee, arms),
+            ExprKind::Match { scrutinee, ref arms, .. } => self.lower_match(scrutinee, arms),
             ExprKind::If { ref arms, ref els } => {
                 let mut jump_to_ends = Vec::with_capacity(arms.len());
                 let out_local = self.new_local();
