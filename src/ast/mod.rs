@@ -109,8 +109,9 @@ pub struct Pat {
 
 #[derive(Debug)]
 pub enum PatKind {
-    Str(Symbol),
+    Bool(bool),
     Int(i64),
+    Str(Symbol),
     Expr(BlockId),
     Or(ThinVec<Pat>),
     Ident(Symbol),

@@ -408,6 +408,8 @@ impl Parse for Pat {
                     PatKind::Struct(Identifier { symbol, span: tok.span }, args)
                 }
                 TokenKind::Ident => PatKind::Ident(Symbol::from(&stream.lexer.src()[tok.span])),
+                TokenKind::True => PatKind::Bool(true),
+                TokenKind::False => PatKind::Bool(false),
                 TokenKind::Str => {
                     PatKind::Str(Symbol::from(&stream.lexer.src()[tok.span.shrink(1)]))
                 }

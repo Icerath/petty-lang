@@ -165,6 +165,7 @@ impl Dump for Pat {
 impl Dump for PatKind {
     fn write(&self, w: &mut Writer) {
         match *self {
+            Self::Bool(bool) => Lit::Bool(bool).write(w),
             Self::Ident(ident) => ident.write(w),
             Self::Struct(ident, ref fields) => (ident, "(", Sep(fields, ", "), ")").write(w),
             Self::Str(str) => Lit::Str(str).write(w),

@@ -727,6 +727,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 let ident = Identifier { symbol: ident, span: pat.span };
                 self.insert_var(ident, scrutinee, Var::Let);
             }
+            PatKind::Bool(..) => _ = self.sub_span(Ty::BOOL, scrutinee, pat.span),
             PatKind::Str(..) => _ = self.sub_span(Ty::STR, scrutinee, pat.span),
             PatKind::Int(..) => _ = self.sub_span(Ty::INT, scrutinee, pat.span),
             PatKind::Expr(block) => {
