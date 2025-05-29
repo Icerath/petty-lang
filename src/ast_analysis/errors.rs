@@ -182,18 +182,20 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
             [(span, format!("cannot deref `{}`", self.tcx.display(ty)))],
         )
     }
-    pub fn ident_not_found(&self, ident: Symbol, span: Span) -> Error {
-        if ident.as_str() == "_" {
-            return self
-                .raw_error("cannot use `_` in expressions", [(span, "`_` is not allowed here")]);
+    pub fn ident_not_found(&self, ident: Identifier) -> Error {
+        if ident.symbol.as_str() == "_" {
+            return self.raw_error(
+                "cannot use `_` in expressions",
+                [(ident.span, "`_` is not allowed here")],
+            );
         }
 
         let help = self
-            .find_best_name(ident)
+            .find_best_name(ident.symbol)
             .map(|suggest| format!("a local variable with a similar name exists: `{suggest}`"));
         self.raw_error_help(
-            &format!("cannot find '{ident}' in this scope"),
-            [(span, format!("'{ident}' not found"))],
+            &format!("cannot find '{}' in this scope", ident.symbol),
+            [(ident.span, format!("'{}' not found", ident.symbol))],
             help.as_deref(),
         )
     }
