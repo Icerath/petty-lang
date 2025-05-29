@@ -1,6 +1,8 @@
 use std::fmt;
 
-use super::{Function, GenericId, GenericRange, Ty, TyCtx, TyVid};
+use thin_vec::ThinVec;
+
+use super::{GenericId, GenericRange, Ty, TyCtx, TyVid};
 use crate::{HashMap, define_id, symbol::Symbol};
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -202,5 +204,26 @@ impl<'tcx> Struct<'tcx> {
         let ty = tcx.intern(TyKind::Struct(Box::new(strct)));
         let TyKind::Struct(strct) = ty.0 else { unreachable!() };
         (ty, strct)
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, PartialOrd, Ord, Hash)]
+pub struct Function<'tcx> {
+    pub params: ThinVec<Ty<'tcx>>,
+    pub ret: Ty<'tcx>,
+}
+
+impl<'tcx> Function<'tcx> {
+    pub fn caller(&self, tcx: &'tcx TyCtx<'tcx>) -> Self {
+        let mut map = HashMap::default();
+        self.generics(&mut |id| _ = map.entry(id).or_insert_with(|| tcx.new_infer()));
+        let mut f = |id| map[&id];
+        let params = self.params.iter().map(|param| param.replace_generics(tcx, &mut f)).collect();
+        let ret = self.ret.replace_generics(tcx, &mut f);
+        Self { params, ret }
+    }
+    pub fn generics(&self, f: &mut impl FnMut(GenericId)) {
+        self.params.iter().for_each(|param| param.generics(f));
+        self.ret.generics(f);
     }
 }

@@ -7,13 +7,12 @@ use std::{cell::RefCell, cmp::Ordering, collections::BTreeMap, hash::Hash};
 pub use generic_range::GenericRange;
 use index_vec::IndexVec;
 pub use interned::Interned;
-pub use kind::{Struct, StructId, TyKind};
+pub use kind::{Function, Struct, StructId, TyKind};
 use petty_intern::Interner;
-use thin_vec::ThinVec;
 
 type TyInterner<'tcx> = &'tcx Interner<TyKind<'tcx>>;
 
-use crate::{HashMap, ast::Identifier, define_id, symbol::Symbol};
+use crate::{ast::Identifier, define_id, symbol::Symbol};
 
 pub type Ty<'tcx> = Interned<'tcx, TyKind<'tcx>>;
 
@@ -39,27 +38,6 @@ impl Ty<'_> {
 
 define_id!(pub TyVid = u32);
 define_id!(pub GenericId = u32);
-
-#[derive(Debug, PartialEq, Eq, Clone, PartialOrd, Ord, Hash)]
-pub struct Function<'tcx> {
-    pub params: ThinVec<Ty<'tcx>>,
-    pub ret: Ty<'tcx>,
-}
-
-impl<'tcx> Function<'tcx> {
-    pub fn caller(&self, tcx: &'tcx TyCtx<'tcx>) -> Self {
-        let mut map = HashMap::default();
-        self.generics(&mut |id| _ = map.entry(id).or_insert_with(|| tcx.new_infer()));
-        let mut f = |id| map[&id];
-        let params = self.params.iter().map(|param| param.replace_generics(tcx, &mut f)).collect();
-        let ret = self.ret.replace_generics(tcx, &mut f);
-        Self { params, ret }
-    }
-    pub fn generics(&self, f: &mut impl FnMut(GenericId)) {
-        self.params.iter().for_each(|param| param.generics(f));
-        self.ret.generics(f);
-    }
-}
 
 #[derive(Debug)]
 pub struct TyCtx<'tcx> {
