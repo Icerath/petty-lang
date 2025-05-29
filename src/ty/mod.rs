@@ -7,7 +7,7 @@ use std::{cell::RefCell, cmp::Ordering, collections::BTreeMap, hash::Hash};
 pub use generic_range::GenericRange;
 use index_vec::IndexVec;
 pub use interned::Interned;
-pub use kind::TyKind;
+pub use kind::{Struct, StructId, TyKind};
 use petty_intern::Interner;
 use thin_vec::ThinVec;
 
@@ -39,49 +39,6 @@ impl Ty<'_> {
 
 define_id!(pub TyVid = u32);
 define_id!(pub GenericId = u32);
-define_id!(pub StructId = u32);
-
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Struct<'tcx> {
-    pub id: StructId,
-    pub generics: GenericRange,
-    pub fields: Vec<(Symbol, Ty<'tcx>)>,
-}
-
-impl<'tcx> Struct<'tcx> {
-    pub fn field_ty(&self, target: Symbol) -> Option<Ty<'tcx>> {
-        self.fields.iter().find_map(|&(field, ty)| (field == target).then_some(ty))
-    }
-    pub fn field_names(&self) -> impl Iterator<Item = Symbol> {
-        self.fields.iter().map(|(name, _)| *name)
-    }
-    pub fn field_index(&self, target: Symbol) -> Option<usize> {
-        self.fields.iter().position(|&(name, _)| target == name)
-    }
-    pub fn infer_generics(&self, tcx: &'tcx TyCtx<'tcx>) -> Self {
-        let mut map = HashMap::default();
-        let new_fields = self
-            .fields
-            .iter()
-            .map(|&(name, ty)| {
-                (
-                    name,
-                    ty.replace_generics(tcx, &mut |id| {
-                        *map.entry(id).or_insert_with(|| tcx.new_infer())
-                    }),
-                )
-            })
-            .collect();
-
-        Self { id: self.id, generics: self.generics, fields: new_fields }
-    }
-    pub fn caller(&self, tcx: &'tcx TyCtx<'tcx>) -> (Ty<'tcx>, &'tcx Self) {
-        let strct = self.infer_generics(tcx);
-        let ty = tcx.intern(TyKind::Struct(Box::new(strct)));
-        let TyKind::Struct(strct) = ty.0 else { unreachable!() };
-        (ty, strct)
-    }
-}
 
 #[derive(Debug, PartialEq, Eq, Clone, PartialOrd, Ord, Hash)]
 pub struct Function<'tcx> {

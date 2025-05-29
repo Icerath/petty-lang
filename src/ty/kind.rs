@@ -1,6 +1,7 @@
 use std::fmt;
 
-use super::{Function, GenericId, Struct, Ty, TyCtx, TyVid};
+use super::{Function, GenericId, GenericRange, Ty, TyCtx, TyVid};
+use crate::{HashMap, define_id, symbol::Symbol};
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum TyKind<'tcx> {
@@ -158,5 +159,48 @@ impl<'tcx> TyCtx<'tcx> {
         }
         let ty = self.try_infer_shallow(ty).unwrap_or(ty);
         Display(self, ty)
+    }
+}
+define_id!(pub StructId = u32);
+
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Struct<'tcx> {
+    pub id: StructId,
+    pub generics: GenericRange,
+    pub fields: Vec<(Symbol, Ty<'tcx>)>,
+}
+
+impl<'tcx> Struct<'tcx> {
+    pub fn field_ty(&self, target: Symbol) -> Option<Ty<'tcx>> {
+        self.fields.iter().find_map(|&(field, ty)| (field == target).then_some(ty))
+    }
+    pub fn field_names(&self) -> impl Iterator<Item = Symbol> {
+        self.fields.iter().map(|(name, _)| *name)
+    }
+    pub fn field_index(&self, target: Symbol) -> Option<usize> {
+        self.fields.iter().position(|&(name, _)| target == name)
+    }
+    pub fn infer_generics(&self, tcx: &'tcx TyCtx<'tcx>) -> Self {
+        let mut map = HashMap::default();
+        let new_fields = self
+            .fields
+            .iter()
+            .map(|&(name, ty)| {
+                (
+                    name,
+                    ty.replace_generics(tcx, &mut |id| {
+                        *map.entry(id).or_insert_with(|| tcx.new_infer())
+                    }),
+                )
+            })
+            .collect();
+
+        Self { id: self.id, generics: self.generics, fields: new_fields }
+    }
+    pub fn caller(&self, tcx: &'tcx TyCtx<'tcx>) -> (Ty<'tcx>, &'tcx Self) {
+        let strct = self.infer_generics(tcx);
+        let ty = tcx.intern(TyKind::Struct(Box::new(strct)));
+        let TyKind::Struct(strct) = ty.0 else { unreachable!() };
+        (ty, strct)
     }
 }
