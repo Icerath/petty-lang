@@ -1,33 +1,35 @@
-// Patterns exist as parts of `is` and `match` expressions
+fn main() {
+    // Patterns exist as parts of `is` and `match` expressions
 
-let number = 3;
-match number {
-    3 => println("Yup, It's 3"),
-//    ..
-}
-if number is 3  {
-    println("Yup, It's 3");
-}
-// Patterns can contain wildcards to handle unspecified cases
-let number = 4;
-match number {
-    3 => println("It's 3!"),
-    other => println("Oh no! It's ${other}"),
-}
-// Some patterns can nest other patterns
-let array = ["foo", "bar"];
-if array is ["foo", bar] {
-    println(bar);
-}
-match array {
-    ["foo", bar] or ["baz", bar] => println(bar),
-//    ..
-}
+    let number = 3;
+    match number {
+        3 => println("Yup, It's 3"),
+    //    ..
+    }
+    if number is 3  {
+        println("Yup, It's 3");
+    }
+    // Patterns can contain wildcards to handle unspecified cases
+    let number = 4;
+    match number {
+        3 => println("It's 3!"),
+        other => println("Oh no! It's ${other}"),
+    }
+    // Some patterns can nest other patterns
+    let array = ["foo", "bar"];
+    if array is ["foo", bar] {
+        println(bar);
+    }
+    match array {
+        ["foo", bar] or ["baz", bar] => println(bar),
+    //    ..
+    }
 
-// You can compare against expressions by wrapping them in {}
-let foo = 10;
-let bar = 10;
-match foo {
-    { bar } => println("Foo is equal to bar"),
-    other => println("Foo is equal to ${other}, not bar"),
+    // You can compare against expressions by wrapping them in {}
+    let foo = 10;
+    let bar = 10;
+    match foo {
+        { bar } => println("Foo is equal to bar"),
+        other => println("Foo is equal to ${other}, not bar"),
+    }
 }
