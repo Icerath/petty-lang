@@ -72,6 +72,7 @@ pub enum Pat<'tcx> {
     Ident(Symbol),
     Expr(ExprId),
     Or(ThinVec<Pat<'tcx>>),
+    And(ThinVec<Pat<'tcx>>),
     Array(ThinVec<Pat<'tcx>>),
 }
 

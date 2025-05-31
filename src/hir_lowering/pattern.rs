@@ -124,6 +124,7 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
                     return None;
                 }
             }
+            Pat::And(..) => todo!(),
             Pat::Array(ref pats) => {
                 let &TyKind::Array(of) = ty.0 else { unreachable!() };
                 let scrutinee_place = self.process_to_place(scrutinee);

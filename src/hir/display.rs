@@ -43,6 +43,7 @@ impl Dump for Pat<'_> {
             Self::Ident(ident) => ident.write(w),
             Self::Expr(expr) => ("{", expr, " }").write(w),
             Self::Or(ref patterns) => Sep(patterns, " or ").write(w),
+            Self::And(ref patterns) => Sep(patterns, " and ").write(w),
         }
     }
 }
