@@ -38,10 +38,25 @@ test! {
     refs
     variables
     logical
-    patterns
+    tpatterns
     // should panic
     "expected `!`, found `int`" fail_never
     "expected `int`, found `str`" fail_variables
     "expected `int`, found `str`" fail_return
     "assertion failed" fail_assert
+}
+
+macro_rules! example {
+    {$($name:ident)*} => {
+        $(#[test]
+        fn $name() {
+            compile_test(concat!("examples/", stringify!($name), ".pty")).unwrap();
+        })*
+    };
+}
+
+example! {
+    brainfuck
+    patterns
+    hello_world
 }
