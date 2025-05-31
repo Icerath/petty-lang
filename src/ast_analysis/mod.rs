@@ -780,6 +780,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                     self.current().scope().variables.extend(scope.variables);
                 }
             }
+            PatKind::Array(..) => todo!(),
         }
         Ok(())
     }

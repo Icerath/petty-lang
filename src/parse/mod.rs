@@ -420,6 +420,9 @@ impl Parse for Pat {
                     let block: BlockId = stream.parse()?;
                     PatKind::Expr(block)
                 }
+                TokenKind::LBracket => {
+                    PatKind::Array(stream.parse_separated(TokenKind::Comma, TokenKind::RBracket)?)
+                }
                 _ => {
                     return Err(errors::error(
                         &format!("expected `pattern`, found '{}'", tok.kind.repr()),

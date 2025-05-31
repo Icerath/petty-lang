@@ -116,6 +116,7 @@ pub enum PatKind {
     Or(ThinVec<Pat>),
     Ident(Symbol),
     Struct(Identifier, ThinVec<PatArg>),
+    Array(ThinVec<Pat>),
 }
 
 #[derive(Debug)]
