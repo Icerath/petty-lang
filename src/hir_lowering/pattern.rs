@@ -79,9 +79,15 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
                 }
             }
             Pat::Ident(ident) => {
-                let ident_var = self.assign_new(scrutinee);
-                self.current_mut().scope().variables.insert(ident, ident_var);
-
+                // FIXME: the double lookup is ugly
+                let local = if let Some(&local) = self.current().scope_ref().variables.get(&ident) {
+                    local
+                } else {
+                    let local = self.new_local();
+                    self.current_mut().scope().variables.insert(ident, local);
+                    local
+                };
+                self.assign(local, scrutinee);
                 return None;
             }
             Pat::Expr(expr) => {

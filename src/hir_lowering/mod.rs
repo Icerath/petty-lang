@@ -95,6 +95,9 @@ impl BodyInfo {
     pub fn scope(&mut self) -> &mut Scope {
         self.scopes.last_mut().unwrap()
     }
+    pub fn scope_ref(&self) -> &Scope {
+        self.scopes.last().unwrap()
+    }
 }
 
 #[derive(Debug, Default)]
