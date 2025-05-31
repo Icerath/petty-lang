@@ -743,7 +743,10 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 }
                 self.sub_block(ty, scrutinee, block);
             }
-            PatKind::If(..) => todo!(),
+            PatKind::If(expr) => {
+                let ty = self.analyze_expr(expr)?;
+                self.sub(ty, Ty::BOOL, expr);
+            }
             PatKind::Or(ref patterns) => {
                 let mut scope: Option<Scope> = None;
                 for pat in patterns {
