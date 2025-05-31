@@ -36,6 +36,7 @@ impl Dump for MatchArm<'_> {
 impl Dump for Pat<'_> {
     fn write(&self, w: &mut Writer) {
         match *self {
+            Self::Array(ref pats) => ("[", Sep(pats, ", "), "]").write(w),
             Self::Struct(ident, ref fields) => {
                 (ident, "(", Sep(fields, ","), ")").write(w);
             }

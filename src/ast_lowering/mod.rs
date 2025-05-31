@@ -355,7 +355,9 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
             ast::PatKind::Or(ref patterns) => {
                 Pat::Or(patterns.iter().map(|pat| self.lower_pat(pat)).collect())
             }
-            ast::PatKind::Array(..) => todo!(),
+            ast::PatKind::Array(ref pats) => {
+                Pat::Array(pats.iter().map(|pat| self.lower_pat(pat)).collect())
+            }
         }
     }
 

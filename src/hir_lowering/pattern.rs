@@ -114,6 +114,7 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
                     return None;
                 }
             }
+            Pat::Array(..) => todo!(),
         })
     }
 }
