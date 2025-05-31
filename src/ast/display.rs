@@ -172,6 +172,7 @@ impl Dump for PatKind {
             Self::Int(int) => Lit::Int(int).write(w),
             Self::Expr(block) => block.write(w),
             Self::Or(ref pats) => Sep(pats, " or ").write(w),
+            Self::And(ref pats) => Sep(pats, " and ").write(w),
             Self::Array(ref pats) => ("[", Sep(pats, ", "), "]").write(w),
         }
     }

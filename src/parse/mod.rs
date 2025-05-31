@@ -438,21 +438,26 @@ impl Parse for Pat {
             );
             Ok(Pat { kind, span })
         }
-        let single = parse_single(stream)?;
+        let mut single = parse_single(stream)?;
         let single_span = single.span;
-        if stream.peek()?.kind != TokenKind::Or {
-            return Ok(single);
+        loop {
+            let next = stream.peek()?.kind;
+            if !matches!(next, TokenKind::Or | TokenKind::And) {
+                return Ok(single);
+            }
+            let mut patterns = thin_vec![single];
+            while stream.peek()?.kind == next {
+                _ = stream.next();
+                patterns.push(parse_single(stream)?);
+            }
+            let span = Span::new(
+                single_span.start() as _..stream.lexer.current_pos() as _,
+                single_span.source(),
+            );
+            let kind =
+                if next == TokenKind::Or { PatKind::Or(patterns) } else { PatKind::And(patterns) };
+            single = Pat { kind, span };
         }
-        let mut patterns = thin_vec![single];
-        while stream.peek()?.kind == TokenKind::Or {
-            _ = stream.next();
-            patterns.push(parse_single(stream)?);
-        }
-        let span = Span::new(
-            single_span.start() as _..stream.lexer.current_pos() as _,
-            single_span.source(),
-        );
-        Ok(Pat { kind: PatKind::Or(patterns), span })
     }
 }
 

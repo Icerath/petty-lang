@@ -114,6 +114,7 @@ pub enum PatKind {
     Str(Symbol),
     Expr(BlockId),
     Or(ThinVec<Pat>),
+    And(ThinVec<Pat>),
     Ident(Symbol),
     Struct(Identifier, ThinVec<PatArg>),
     Array(ThinVec<Pat>),
