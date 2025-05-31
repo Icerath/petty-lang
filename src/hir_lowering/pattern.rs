@@ -41,6 +41,7 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
         }
         RValue::local(output)
     }
+    #[expect(clippy::too_many_lines)]
     fn try_pattern(&mut self, scrutinee: Operand, ty: Ty<'tcx>, pat: &Pat<'tcx>) -> Option<RValue> {
         Some(match *pat {
             Pat::Struct(ty, ref fields) => {
@@ -114,7 +115,37 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
                     return None;
                 }
             }
-            Pat::Array(..) => todo!(),
+            Pat::Array(ref pats) => {
+                let &TyKind::Array(of) = ty.0 else { unreachable!() };
+                let scrutinee_place = self.process_to_place(scrutinee);
+                let condition_local = self.new_local();
+                let mut placeholders = vec![];
+                for (index, pat) in (0u32..).zip(pats) {
+                    let mut field_place = scrutinee_place.clone();
+                    field_place.projections.push(Projection::ConstantIndex(index));
+                    let Some(condition) = self.try_pattern(Operand::Place(field_place), of, pat)
+                    else {
+                        continue;
+                    };
+                    self.assign(condition_local, condition);
+                    let next = self.current_block() + 1;
+                    placeholders.push(self.finish_with(Terminator::Branch {
+                        condition: Operand::local(condition_local),
+                        fals: BlockId::PLACEHOLDER,
+                        tru: next,
+                    }));
+                }
+                let current = self.current_block();
+                let set_condition = !placeholders.is_empty();
+                for placeholder in placeholders {
+                    self.body_mut().blocks[placeholder].terminator.complete(current);
+                }
+                if set_condition {
+                    RValue::local(condition_local)
+                } else {
+                    return None;
+                }
+            }
         })
     }
 }
