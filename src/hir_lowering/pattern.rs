@@ -98,6 +98,7 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
                 let rhs_ty = self.ty(expr);
                 self.binary_op_inner((scrutinee.into(), ty), hir::BinaryOp::Eq, (rhs, rhs_ty))
             }
+            Pat::If(expr) => self.lower_rvalue(expr),
             Pat::Or(ref patterns) => {
                 let mut placeholders = vec![];
                 let condition_local = self.new_local();

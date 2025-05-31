@@ -71,6 +71,7 @@ pub enum Pat<'tcx> {
     Struct(Ty<'tcx>, ThinVec<PatField<'tcx>>),
     Ident(Symbol),
     Expr(ExprId),
+    If(ExprId),
     Or(ThinVec<Pat<'tcx>>),
     And(ThinVec<Pat<'tcx>>),
     Array(ThinVec<Pat<'tcx>>),

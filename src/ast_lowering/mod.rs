@@ -352,7 +352,7 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
                 let expr = self.lower_block(block);
                 Pat::Expr(self.hir.exprs.push(expr))
             }
-            ast::PatKind::If(..) => todo!(),
+            ast::PatKind::If(expr) => hir::Pat::If(self.lower(expr)),
             ast::PatKind::Or(ref patterns) => {
                 Pat::Or(patterns.iter().map(|pat| self.lower_pat(pat)).collect())
             }
