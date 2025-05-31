@@ -780,7 +780,11 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                     self.current().scope().variables.extend(scope.variables);
                 }
             }
-            PatKind::And(..) => todo!(),
+            PatKind::And(ref pats) => {
+                for pat in pats {
+                    self.analyze_pat(pat, scrutinee)?;
+                }
+            }
             PatKind::Array(ref pats) => {
                 // TODO: better way of checking for arrays
                 let TyKind::Array(of) = self.tcx.infer_shallow(scrutinee).0 else { todo!() };
