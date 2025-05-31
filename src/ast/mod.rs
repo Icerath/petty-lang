@@ -113,6 +113,7 @@ pub enum PatKind {
     Int(i64),
     Str(Symbol),
     Expr(BlockId),
+    If(ExprId),
     Or(ThinVec<Pat>),
     And(ThinVec<Pat>),
     Ident(Symbol),

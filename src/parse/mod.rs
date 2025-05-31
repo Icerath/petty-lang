@@ -423,6 +423,7 @@ impl Parse for Pat {
                 TokenKind::LBracket => {
                     PatKind::Array(stream.parse_separated(TokenKind::Comma, TokenKind::RBracket)?)
                 }
+                TokenKind::If => PatKind::If(stream.parse()?),
                 _ => {
                     return Err(errors::error(
                         &format!("expected `pattern`, found '{}'", tok.kind.repr()),

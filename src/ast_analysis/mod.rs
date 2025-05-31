@@ -743,6 +743,7 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
                 }
                 self.sub_block(ty, scrutinee, block);
             }
+            PatKind::If(..) => todo!(),
             PatKind::Or(ref patterns) => {
                 let mut scope: Option<Scope> = None;
                 for pat in patterns {
