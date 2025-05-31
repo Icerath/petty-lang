@@ -124,7 +124,32 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
                     return None;
                 }
             }
-            Pat::And(..) => todo!(),
+            Pat::And(ref pats) => {
+                let condition_local = self.new_local();
+                let mut placeholders = vec![];
+                for pat in pats {
+                    let Some(condition) = self.try_pattern(scrutinee.clone(), ty, pat) else {
+                        continue;
+                    };
+                    self.assign(condition_local, condition);
+                    let next = self.current_block() + 1;
+                    placeholders.push(self.finish_with(Terminator::Branch {
+                        condition: Operand::local(condition_local),
+                        fals: BlockId::PLACEHOLDER,
+                        tru: next,
+                    }));
+                }
+                let current = self.current_block();
+                let set_condition = !placeholders.is_empty();
+                for placeholder in placeholders {
+                    self.body_mut().blocks[placeholder].terminator.complete(current);
+                }
+                if set_condition {
+                    RValue::local(condition_local)
+                } else {
+                    return None;
+                }
+            }
             Pat::Array(ref pats) => {
                 let &TyKind::Array(of) = ty.0 else { unreachable!() };
                 let scrutinee_place = self.process_to_place(scrutinee);
