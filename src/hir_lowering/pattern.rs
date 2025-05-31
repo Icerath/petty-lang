@@ -82,7 +82,7 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
                 if ident.as_str() == "_" {
                     return None;
                 }
-                // FIXME: the double lookup is ugly
+                // FIXME: avoid double lookup
                 let local = if let Some(&local) = self.current().scope_ref().variables.get(&ident) {
                     local
                 } else {
