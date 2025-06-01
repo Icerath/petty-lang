@@ -23,7 +23,7 @@ impl fmt::Debug for Span {
 impl Span {
     pub const ZERO: Self = Self { start: 0, len: 0, source: SourceId::NULL };
 
-    #[track_caller]
+    #[cfg_attr(debug_assertions, track_caller)]
     #[expect(clippy::cast_possible_truncation)]
     pub fn new(range: Range<usize>, source: SourceId) -> Self {
         let len = (range.end - range.start).min(u16::MAX as _) as _;

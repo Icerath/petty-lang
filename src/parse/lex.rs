@@ -19,7 +19,7 @@ impl<'src> Lexer<'src> {
         let source = Source::with_global(|src| src.init(path))?;
         Ok(Self { src, token_start: 0, chars: src.chars(), source_list: vec![source] })
     }
-    #[track_caller]
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn bump(&mut self, bytes: usize) {
         self.chars = self.chars.as_str()[bytes..].chars();
     }

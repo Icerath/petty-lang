@@ -82,43 +82,53 @@ macro_rules! value {
 }
 
 impl Value {
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn unwrap_ref(&self) -> &Allocation {
         value!(Ref, self)
     }
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn unwrap_bool(&self) -> bool {
         *value!(Bool, self)
     }
-    #[track_caller]
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn unwrap_int(&self) -> i64 {
         *value!(Int, self)
     }
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn unwrap_int_usize(&self) -> usize {
         let int = self.unwrap_int();
         int.try_into().unwrap_or_else(|_| panic!("{int}"))
     }
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn unwrap_char(&self) -> char {
         *value!(Char, self)
     }
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn unwrap_str(&self) -> &ArcStr {
         value!(Str, self)
     }
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn unwrap_range(&self) -> &Range<i64> {
         value!(Range, self)
     }
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn unwrap_range_usize(&self) -> Range<usize> {
         let range = self.unwrap_range();
         usize::try_from(range.start).unwrap()..usize::try_from(range.end).unwrap()
     }
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn unwrap_fn(&self) -> BodyId {
         *value!(Fn, self)
     }
-    #[track_caller]
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn unwrap_array(&self) -> &Array {
         value!(Array, self)
     }
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn unwrap_struct(&self) -> &ThinVec<Allocation> {
         value!(Struct, self)
     }
+    #[cfg_attr(debug_assertions, track_caller)]
     pub fn unwrap_ref_array(&self) -> Array {
         self.unwrap_ref().borrow().unwrap_array().clone()
     }
