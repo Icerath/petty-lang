@@ -56,8 +56,6 @@ impl Stream<'_> {
         if token.kind != kind {
             return Err(errors::error(
                 &format!("expected `{}`, found: `{}`", kind.repr(), token.kind.repr()),
-                Some(&self.lexer.path()),
-                self.lexer.src(),
                 [(self.lexer.span(), format!("expected `{}`", kind.repr()))],
             ));
         }
@@ -77,8 +75,6 @@ impl Stream<'_> {
             toks.iter().map(|kind| format!("`{}`", kind.repr())).collect::<Vec<_>>().join(" or ");
         errors::error(
             &format!("expected one of {toks}, found `{}`", found.kind.repr()),
-            Some(&self.lexer.path()),
-            self.lexer.src(),
             [(self.lexer.span(), format!("expected one of '{toks}'"))],
         )
     }
@@ -416,8 +412,6 @@ impl Parse for Pat {
                 _ => {
                     return Err(errors::error(
                         &format!("expected `pattern`, found '{}'", tok.kind.repr()),
-                        Some(&stream.lexer.path()),
-                        stream.lexer.src(),
                         [(stream.lexer.span(), "expected `pattern`")],
                     ));
                 }
@@ -592,8 +586,6 @@ fn parse_atom_with(stream: &mut Stream, tok: Token) -> Result<ExprId> {
         found => {
             return Err(errors::error(
                 &format!("expected `expression`, found '{}'", found.repr()),
-                Some(&stream.lexer.path()),
-                stream.lexer.src(),
                 [(stream.lexer.span(), "expected `expression`")],
             ));
         }
@@ -649,7 +641,7 @@ fn parse_string(stream: &mut Stream, outer_span: Span) -> Result<Expr> {
                             current_start..span.start() + char_pos + char.len_utf8(),
                             span.source(),
                         );
-                        return Err(invalid_escape(stream, span, char));
+                        return Err(invalid_escape(span, char));
                     }
                 }
             }
@@ -668,11 +660,9 @@ fn parse_string(stream: &mut Stream, outer_span: Span) -> Result<Expr> {
     Ok(ExprKind::Lit(Lit::FStr(segments)).with_span(outer_span))
 }
 
-fn invalid_escape(stream: &mut Stream<'_>, span: Span, char: char) -> Error {
+fn invalid_escape(span: Span, char: char) -> Error {
     errors::error(
         &format!("invalid escape character {char:?}"),
-        Some(&stream.lexer.path()),
-        stream.lexer.src(),
         [(span, "invalid escape character")],
     )
 }

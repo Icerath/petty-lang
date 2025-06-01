@@ -1,8 +1,4 @@
-use std::{
-    io,
-    path::{Path, PathBuf},
-    str::Chars,
-};
+use std::{io, path::Path, str::Chars};
 
 use super::token::{Token, TokenKind};
 use crate::{
@@ -61,10 +57,6 @@ impl Lexer<'_> {
     pub fn source(&self) -> SourceId {
         *self.source_list.last().unwrap()
     }
-    pub fn path(&self) -> PathBuf {
-        Source::with_global(|src| src.get_path(self.source()).into())
-    }
-
     pub fn next(&mut self) -> Token {
         let char = loop {
             let Some(next) = self.chars.next() else {

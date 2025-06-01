@@ -33,11 +33,27 @@ impl Source {
         self.path_ids.insert(path, id);
         Ok(id)
     }
-    pub fn get(&self, path: impl AsRef<Path>) -> SourceId {
+    pub fn get_id(&self, path: impl AsRef<Path>) -> SourceId {
         *self.path_ids.get(path.as_ref()).unwrap_or_else(|| panic!("{}", path.as_ref().display()))
     }
-    pub fn get_path(&self, id: SourceId) -> &Path {
+    fn get_path(&self, id: SourceId) -> &Path {
         &self.source_data[id].0
+    }
+    fn get(&self, id: SourceId) -> (&Path, &str) {
+        let raw = &self.source_data[id];
+        (&raw.0, &raw.1)
+    }
+}
+
+impl SourceId {
+    pub fn path(self) -> PathBuf {
+        self.get().0
+    }
+    pub fn contents(self) -> String {
+        self.get().1
+    }
+    pub fn get(self) -> (PathBuf, String) {
+        GLOBAL.get_or_init(Mutex::default).lock().unwrap().source_data[self].clone()
     }
 }
 

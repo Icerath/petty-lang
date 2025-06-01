@@ -5,7 +5,7 @@ use crate::{
     ty::{Ty, TyKind},
 };
 
-impl<'tcx> Lowering<'_, 'tcx, '_> {
+impl<'tcx> Lowering<'_, 'tcx> {
     pub(super) fn lower_match(&mut self, scrutinee: ExprId, arms: &[MatchArm<'tcx>]) -> RValue {
         // TODO: take refs into account
 

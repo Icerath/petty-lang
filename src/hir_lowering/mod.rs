@@ -5,7 +5,6 @@ mod pattern;
 use std::{
     collections::{BTreeMap, VecDeque},
     mem,
-    path::Path,
 };
 
 use arcstr::ArcStr;
@@ -23,7 +22,7 @@ use crate::{
     ty::{self, GenericId, Struct, StructId, Ty, TyCtx, TyKey, TyKind},
 };
 
-pub fn lower<'tcx>(hir: &Hir<'tcx>, path: Option<&Path>, src: &str, tcx: &'tcx TyCtx<'tcx>) -> Mir {
+pub fn lower<'tcx>(hir: &Hir<'tcx>, tcx: &'tcx TyCtx<'tcx>) -> Mir {
     let mut mir = Mir::default();
     let root_body = mir.bodies.push(Body::new(None, 0).with_auto(true));
     let bodies = vec![BodyInfo::new(root_body)];
@@ -37,8 +36,6 @@ pub fn lower<'tcx>(hir: &Hir<'tcx>, path: Option<&Path>, src: &str, tcx: &'tcx T
         array_display_bodies: HashMap::default(),
         methods: BTreeMap::default(),
         strings: HashMap::default(),
-        src,
-        path,
         generic_fns: HashMap::default(),
         mono_generics: VecDeque::default(),
         generic_map: None,
@@ -51,7 +48,7 @@ pub fn lower<'tcx>(hir: &Hir<'tcx>, path: Option<&Path>, src: &str, tcx: &'tcx T
     lowering.mir
 }
 
-struct Lowering<'hir, 'tcx, 'src> {
+struct Lowering<'hir, 'tcx> {
     tcx: &'tcx TyCtx<'tcx>,
     hir: &'hir Hir<'tcx>,
     mir: Mir,
@@ -60,8 +57,6 @@ struct Lowering<'hir, 'tcx, 'src> {
     array_display_bodies: HashMap<Ty<'tcx>, BodyId>,
     methods: BTreeMap<(TyKey<'tcx>, Symbol), BodyId>,
     strings: HashMap<Symbol, ArcStr>,
-    src: &'src str,
-    path: Option<&'src Path>,
     generic_fns: HashMap<BodyId, GenericFns<'tcx, 'hir>>,
     mono_generics: VecDeque<(&'hir hir::FnDecl<'tcx>, &'tcx ty::Function<'tcx>, BodyId)>,
     generic_map: Option<HashMap<GenericId, Ty<'tcx>>>,
@@ -118,7 +113,7 @@ impl BodyInfo {
     }
 }
 
-impl<'tcx> Lowering<'_, 'tcx, '_> {
+impl<'tcx> Lowering<'_, 'tcx> {
     fn ty(&self, id: ExprId) -> Ty<'tcx> {
         self.mono(self.hir.exprs[id].ty)
     }
@@ -650,12 +645,7 @@ impl<'tcx> Lowering<'_, 'tcx, '_> {
             tru: next,
         });
 
-        let error_report = errors::error(
-            "index out of bounds",
-            self.path,
-            self.src,
-            [(span, "index out of bounds")],
-        );
+        let error_report = errors::error("index out of bounds", [(span, "index out of bounds")]);
         let error_str = format!("{error_report:?}").into();
         self.finish_with(Terminator::Abort { msg: error_str });
 

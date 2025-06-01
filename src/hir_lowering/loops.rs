@@ -6,7 +6,7 @@ use super::{
 };
 use crate::mir::Projection;
 
-impl Lowering<'_, '_, '_> {
+impl Lowering<'_, '_> {
     pub fn lower_loop(
         &mut self,
         condition: impl FnOnce(&mut Self) -> Option<Local>,

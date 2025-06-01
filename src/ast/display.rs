@@ -1,7 +1,6 @@
 use std::{
     fmt::{self, Write},
     mem,
-    path::PathBuf,
 };
 
 use thin_vec::ThinVec;
@@ -12,7 +11,6 @@ use super::{
 };
 use crate::{
     ast::{Ast, BinaryOp, BlockId, ExprId, Lit, UnaryOp},
-    source::Source,
     symbol::Symbol,
 };
 
@@ -28,12 +26,10 @@ impl fmt::Display for Ast {
         let f = String::new();
         let mut w = Writer { ast: self, f, indent: 0, inside_expr: false };
         self.top_level.iter().for_each(|expr| (expr, Line).write(&mut w));
-        #[cfg(debug_assertions)]
-        crate::parse::parse(
-            &w.f,
-            &Source::with_global(|src| PathBuf::from(src.get_path(self.exprs[0].span.source()))),
-        )
-        .unwrap();
+        if !self.exprs.is_empty() {
+            #[cfg(debug_assertions)]
+            crate::parse::parse(&w.f, &self.exprs[0].span.source().path()).unwrap();
+        }
         fmt.write_str(&w.f)
     }
 }

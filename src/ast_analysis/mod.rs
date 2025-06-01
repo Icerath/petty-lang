@@ -1,6 +1,6 @@
 mod errors;
 
-use std::{ops::Index, path::Path};
+use std::ops::Index;
 
 use index_vec::IndexVec;
 use miette::{Error, Result};
@@ -85,13 +85,11 @@ impl<'tcx> Body<'tcx> {
     }
 }
 
-struct Collector<'src, 'ast, 'tcx> {
+struct Collector<'ast, 'tcx> {
     ty_info: TyInfo<'tcx>,
     bodies: Vec<Body<'tcx>>,
     ast: &'ast Ast,
     tcx: &'tcx TyCtx<'tcx>,
-    src: &'src str,
-    path: Option<&'src Path>,
     within_const: bool,
     fn_generics: GenericRange,
     impl_generics: GenericRange,
@@ -111,17 +109,10 @@ fn setup_ty_info<'tcx>(ast: &Ast) -> TyInfo<'tcx> {
     }
 }
 
-pub fn analyze<'tcx>(
-    file: Option<&Path>,
-    src: &str,
-    ast: &Ast,
-    tcx: &'tcx TyCtx<'tcx>,
-) -> Result<TyInfo<'tcx>, Vec<Error>> {
+pub fn analyze<'tcx>(ast: &Ast, tcx: &'tcx TyCtx<'tcx>) -> Result<TyInfo<'tcx>, Vec<Error>> {
     let ty_info = setup_ty_info(ast);
     let body = global_body();
     let mut collector = Collector {
-        path: file,
-        src,
         ty_info,
         ast,
         tcx,
@@ -160,7 +151,7 @@ fn global_body<'tcx>() -> Body<'tcx> {
     body
 }
 
-impl<'tcx> Collector<'_, '_, 'tcx> {
+impl<'tcx> Collector<'_, 'tcx> {
     fn analyze_body_with(
         &mut self,
         block: &ast::Block,

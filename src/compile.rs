@@ -64,10 +64,10 @@ pub fn compile(args: &Args, w: &mut dyn Write) -> miette::Result<(), Vec<Error>>
     let src = crate::STD.to_string() + &src;
     let ast = parse(&src, &args.path).map_err(|e| vec![e])?;
     dump!(ast);
-    let analysis = ast_analysis::analyze(Some(&args.path), &src, &ast, &tcx)?;
-    let hir = ast_lowering::lower(&src, Some(&args.path), ast, analysis);
+    let analysis = ast_analysis::analyze(&ast, &tcx)?;
+    let hir = ast_lowering::lower(ast, analysis);
     dump!(@d hir);
-    let mut mir = hir_lowering::lower(&hir, Some(&args.path), &src, &tcx);
+    let mut mir = hir_lowering::lower(&hir, &tcx);
     drop(hir);
     mir_optimizations::optimize(&mut mir, &args.codegen, args.verbose);
     dump!(mir, mir.display(args.show_auto).to_string());

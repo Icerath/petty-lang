@@ -1,5 +1,3 @@
-use std::path::Path;
-
 use thin_vec::{ThinVec, thin_vec};
 
 use crate::{
@@ -11,15 +9,10 @@ use crate::{
     ty::{Function, Ty, TyKind},
 };
 
-pub fn lower<'tcx>(
-    src: &str,
-    path: Option<&Path>,
-    mut ast: Ast,
-    ty_info: TyInfo<'tcx>,
-) -> Hir<'tcx> {
+pub fn lower(mut ast: Ast, ty_info: TyInfo<'_>) -> Hir<'_> {
     assert_eq!(ast.exprs.len(), ty_info.expr_tys.len());
     let top_level = std::mem::take(&mut ast.top_level);
-    let mut lowering = Lowering { src, path, ast: &ast, hir: Hir::default(), ty_info };
+    let mut lowering = Lowering { ast: &ast, hir: Hir::default(), ty_info };
     let mut hir_root = vec![];
     for expr in top_level {
         hir_root.push(lowering.lower(expr));
@@ -28,15 +21,13 @@ pub fn lower<'tcx>(
     lowering.hir
 }
 
-struct Lowering<'src, 'ast, 'tcx> {
+struct Lowering<'ast, 'tcx> {
     ast: &'ast Ast,
     hir: Hir<'tcx>,
     ty_info: TyInfo<'tcx>,
-    src: &'src str,
-    path: Option<&'src Path>,
 }
 
-impl<'tcx> Lowering<'_, '_, 'tcx> {
+impl<'tcx> Lowering<'_, 'tcx> {
     fn get_ty(&self, expr_id: ast::ExprId) -> Ty<'tcx> {
         self.ty_info.expr_tys[expr_id]
     }
@@ -248,7 +239,7 @@ impl<'tcx> Lowering<'_, '_, 'tcx> {
 
     fn assert_failed_error(&self, expr: ast::ExprId) -> Symbol {
         let span = self.ast.exprs[expr].span;
-        let report = errors::error("assertion failed", self.path, self.src, [(span, "")]);
+        let report = errors::error("assertion failed", [(span, "")]);
         Symbol::from(format!("{report:?}"))
     }
 

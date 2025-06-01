@@ -7,7 +7,7 @@ use crate::{
     ty::{Ty, TyKind},
 };
 
-impl Lowering<'_, '_, '_> {
+impl Lowering<'_, '_> {
     pub fn try_intrinsic(&mut self, ty: Option<Ty>, ident: Symbol) -> bool {
         let Some(rvalue) = Self::intrinsic_rvalue(&ident, ty, &[]) else { return false };
         let local = self.assign_new(rvalue);
