@@ -1,5 +1,5 @@
 use std::{
-    fmt::{self, Write},
+    fmt::{self, Arguments, Write},
     mem,
 };
 
@@ -69,7 +69,9 @@ impl Writer<'_, '_> {
             ExprKind::Loop(ref block) => ("loop ", block.as_slice()).write(self),
             ExprKind::StructInit => "<struct init>".write(self),
             ExprKind::Assignment { lhs, expr } => (lhs, " = ", expr).write(self),
-            ExprKind::Abort { msg } => ("abort(", msg, ")").write(self),
+            ExprKind::Abort { msg } => {
+                ("abort(", format_args!("{msg:?}"), ")").write(self);
+            }
             ExprKind::Unreachable => "unreachable".write(self),
             ExprKind::Break => "break".write(self),
             ExprKind::Continue => "continue".write(self),
@@ -161,6 +163,12 @@ impl Writer<'_, '_> {
 
 trait Dump {
     fn write(&self, w: &mut Writer);
+}
+
+impl Dump for Arguments<'_> {
+    fn write(&self, w: &mut Writer) {
+        let _ = w.f.write_fmt(*self);
+    }
 }
 
 struct Sep<'a, T, S>(&'a [T], S);
