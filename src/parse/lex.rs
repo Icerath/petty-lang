@@ -1,18 +1,27 @@
-use std::str::Chars;
+use std::{
+    io,
+    path::{Path, PathBuf},
+    str::Chars,
+};
 
 use super::token::{Token, TokenKind};
-use crate::span::Span;
+use crate::{
+    source::{Source, SourceId},
+    span::Span,
+};
 
 #[derive(Clone)]
 pub struct Lexer<'src> {
     src: &'src str,
     chars: Chars<'src>,
-    token_start: u32,
+    token_start: usize,
+    source_list: Vec<SourceId>,
 }
 
 impl<'src> Lexer<'src> {
-    pub fn new(src: &'src str) -> Self {
-        Self { src, token_start: 0, chars: src.chars() }
+    pub fn new(src: &'src str, path: &Path) -> io::Result<Self> {
+        let source = Source::with_global(|src| src.init(path))?;
+        Ok(Self { src, token_start: 0, chars: src.chars(), source_list: vec![source] })
     }
     #[track_caller]
     pub fn bump(&mut self, bytes: usize) {
@@ -27,16 +36,14 @@ impl<'src> Lexer<'src> {
     pub const fn src(&self) -> &'src str {
         self.src
     }
-    #[expect(clippy::cast_possible_truncation)]
-    pub fn current_pos(&self) -> u32 {
-        (self.src.len() - self.chars.as_str().len()) as u32
-    }
-    #[expect(clippy::cast_possible_truncation)]
-    pub fn span_eof(&self) -> Span {
-        Span::from(self.current_pos()..self.src.len() as u32)
+    pub fn current_pos(&self) -> usize {
+        self.src.len() - self.chars.as_str().len()
     }
     pub fn span(&self) -> Span {
-        Span::from(self.token_start..self.current_pos())
+        Span::new(self.token_start()..self.current_pos(), self.source())
+    }
+    pub fn token_start(&self) -> usize {
+        self.token_start as _
     }
 
     fn try_next(&mut self, expected: char) -> bool {
@@ -50,20 +57,30 @@ impl<'src> Lexer<'src> {
     }
 }
 
-impl Iterator for Lexer<'_> {
-    type Item = Token;
+impl Lexer<'_> {
+    pub fn source(&self) -> SourceId {
+        *self.source_list.last().unwrap()
+    }
+    pub fn path(&self) -> PathBuf {
+        Source::with_global(|src| src.get_path(self.source()).into())
+    }
 
-    #[expect(clippy::cast_possible_truncation)]
-    fn next(&mut self) -> Option<Self::Item> {
+    pub fn next(&mut self) -> Token {
         let char = loop {
-            match self.chars.next()? {
+            let Some(next) = self.chars.next() else {
+                return Token {
+                    span: Span::new(self.current_pos()..self.current_pos(), self.source()),
+                    kind: TokenKind::Eof,
+                };
+            };
+            match next {
                 char if char.is_whitespace() => self.whitespace(),
                 '/' if self.chars.clone().next() == Some('/') => self.line_comment(),
                 '/' if self.chars.clone().next() == Some('*') => self.block_comment(),
                 char => break char,
             }
         };
-        self.token_start = self.current_pos() - char.len_utf8() as u32;
+        self.token_start = self.current_pos() - char.len_utf8();
         let kind = match char {
             // Longer Symbols
             '.' if self.try_next('.') => {
@@ -116,7 +133,7 @@ impl Iterator for Lexer<'_> {
             'a'..='z' | 'A'..='Z' | '_' => self.ident(self.token_start),
             _ => TokenKind::Unknown,
         };
-        Some(Token { span: Span::from(self.token_start..self.current_pos()), kind })
+        Token { span: Span::new(self.token_start..self.current_pos(), self.source()), kind }
     }
 }
 
@@ -172,12 +189,12 @@ impl Lexer<'_> {
         }
         TokenKind::Int
     }
-    fn ident(&mut self, span_start: u32) -> TokenKind {
+    fn ident(&mut self, span_start: usize) -> TokenKind {
         let is_ident_char = |c| matches!(c, 'a'..='z' | 'A'..='Z' | '_' | '0'..='9');
         while (self.chars.clone().next()).is_some_and(is_ident_char) {
             self.chars.next();
         }
-        let span = Span::from(span_start..self.current_pos());
+        let span = Span::new(span_start..self.current_pos(), self.source());
         ident_kind(&self.src()[span])
     }
 }

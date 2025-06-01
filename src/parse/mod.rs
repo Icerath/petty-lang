@@ -5,7 +5,7 @@ mod token;
 use std::path::Path;
 
 use lex::Lexer;
-use miette::{Error, Result};
+use miette::{Error, IntoDiagnostic, Result};
 use thin_vec::{ThinVec, thin_vec};
 use token::{Token, TokenKind};
 
@@ -20,57 +20,43 @@ use crate::{
     symbol::Symbol,
 };
 
-pub fn parse(src: &str, path: Option<&Path>) -> Result<Ast> {
-    let lexer = Lexer::new(src);
+pub fn parse(src: &str, path: &Path) -> Result<Ast> {
+    let lexer = Lexer::new(src, path).into_diagnostic()?;
     let mut ast = Ast::default();
-    let mut stream = Stream { lexer, ast: &mut ast, path };
+    let mut stream = Stream { lexer, ast: &mut ast };
     let mut top_level = vec![];
-    while let Some(next) = stream.lexer.clone().next() {
-        if next.kind == TokenKind::Semicolon {
-            _ = stream.lexer.next();
-            continue;
+    loop {
+        match stream.peek().kind {
+            TokenKind::Eof => break,
+            TokenKind::Semicolon => _ = stream.lexer.next(),
+            _ => top_level.push(stream.parse()?),
         }
-        top_level.push(stream.parse()?);
     }
     ast.top_level = top_level;
     Ok(ast)
 }
 
-struct Stream<'src, 'path> {
+struct Stream<'src> {
     lexer: Lexer<'src>,
     ast: &'src mut Ast,
-    path: Option<&'path Path>,
 }
 
-impl Stream<'_, '_> {
-    fn next(&mut self) -> Result<Token> {
-        if let Some(result) = self.lexer.next() {
-            return Ok(result);
-        }
-        Err(self.handle_eof())
+impl Stream<'_> {
+    fn next(&mut self) -> Token {
+        self.lexer.next()
     }
     fn clone(&mut self) -> Stream {
-        Stream { lexer: self.lexer.clone(), ast: self.ast, path: self.path }
+        Stream { lexer: self.lexer.clone(), ast: self.ast }
     }
-    fn peek(&mut self) -> Result<Token> {
+    fn peek(&mut self) -> Token {
         self.clone().next()
     }
-    #[inline(never)]
-    #[cold]
-    fn handle_eof(&self) -> miette::Error {
-        errors::error(
-            "unexpected EOF",
-            self.path,
-            self.lexer.src(),
-            [(self.lexer.span_eof(), "EOF")],
-        )
-    }
     fn expect(&mut self, kind: TokenKind) -> Result<Token> {
-        let token = self.next()?;
+        let token = self.next();
         if token.kind != kind {
             return Err(errors::error(
                 &format!("expected `{}`, found: `{}`", kind.repr(), token.kind.repr()),
-                self.path,
+                Some(&self.lexer.path()),
                 self.lexer.src(),
                 [(self.lexer.span(), format!("expected `{}`", kind.repr()))],
             ));
@@ -78,7 +64,7 @@ impl Stream<'_, '_> {
         Ok(token)
     }
     fn any(&mut self, toks: &[TokenKind]) -> Result<Token> {
-        let token = self.next()?;
+        let token = self.next();
         if toks.contains(&token.kind) {
             return Ok(token);
         }
@@ -91,7 +77,7 @@ impl Stream<'_, '_> {
             toks.iter().map(|kind| format!("`{}`", kind.repr())).collect::<Vec<_>>().join(" or ");
         errors::error(
             &format!("expected one of {toks}, found `{}`", found.kind.repr()),
-            self.path,
+            Some(&self.lexer.path()),
             self.lexer.src(),
             [(self.lexer.span(), format!("expected one of '{toks}'"))],
         )
@@ -103,13 +89,13 @@ impl Stream<'_, '_> {
     fn parse_separated<T: Parse>(&mut self, sep: TokenKind, term: TokenKind) -> Result<ThinVec<T>> {
         let mut args = thin_vec![];
         loop {
-            if self.peek()?.kind == term {
+            if self.peek().kind == term {
                 _ = self.next();
                 break;
             }
             let expr = self.parse()?;
             args.push(expr);
-            match self.next()? {
+            match self.next() {
                 tok if tok.kind == term => break,
                 tok if tok.kind == sep => {}
                 found => return Err(self.any_failed(found, &[sep, term])),
@@ -137,7 +123,7 @@ impl Parse for Block {
         let mut is_expr = false;
 
         loop {
-            match stream.peek()?.kind {
+            match stream.peek().kind {
                 TokenKind::RBrace => {
                     _ = stream.next();
                     break;
@@ -153,7 +139,7 @@ impl Parse for Block {
             }
         }
 
-        let span = Span::from(start..stream.lexer.current_pos());
+        let span = Span::new(start..stream.lexer.current_pos(), stream.lexer.source());
         Ok(Self { stmts, is_expr, span })
     }
 }
@@ -180,12 +166,12 @@ impl Parse for Ty {
             TokenKind::Not,
             TokenKind::Ampersand,
         ])?;
-        let start = any.span.start();
+        let start = any.span;
         let kind = match any.kind {
             TokenKind::Fn => {
                 stream.expect(TokenKind::LParen)?;
                 let params = stream.parse_separated(TokenKind::Comma, TokenKind::RParen)?;
-                let ret = if stream.peek()?.kind == TokenKind::ThinArrow {
+                let ret = if stream.peek().kind == TokenKind::ThinArrow {
                     _ = stream.next();
                     Some(stream.parse()?)
                 } else {
@@ -195,7 +181,7 @@ impl Parse for Ty {
             }
             TokenKind::Not => TyKind::Never,
             TokenKind::Ident => {
-                let generics = if stream.peek()?.kind == TokenKind::Less {
+                let generics = if stream.peek().kind == TokenKind::Less {
                     _ = stream.next();
                     stream.parse_separated(TokenKind::Comma, TokenKind::Greater)?
                 } else {
@@ -216,14 +202,13 @@ impl Parse for Ty {
             TokenKind::Ampersand => TyKind::Ref(stream.parse()?),
             _ => unreachable!(),
         };
-        let end = stream.lexer.current_pos();
-        Ok(Self { kind, span: Span::from(start..end) })
+        Ok(Self { kind, span: start.with_end(stream.lexer.current_pos()) })
     }
 }
 
 impl Parse for Impl {
     fn parse(stream: &mut Stream) -> Result<Self> {
-        let generics = if stream.peek()?.kind == TokenKind::Less {
+        let generics = if stream.peek().kind == TokenKind::Less {
             _ = stream.next();
             stream.parse_separated(TokenKind::Comma, TokenKind::Greater)?
         } else {
@@ -346,8 +331,8 @@ fn parse_match(stream: &mut Stream, tok: Token) -> Result<Expr> {
     let scrutinee = stream.parse()?;
     stream.expect(TokenKind::LBrace)?;
     let arms = stream.parse_separated(TokenKind::Comma, TokenKind::RBrace)?;
-    let end = stream.lexer.current_pos() as usize;
-    let span = Span::new(tok.span.start() as usize..end, tok.span.source());
+    let end = stream.lexer.current_pos();
+    let span = Span::new(tok.span.start()..end, tok.span.source());
     Ok((ExprKind::Match { scrutinee, arms }).with_span(span))
 }
 
@@ -358,26 +343,25 @@ fn parse_ifchain(stream: &mut Stream, if_tok: Token) -> Result<Expr> {
         stream.expect(TokenKind::LBrace)?;
         let body = stream.parse()?;
         arms.push(IfStmt { condition, body });
-        if stream.peek()?.kind != TokenKind::Else {
+        if stream.peek().kind != TokenKind::Else {
             break None;
         }
         _ = stream.next();
-        if stream.peek()?.kind == TokenKind::If {
+        if stream.peek().kind == TokenKind::If {
             _ = stream.next();
         } else {
             stream.expect(TokenKind::LBrace)?;
             break Some(stream.parse()?);
         }
     };
-    let end = stream.lexer.current_pos() as usize;
-    let span = Span::new(if_tok.span.start() as usize..end, if_tok.span.source());
+    let span = if_tok.span.with_end(stream.lexer.current_pos());
     Ok((ExprKind::If { arms, els }).with_span(span))
 }
 
 impl Parse for ArraySeg {
     fn parse(stream: &mut Stream) -> Result<Self> {
         let expr = stream.parse()?;
-        let repeated = if stream.peek()?.kind == TokenKind::Semicolon {
+        let repeated = if stream.peek().kind == TokenKind::Semicolon {
             _ = stream.next();
             Some(stream.parse()?)
         } else {
@@ -399,9 +383,9 @@ impl Parse for PatArg {
 impl Parse for Pat {
     fn parse(stream: &mut Stream) -> Result<Self> {
         fn parse_single(stream: &mut Stream) -> Result<Pat> {
-            let tok = stream.next()?;
+            let tok = stream.next();
             let kind = match tok.kind {
-                TokenKind::Ident if stream.peek()?.kind == TokenKind::LParen => {
+                TokenKind::Ident if stream.peek().kind == TokenKind::LParen => {
                     _ = stream.next();
                     let symbol = Symbol::from(&stream.lexer.src()[tok.span]);
                     let args = stream.parse_separated(TokenKind::Comma, TokenKind::RParen)?;
@@ -432,7 +416,7 @@ impl Parse for Pat {
                 _ => {
                     return Err(errors::error(
                         &format!("expected `pattern`, found '{}'", tok.kind.repr()),
-                        stream.path,
+                        Some(&stream.lexer.path()),
                         stream.lexer.src(),
                         [(stream.lexer.span(), "expected `pattern`")],
                     ));
@@ -447,12 +431,12 @@ impl Parse for Pat {
         let mut single = parse_single(stream)?;
         let single_span = single.span;
         loop {
-            let next = stream.peek()?.kind;
+            let next = stream.peek().kind;
             if !matches!(next, TokenKind::Or | TokenKind::And) {
                 return Ok(single);
             }
             let mut patterns = thin_vec![single];
-            while stream.peek()?.kind == next {
+            while stream.peek().kind == next {
                 _ = stream.next();
                 patterns.push(parse_single(stream)?);
             }
@@ -550,16 +534,11 @@ fn parse_atom_with(stream: &mut Stream, tok: Token) -> Result<ExprId> {
             Ok(ExprKind::Lit($lit).with_span(tok.span))
         };
     }
-    macro_rules! all {
-        () => {
-            Span::from(tok.span.start()..stream.lexer.current_pos())
-        };
-    }
 
     let expr = match tok.kind {
         TokenKind::Unreachable => Ok(ExprKind::Unreachable.with_span(tok.span)),
         TokenKind::LParen => {
-            return Ok(if stream.peek()?.kind == TokenKind::RParen {
+            return Ok(if stream.peek().kind == TokenKind::RParen {
                 _ = stream.next();
                 stream.ast.exprs.push(ExprKind::Lit(Lit::Unit).todo_span())
             } else {
@@ -571,8 +550,9 @@ fn parse_atom_with(stream: &mut Stream, tok: Token) -> Result<ExprId> {
         TokenKind::LBracket => Ok(ExprKind::Lit(Lit::Array {
             segments: stream.parse_separated(TokenKind::Comma, TokenKind::RBracket)?,
         })
-        .with_span(tok.span.start()..stream.lexer.current_pos())),
-        TokenKind::LBrace => Ok(ExprKind::Block(stream.parse()?).with_span(all!())),
+        .with_span(tok.span.with_end(stream.lexer.current_pos()))),
+        TokenKind::LBrace => Ok(ExprKind::Block(stream.parse()?)
+            .with_span(tok.span.with_end(stream.lexer.current_pos()))),
         TokenKind::Break => Ok(ExprKind::Break.with_span(tok.span)),
         TokenKind::Continue => Ok(ExprKind::Continue.with_span(tok.span)),
         TokenKind::Assert => {
@@ -580,11 +560,11 @@ fn parse_atom_with(stream: &mut Stream, tok: Token) -> Result<ExprId> {
             Ok(ExprKind::Assert(expr).with_span(stream.ast.exprs[expr].span))
         }
         TokenKind::Return => {
-            if (stream.lexer.clone().next()).is_none_or(|tok| tok.kind.is_terminator()) {
+            if stream.peek().kind.is_terminator() {
                 Ok(ExprKind::Return(None).with_span(tok.span))
             } else {
                 let expr = stream.parse()?;
-                let span = tok.span.start()..((&stream.ast.exprs[expr] as &Expr).span.end());
+                let span = tok.span.with_end((&stream.ast.exprs[expr] as &Expr).span.end());
                 Ok(ExprKind::Return(Some(expr)).with_span(span))
             }
         }
@@ -612,7 +592,7 @@ fn parse_atom_with(stream: &mut Stream, tok: Token) -> Result<ExprId> {
         found => {
             return Err(errors::error(
                 &format!("expected `expression`, found '{}'", found.repr()),
-                stream.path,
+                Some(&stream.lexer.path()),
                 stream.lexer.src(),
                 [(stream.lexer.span(), "expected `expression`")],
             ));
@@ -626,8 +606,8 @@ fn parse_string(stream: &mut Stream, outer_span: Span) -> Result<Expr> {
     let span = outer_span.shrink(1); // remove double quotes.
     let raw = &stream.lexer.src()[span];
     let lexer_offset = stream.lexer.offset();
-    stream.lexer.set_offset(span.start() as usize);
-    let mut current_start = span.start() as usize;
+    stream.lexer.set_offset(span.start());
+    let mut current_start = span.start();
     let mut current = String::new();
     let mut segments = thin_vec![];
 
@@ -637,9 +617,9 @@ fn parse_string(stream: &mut Stream, outer_span: Span) -> Result<Expr> {
     while let Some((char_pos, char)) = chars.next() {
         match char {
             '$' if !escaped && chars.clone().next().is_some_and(|c| c.1 == '{') => {
-                let char_pos = chars.next().unwrap().0 + span.start() as usize;
+                let char_pos = chars.next().unwrap().0 + span.start();
                 if !current.is_empty() {
-                    let current_span = Span::from(current_start..char_pos);
+                    let current_span = Span::new(current_start..char_pos, stream.lexer.source());
                     let expr =
                         ExprKind::Lit(Lit::Str(current.as_str().into())).with_span(current_span);
                     segments.push(stream.ast.exprs.push(expr));
@@ -654,7 +634,7 @@ fn parse_string(stream: &mut Stream, outer_span: Span) -> Result<Expr> {
                 chars = chars.as_str()[diff..].char_indices();
                 let next = chars.next().unwrap();
                 assert_eq!(next.1, '}');
-                current_start = next.0 + span.start() as usize;
+                current_start = next.0 + span.start();
             }
             '\\' if !escaped => escaped = true,
             _ if !escaped => current.push(char),
@@ -666,7 +646,7 @@ fn parse_string(stream: &mut Stream, outer_span: Span) -> Result<Expr> {
                     '$' => current.push('$'),
                     _ => {
                         let span = Span::new(
-                            current_start..span.start() as usize + char_pos + char.len_utf8(),
+                            current_start..span.start() + char_pos + char.len_utf8(),
                             span.source(),
                         );
                         return Err(invalid_escape(stream, span, char));
@@ -680,7 +660,7 @@ fn parse_string(stream: &mut Stream, outer_span: Span) -> Result<Expr> {
         return Ok(ExprKind::Lit(Lit::Str(current.into())).with_span(outer_span));
     }
     if !current.is_empty() {
-        let current_span = Span::from(current_start..(current_start + raw.len()));
+        let current_span = Span::from_start_len(current_start, raw.len(), stream.lexer.source());
         let expr = ExprKind::Lit(Lit::Str(current.into())).with_span(current_span);
         segments.push(stream.ast.exprs.push(expr));
     }
@@ -688,10 +668,10 @@ fn parse_string(stream: &mut Stream, outer_span: Span) -> Result<Expr> {
     Ok(ExprKind::Lit(Lit::FStr(segments)).with_span(outer_span))
 }
 
-fn invalid_escape(stream: &mut Stream<'_, '_>, span: Span, char: char) -> Error {
+fn invalid_escape(stream: &mut Stream<'_>, span: Span, char: char) -> Error {
     errors::error(
         &format!("invalid escape character {char:?}"),
-        stream.path,
+        Some(&stream.lexer.path()),
         stream.lexer.src(),
         [(span, "invalid escape character")],
     )

@@ -62,7 +62,7 @@ pub fn compile(args: &Args, w: &mut dyn Write) -> miette::Result<(), Vec<Error>>
     }
     let start = Instant::now();
     let src = crate::STD.to_string() + &src;
-    let ast = parse(&src, Some(&args.path)).map_err(|e| vec![e])?;
+    let ast = parse(&src, &args.path).map_err(|e| vec![e])?;
     dump!(ast);
     let analysis = ast_analysis::analyze(Some(&args.path), &src, &ast, &tcx)?;
     let hir = ast_lowering::lower(&src, Some(&args.path), ast, analysis);

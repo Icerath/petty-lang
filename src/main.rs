@@ -21,8 +21,10 @@ mod ty;
 
 pub use cli::Args;
 pub use codegen_opts::CodegenOpts;
-use rustc_hash::FxHashMap as HashMap;
+use rustc_hash::FxBuildHasher;
 use source::span;
+
+pub type HashMap<K, V> = std::collections::HashMap<K, V, FxBuildHasher>;
 
 const STD: &str = concat!(include_str!("std.pty"), "\n\n");
 

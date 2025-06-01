@@ -26,7 +26,7 @@ pub fn error_with<S: Into<String>>(
 ) -> Error {
     let labels: Vec<_> = labels
         .into_iter()
-        .map(|(span, msg)| LabeledSpan::at(offset_span(span).into_range_usize(), msg))
+        .map(|(span, msg)| LabeledSpan::at(offset_span(span).into_range(), msg))
         .collect();
     error_inner(error, path, src, labels, help)
 }
@@ -60,6 +60,6 @@ fn offset_span(span: Span) -> Span {
     if span == Span::ZERO {
         return span;
     }
-    let offset: u32 = crate::STD.len().try_into().unwrap();
-    Span::from(span.start().saturating_sub(offset)..span.end().saturating_sub(offset))
+    let offset = crate::STD.len();
+    Span::new(span.start().saturating_sub(offset)..span.end().saturating_sub(offset), span.source())
 }

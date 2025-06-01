@@ -162,8 +162,8 @@ impl<'tcx> Collector<'_, '_, 'tcx> {
         func_span: Span,
         expr_span: Span,
     ) -> Error {
-        let span_start = func_span.end() as usize;
-        let span_end = expr_span.end() as usize;
+        let span_start = func_span.end();
+        let span_end = expr_span.end();
         let span = Span::new(span_start..span_end, func_span.source());
 
         let s = if arg_count > param_count { "too many arguments" } else { "missing arguments" };

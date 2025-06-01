@@ -72,6 +72,7 @@ pub enum TokenKind {
     Ident,
 
     Unknown,
+    Eof,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -143,6 +144,7 @@ impl TokenKind {
             Self::Struct => "struct",
             Self::Match => "match",
             Self::Unknown => "unknown",
+            Self::Eof => "EOF",
         }
     }
 }

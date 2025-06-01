@@ -12,21 +12,6 @@ pub struct Span {
     source: SourceId,
 }
 
-impl Span {
-    pub fn join(spans: impl IntoIterator<Item = Self>) -> Self {
-        let mut start = u32::MAX;
-        let mut end = 0;
-        spans.into_iter().for_each(|span| {
-            start = start.min(span.start());
-            end = start.max(span.end());
-        });
-        Self::from(start..end)
-    }
-    pub fn source(self) -> SourceId {
-        self.source
-    }
-}
-
 const _: () = assert!(size_of::<Span>() == size_of::<usize>());
 
 impl fmt::Debug for Span {
@@ -45,42 +30,48 @@ impl Span {
         Self { start: range.start as _, len, source }
     }
 
-    pub fn start(self) -> u32 {
-        self.start
+    pub fn start(self) -> usize {
+        self.start as _
     }
-    pub fn end(self) -> u32 {
-        self.start + self.len()
+    pub fn end(self) -> usize {
+        self.start() + self.len()
     }
-    pub fn len(self) -> u32 {
-        u32::from(self.len)
+    pub fn len(self) -> usize {
+        self.len.into()
     }
-    pub fn shrink(self, n: u32) -> Self {
-        (self.start + n..self.end() - n).into()
+    pub fn shrink(self, n: usize) -> Self {
+        Self::new(self.start() + n..self.end() - n, self.source())
     }
-    pub fn into_range(self) -> Range<u32> {
-        self.start..self.end()
+    pub fn into_range(self) -> Range<usize> {
+        self.start()..self.end()
     }
-    pub fn into_range_usize(self) -> Range<usize> {
-        self.start as usize..self.end() as usize
-    }
-}
+    pub fn join(spans: impl IntoIterator<Item = Self>) -> Self {
+        let mut spans = spans.into_iter();
+        let Some(first) = spans.next() else { return Span::ZERO };
 
-impl From<Range<u32>> for Span {
-    fn from(Range { start, end }: Range<u32>) -> Self {
-        Self::new(start as usize..end as usize, SourceId::NULL)
+        let mut start = first.start();
+        let mut end = first.end();
+        spans.for_each(|span| {
+            debug_assert_eq!(span.source(), first.source);
+            start = start.min(span.start());
+            end = start.max(span.end());
+        });
+        Self::new(start..end, first.source())
     }
-}
-
-impl From<Range<usize>> for Span {
-    #[track_caller]
-    fn from(range: Range<usize>) -> Self {
-        Self::new(range, SourceId::NULL)
+    pub fn source(self) -> SourceId {
+        self.source
+    }
+    pub fn with_end(self, end: usize) -> Self {
+        Self::new(self.start()..end, self.source)
+    }
+    pub fn from_start_len(start: usize, len: usize, source: SourceId) -> Self {
+        Self { start: start.try_into().unwrap(), len: len.try_into().unwrap(), source }
     }
 }
 
 impl Index<Span> for str {
     type Output = Self;
     fn index(&self, index: Span) -> &Self::Output {
-        &self[index.into_range_usize()]
+        &self[index.into_range()]
     }
 }
