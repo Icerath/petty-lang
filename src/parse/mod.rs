@@ -192,8 +192,14 @@ impl Parse for Ty {
                 TyKind::Array(of)
             }
             TokenKind::LParen => {
-                stream.expect(TokenKind::RParen)?;
-                TyKind::Unit
+                if stream.peek().kind == TokenKind::RParen {
+                    _ = stream.next();
+                    TyKind::Unit
+                } else {
+                    let ty = stream.parse();
+                    stream.next();
+                    return ty;
+                }
             }
             TokenKind::Ampersand => TyKind::Ref(stream.parse()?),
             _ => unreachable!(),
