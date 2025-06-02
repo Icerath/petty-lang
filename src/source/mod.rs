@@ -8,8 +8,9 @@ use std::{
     sync::{Mutex, OnceLock},
 };
 
-use crate::HashMap;
 use index_vec::IndexVec;
+
+use crate::HashMap;
 
 #[derive(Default)]
 pub struct Source {
