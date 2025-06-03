@@ -123,7 +123,7 @@ pub fn analyze<'tcx>(ast: &Ast, tcx: &'tcx TyCtx<'tcx>) -> Result<TyInfo<'tcx>, 
         produced_generics: HashMap::default(),
         errors: vec![],
     };
-    let top_level_exprs = ast.top_level.iter().copied().collect();
+    let top_level_exprs = ast.root.items.iter().copied().collect();
     let top_level = ast::Block { span: Span::ZERO, stmts: top_level_exprs, is_expr: false };
     collector.analyze_body_with(&top_level, Body::new(Ty::NEVER)).map_err(|err| vec![err])?;
 
@@ -431,6 +431,7 @@ impl<'tcx> Collector<'_, 'tcx> {
             return Err(self.expected_const(id));
         }
         let ty = match self.ast.exprs[id].kind {
+            ExprKind::Module(..) => todo!(),
             ExprKind::Trait(ref trait_) => self.analyze_trait(trait_, id)?,
             ExprKind::Impl(ref impl_) => self.analyze_impl(impl_, id)?,
             ExprKind::Assert(expr) => {

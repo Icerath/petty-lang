@@ -11,7 +11,7 @@ use crate::{
 
 pub fn lower(mut ast: Ast, ty_info: TyInfo<'_>) -> Hir<'_> {
     assert_eq!(ast.exprs.len(), ty_info.expr_tys.len());
-    let top_level = std::mem::take(&mut ast.top_level);
+    let top_level = std::mem::take(&mut ast.root.items);
     let mut lowering = Lowering { ast: &ast, hir: Hir::default(), ty_info };
     let mut hir_root = vec![];
     for expr in top_level {
@@ -41,6 +41,7 @@ impl<'tcx> Lowering<'_, 'tcx> {
     fn lower_inner(&mut self, expr_id: ast::ExprId) -> hir::Expr<'tcx> {
         let expr_ty = self.get_ty(expr_id);
         match self.ast.exprs[expr_id].kind {
+            ast::ExprKind::Module(..) => todo!(),
             ast::ExprKind::Trait(..) => hir::Expr::UNIT,
             ast::ExprKind::Impl(ref impl_) => {
                 let mut block = thin_vec![];

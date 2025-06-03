@@ -215,6 +215,7 @@ fn ident_kind(str: &str) -> TokenKind {
         "true" => TokenKind::True,
         "while" => TokenKind::While,
         "match" => TokenKind::Match,
+        "mod" => TokenKind::Module,
         _ => TokenKind::Ident,
     }
 }

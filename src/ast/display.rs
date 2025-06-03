@@ -10,7 +10,7 @@ use super::{
     Trait, TyKind, TypeId,
 };
 use crate::{
-    ast::{Ast, BinaryOp, BlockId, ExprId, Lit, UnaryOp},
+    ast::{Ast, BinaryOp, BlockId, ExprId, Lit, Module, UnaryOp},
     symbol::Symbol,
 };
 
@@ -25,7 +25,7 @@ impl fmt::Display for Ast {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         let f = String::new();
         let mut w = Writer { ast: self, f, indent: 0, inside_expr: false };
-        self.top_level.iter().for_each(|expr| (expr, Line).write(&mut w));
+        self.root.items.iter().for_each(|expr| (expr, Line).write(&mut w));
         if !self.exprs.is_empty() {
             #[cfg(debug_assertions)]
             crate::parse::parse(&w.f, &self.exprs[0].span.source().path()).unwrap();
@@ -38,6 +38,7 @@ impl Writer<'_> {
     fn display_expr(&mut self, expr: ExprId) {
         let inside_expr = mem::replace(&mut self.inside_expr, true);
         match self.ast.exprs[expr].kind {
+            ExprKind::Module(ref module) => module.write(self),
             ExprKind::Impl(Impl { ref generics, ty, ref methods }) => {
                 ("impl", Generics(generics), " ", ty, methods).write(self);
             }
@@ -155,6 +156,18 @@ impl<T: Dump, S: Dump> Dump for Sep<'_, T, S> {
         for (i, arg) in self.0.iter().enumerate() {
             ((i != 0).then_some(&self.1), arg).write(w);
         }
+    }
+}
+
+impl Dump for Module {
+    fn write(&self, w: &mut Writer) {
+        ("mod ", self.name.map(|name| (name, " ")), "{").write(w);
+        w.indent += 1;
+        for item in &self.items {
+            item.write(w);
+        }
+        w.indent -= 1;
+        (Line, "}").write(w);
     }
 }
 

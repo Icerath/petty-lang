@@ -12,7 +12,7 @@ pub struct Ast {
     pub exprs: IndexVec<ExprId, Expr>,
     pub blocks: IndexVec<BlockId, Block>,
     pub types: IndexVec<TypeId, Ty>,
-    pub top_level: Vec<ExprId>,
+    pub root: Module,
 }
 
 define_id!(pub ExprId);
@@ -21,7 +21,7 @@ define_id!(pub TypeId);
 
 impl fmt::Debug for Ast {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.top_level.fmt(f)
+        self.root.fmt(f)
     }
 }
 
@@ -72,9 +72,16 @@ pub enum TyKind {
     Ref(TypeId),
 }
 
+#[derive(Debug, Default)]
+pub struct Module {
+    pub name: Option<Symbol>,
+    pub items: Vec<ExprId>,
+}
+
 #[derive(Debug)]
 pub enum ExprKind {
     Unreachable,
+    Module(Module),
     Binary { lhs: ExprId, op: BinaryOp, rhs: ExprId },
     Unary { op: UnaryOp, expr: ExprId },
     FnCall { function: ExprId, args: ThinVec<ExprId> },
