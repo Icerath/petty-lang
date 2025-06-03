@@ -9,7 +9,7 @@ use crate::{
     HashMap,
     ast::{
         self, Ast, BinOpKind, BinaryOp, Block, BlockId, ExprId, ExprKind, FnDecl, Identifier, Impl,
-        Lit, Pat, PatArg, PatKind, Trait, TypeId, UnaryOp,
+        Lit, Module, Pat, PatArg, PatKind, Trait, TypeId, UnaryOp,
     },
     span::Span,
     symbol::Symbol,
@@ -152,13 +152,9 @@ fn global_body<'tcx>() -> Body<'tcx> {
 }
 
 impl<'tcx> Collector<'_, 'tcx> {
-    fn analyze_body_with(
-        &mut self,
-        block: &ast::Block,
-        mut body: Body<'tcx>,
-    ) -> Result<(Ty<'tcx>, Body<'tcx>)> {
+    fn preanalyze(&mut self, body: &mut Body<'tcx>, items: &[ExprId]) -> Result<()> {
         // look for structs/enums first.
-        for id in &block.stmts {
+        for id in items {
             let ExprKind::Struct { ident, generics, fields } = &self.ast.exprs[*id].kind else {
                 continue;
             };
@@ -183,9 +179,9 @@ impl<'tcx> Collector<'_, 'tcx> {
             );
         }
 
-        for &id in &block.stmts {
+        for &id in items {
             match &self.ast.exprs[id].kind {
-                ExprKind::FnDecl(func) => self.preanalyze_fndecl(&mut body, func, id)?,
+                ExprKind::FnDecl(func) => self.preanalyze_fndecl(body, func, id)?,
                 ExprKind::Impl(impl_) => {
                     let generics = self.tcx.new_generics(&impl_.generics);
                     self.impl_generics = generics;
@@ -195,12 +191,20 @@ impl<'tcx> Collector<'_, 'tcx> {
                         let ExprKind::FnDecl(func) = &self.ast.exprs[method_id].kind else {
                             unreachable!()
                         };
-                        self.preanalyze_method(&body, ty, func, method_id);
+                        self.preanalyze_method(body, ty, func, method_id);
                     }
                 }
                 _ => {}
             }
         }
+        Ok(())
+    }
+    fn analyze_body_with(
+        &mut self,
+        block: &ast::Block,
+        mut body: Body<'tcx>,
+    ) -> Result<(Ty<'tcx>, Body<'tcx>)> {
+        self.preanalyze(&mut body, &block.stmts)?;
         self.bodies.push(body);
         let out = self.analyze_block_inner(block)?;
         Ok((out, self.bodies.pop().unwrap()))
@@ -402,7 +406,8 @@ impl<'tcx> Collector<'_, 'tcx> {
 
     fn analyze_expr(&mut self, id: ExprId) -> Result<Ty<'tcx>> {
         let pushed_scope = match self.ast.exprs[id].kind {
-            ExprKind::Block(..)
+            ExprKind::Module(..) // ?
+            | ExprKind::Block(..)
             | ExprKind::Struct { .. }
             | ExprKind::Impl(..)
             | ExprKind::FnDecl { .. }
@@ -431,7 +436,7 @@ impl<'tcx> Collector<'_, 'tcx> {
             return Err(self.expected_const(id));
         }
         let ty = match self.ast.exprs[id].kind {
-            ExprKind::Module(..) => todo!(),
+            ExprKind::Module(ref module) => self.analyze_module(module)?,
             ExprKind::Trait(ref trait_) => self.analyze_trait(trait_, id)?,
             ExprKind::Impl(ref impl_) => self.analyze_impl(impl_, id)?,
             ExprKind::Assert(expr) => {
@@ -926,6 +931,20 @@ impl<'tcx> Collector<'_, 'tcx> {
         Ok(Ty::UNIT)
     }
 
+    fn analyze_module(&mut self, module: &Module) -> Result<Ty<'tcx>> {
+        let mut body = Body::new(Ty::UNIT);
+        self.preanalyze(&mut body, &module.items)?;
+        self.bodies.push(body);
+        for &item in &module.items {
+            self.analyze_expr(item)?;
+        }
+        let body = self.bodies.pop().unwrap();
+        debug_assert_eq!(body.scopes.len(), 1);
+        let [scope] = body.scopes.try_into().unwrap();
+        self.current().scope().variables.extend(scope.variables);
+        Ok(Ty::UNIT)
+    }
+
     fn analyze_trait(&self, trait_: &Trait, id: ExprId) -> Result<Ty<'tcx>> {
         _ = trait_;
         _ = id;
@@ -1004,7 +1023,8 @@ impl<'tcx> Collector<'_, 'tcx> {
     fn is_item(&self, id: ExprId) -> bool {
         matches!(
             self.ast.exprs[id].kind,
-            ExprKind::FnDecl(..)
+            ExprKind::Module(..)
+                | ExprKind::FnDecl(..)
                 | ExprKind::Struct { .. }
                 | ExprKind::Impl(..)
                 | ExprKind::Trait(..)
