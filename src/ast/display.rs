@@ -6,11 +6,11 @@ use std::{
 use thin_vec::ThinVec;
 
 use super::{
-    ArraySeg, ExprKind, Field, FnDecl, Identifier, Impl, MatchArm, Param, Pat, PatArg, PatKind,
-    Trait, TyKind, TypeId,
+    ArraySeg, ExprKind, Field, FnDecl, Ident, MatchArm, Param, Pat, PatArg, PatKind, Trait, TyKind,
+    TypeId,
 };
 use crate::{
-    ast::{Ast, BinaryOp, BlockId, ExprId, Lit, Module, UnaryOp},
+    ast::{Ast, BinaryOp, BlockId, ExprId, ItemId, ItemKind, Lit, Stmt, UnaryOp},
     symbol::Symbol,
 };
 
@@ -25,7 +25,7 @@ impl fmt::Display for Ast {
     fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
         let f = String::new();
         let mut w = Writer { ast: self, f, indent: 0, inside_expr: false };
-        self.root.items.iter().for_each(|expr| (expr, Line).write(&mut w));
+        self.root.items.iter().for_each(|item| (item, Line).write(&mut w));
         if !self.exprs.is_empty() {
             #[cfg(debug_assertions)]
             crate::parse::parse(&w.f, &self.exprs[0].span.source().path()).unwrap();
@@ -34,14 +34,43 @@ impl fmt::Display for Ast {
     }
 }
 
+impl Dump for ItemId {
+    fn write(&self, w: &mut Writer) {
+        match &w.ast.items[*self].kind {
+            ItemKind::Struct(ident, generics, fields) => {
+                ("struct ", ident, Generics(generics), fields).write(w);
+            }
+            ItemKind::Const(ident, ty, expr) => {
+                ("const ", ident, ty.map(|ty| (": ", ty)), " = ").write(w);
+                expr.write(w);
+            }
+            ItemKind::FnDecl(decl) => decl.write(w),
+            ItemKind::Trait(Trait { ident, methods }) => {
+                ("trait ", ident, methods).write(w);
+            }
+            ItemKind::Module(ident, module) => {
+                ("mod ", ident, "{ ", Line, Sep(&module.items, Line), "}").write(w);
+            }
+            ItemKind::Impl(impl_) => {
+                (
+                    "impl ",
+                    Generics(&impl_.generics),
+                    impl_.ty,
+                    "{",
+                    Line,
+                    Sep(&impl_.methods, Line),
+                    "}",
+                )
+                    .write(w);
+            }
+        }
+    }
+}
+
 impl Writer<'_> {
     fn display_expr(&mut self, expr: ExprId) {
         let inside_expr = mem::replace(&mut self.inside_expr, true);
         match self.ast.exprs[expr].kind {
-            ExprKind::Module(ref module) => module.write(self),
-            ExprKind::Impl(Impl { ref generics, ty, ref methods }) => {
-                ("impl", Generics(generics), " ", ty, methods).write(self);
-            }
             ExprKind::Match { scrutinee, ref arms } => {
                 ("match ", scrutinee, " {").write(self);
                 self.indent += 1;
@@ -55,9 +84,6 @@ impl Writer<'_> {
             }
             ExprKind::Unreachable => "unreachable".write(self),
             ExprKind::Assert(expr) => ("assert ", expr).write(self),
-            ExprKind::Struct { ident, ref fields, ref generics, .. } => {
-                ("struct ", ident, Generics(generics), fields).write(self);
-            }
             ExprKind::Break => "break".write(self),
             ExprKind::Continue => "continue".write(self),
             ExprKind::Return(expr) => ("return", expr.map(|expr| (" ", expr))).write(self),
@@ -79,19 +105,9 @@ impl Writer<'_> {
             }
             ExprKind::FieldAccess { expr, field, .. } => (expr, ".", field).write(self),
             ExprKind::Block(block) => self.display_block(block),
-            ExprKind::FnDecl(ref decl) => decl.write(self),
-            ExprKind::Trait(Trait { ident, ref methods }) => {
-                ("trait ", ident, methods).write(self);
-            }
             ExprKind::Let { ident, ty, expr } => {
                 self.inside_expr = inside_expr;
                 ("let ", ident, ty.map(|ty| (": ", ty)), " = ").write(self);
-                self.inside_expr = false;
-                expr.write(self);
-            }
-            ExprKind::Const { ident, ty, expr } => {
-                self.inside_expr = inside_expr;
-                ("const ", ident, ty.map(|ty| (": ", ty)), " = ").write(self);
                 self.inside_expr = false;
                 expr.write(self);
             }
@@ -125,28 +141,34 @@ impl Writer<'_> {
             self.f.push(' ');
         }
         self.inside_expr = false;
-        if block.stmts.is_empty() {
+        if block.expr.is_none() && block.stmts.is_empty() {
             self.f.push_str("{}");
             return;
         }
         self.indent += 1;
-        ("{", Line).write(self);
-        for (index, &expr) in block.stmts.iter().enumerate() {
+        ("{", (!block.stmts.is_empty() || block.expr.is_some()).then_some(Line)).write(self);
+        for stmt in &block.stmts {
             self.inside_expr = false;
-            self.display_expr(expr);
-            if !block.is_expr || index + 1 < block.stmts.len() {
-                self.f.push(';');
-            }
-            if index + 1 == block.stmts.len() {
-                self.indent -= 1;
-            }
-            (Line).write(self);
+            (stmt, ";", Line).write(self);
         }
+        if let Some(expr) = &block.expr {
+            (expr, Line).write(self);
+        }
+        self.indent -= 1;
         self.f.push('}');
     }
 }
 trait Dump {
     fn write(&self, w: &mut Writer);
+}
+
+impl Dump for Stmt {
+    fn write(&self, w: &mut Writer) {
+        match self {
+            Stmt::Expr(expr) => expr.write(w),
+            Stmt::Item(item) => item.write(w),
+        }
+    }
 }
 
 struct Sep<'a, T, S>(&'a [T], S);
@@ -156,18 +178,6 @@ impl<T: Dump, S: Dump> Dump for Sep<'_, T, S> {
         for (i, arg) in self.0.iter().enumerate() {
             ((i != 0).then_some(&self.1), arg).write(w);
         }
-    }
-}
-
-impl Dump for Module {
-    fn write(&self, w: &mut Writer) {
-        ("mod ", self.name.map(|name| (name, " ")), "{").write(w);
-        w.indent += 1;
-        for item in &self.items {
-            item.write(w);
-        }
-        w.indent -= 1;
-        (Line, "}").write(w);
     }
 }
 
@@ -218,7 +228,7 @@ impl Dump for ThinVec<Field> {
     }
 }
 
-struct Generics<'a>(&'a ThinVec<Identifier>);
+struct Generics<'a>(&'a ThinVec<Ident>);
 
 impl Dump for Generics<'_> {
     fn write(&self, w: &mut Writer) {
@@ -326,7 +336,7 @@ impl Dump for Field {
     }
 }
 
-impl Dump for Identifier {
+impl Dump for Ident {
     fn write(&self, w: &mut Writer) {
         self.symbol.write(w);
     }

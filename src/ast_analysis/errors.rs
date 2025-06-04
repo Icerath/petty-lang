@@ -4,7 +4,7 @@ use miette::Error;
 
 use super::Collector;
 use crate::{
-    ast::{BinaryOp, BlockId, ExprId, ExprKind, Identifier},
+    ast::{BinaryOp, BlockId, ExprId, ExprKind, Ident},
     errors::{error, error_with},
     span::Span,
     symbol::Symbol,
@@ -42,20 +42,16 @@ impl<'tcx> Collector<'_, '_> {
         let span = self.ast.exprs[expr].span;
         error("invalid const expr", [(span, "this expression cannot be const")])
     }
-    pub fn expected_item(&self, expr: ExprId) -> Error {
-        let span = self.ast.exprs[expr].span;
-        error("invalid item", [(span, "this expression is not a valid item")])
-    }
 
-    pub fn method_not_found(&self, ty: Ty<'tcx>, ident: Identifier) -> Error {
-        let Identifier { symbol, span } = ident;
+    pub fn method_not_found(&self, ty: Ty<'tcx>, ident: Ident) -> Error {
+        let Ident { symbol, span } = ident;
         error(
             &format!("no method `{symbol}` found in type `{}`", self.tcx.display(ty)),
             [(span, format!("method not found in `{}`", self.tcx.display(ty)))],
         )
     }
 
-    pub fn already_defined(&self, ident: Identifier) -> Error {
+    pub fn already_defined(&self, ident: Ident) -> Error {
         error(
             &format!("function `{}` already defined", ident.symbol),
             [(ident.span, format!("`{}` is already defined", ident.symbol))],
@@ -122,7 +118,7 @@ impl<'tcx> Collector<'_, '_> {
         )
     }
 
-    pub fn field_error(&self, ty: Ty<'tcx>, field: Identifier) -> Error {
+    pub fn field_error(&self, ty: Ty<'tcx>, field: Ident) -> Error {
         error(
             &format!("no field `{}` on type `{}`", field.symbol, self.tcx.display(ty)),
             [(field.span, "unknown field")],
@@ -133,7 +129,7 @@ impl<'tcx> Collector<'_, '_> {
         &self,
         fields: impl Iterator<Item = Symbol>,
         ty: Ty<'tcx>,
-        field: Identifier,
+        field: Ident,
     ) -> Error {
         let help = find_best_name_of(fields, field.symbol)
             .map(|suggest| format!("a field with a similar name exists: `{suggest}`"));
@@ -176,7 +172,7 @@ impl<'tcx> Collector<'_, '_> {
             [(span, format!("cannot deref `{}`", self.tcx.display(ty)))],
         )
     }
-    pub fn ident_not_found(&self, ident: Identifier) -> Error {
+    pub fn ident_not_found(&self, ident: Ident) -> Error {
         if ident.symbol.as_str() == "_" {
             return error(
                 "cannot use `_` in expressions",
@@ -193,7 +189,7 @@ impl<'tcx> Collector<'_, '_> {
             help.as_deref(),
         )
     }
-    pub fn unknown_type_err(&self, ident: Identifier) -> Error {
+    pub fn unknown_type_err(&self, ident: Ident) -> Error {
         error(
             &format!("cannot find type `{}` in this scope", ident.symbol),
             [(ident.span, format!("type `{}` not found", ident.symbol))],
@@ -243,7 +239,7 @@ impl<'tcx> Collector<'_, '_> {
     }
     fn block_span(&self, block: BlockId) -> Vec<Span> {
         let block = &self.ast.blocks[block];
-        block.stmts.last().map_or_else(|| vec![block.span], |&last| self.invalid_type_span(last))
+        block.expr.map_or_else(|| vec![block.span], |expr| self.invalid_type_span(expr))
     }
 
     fn find_best_name(&self, name: Symbol) -> Option<Symbol> {

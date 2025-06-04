@@ -1,6 +1,6 @@
 mod display;
 
-use std::{fmt, ops::Deref};
+use std::ops::Deref;
 
 use index_vec::IndexVec;
 use thin_vec::ThinVec;
@@ -10,91 +10,98 @@ use crate::{define_id, span::Span, symbol::Symbol};
 #[derive(Default)]
 pub struct Ast {
     pub exprs: IndexVec<ExprId, Expr>,
+    pub items: IndexVec<ItemId, Item>,
     pub blocks: IndexVec<BlockId, Block>,
     pub types: IndexVec<TypeId, Ty>,
     pub root: Module,
 }
 
 define_id!(pub ExprId);
+define_id!(pub ItemId);
 define_id!(pub BlockId);
 define_id!(pub TypeId);
 
-impl fmt::Debug for Ast {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.root.fmt(f)
-    }
-}
-
 pub struct Block {
-    pub stmts: ThinVec<ExprId>,
-    /// Will be false if the last expression if followed by a ';' or the block is empty.
-    pub is_expr: bool,
+    pub stmts: ThinVec<Stmt>,
+    pub expr: Option<ExprId>,
     pub span: Span,
 }
 
-#[derive(Debug)]
 pub struct IfStmt {
     pub condition: ExprId,
     pub body: BlockId,
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct Identifier {
+#[derive(Clone, Copy)]
+pub struct Ident {
     pub symbol: Symbol,
     pub span: Span,
 }
 
-#[derive(Debug)]
 pub struct Param {
-    pub ident: Identifier,
+    pub ident: Ident,
     pub ty: Option<TypeId>,
 }
 
-#[derive(Debug)]
 pub struct Field {
-    pub ident: Identifier,
+    pub ident: Ident,
     pub ty: TypeId,
 }
 
-#[derive(Debug)]
 pub struct Ty {
     pub kind: TyKind,
     pub span: Span,
 }
 
-#[derive(Debug)]
 pub enum TyKind {
     Never,
     Unit,
-    Name { ident: Identifier, generics: ThinVec<TypeId> },
+    Name { ident: Ident, generics: ThinVec<TypeId> },
     Array(TypeId),
     Func { params: ThinVec<TypeId>, ret: Option<TypeId> },
     Ref(TypeId),
 }
 
-#[derive(Debug, Default)]
+#[derive(Default)]
 pub struct Module {
-    pub name: Option<Symbol>,
-    pub items: Vec<ExprId>,
+    pub items: Vec<ItemId>,
 }
 
-#[derive(Debug)]
+pub struct Item {
+    #[expect(unused)]
+    pub span: Span,
+    pub kind: ItemKind,
+}
+
+#[derive(Clone, Copy)]
+pub enum Stmt {
+    Item(ItemId),
+    Expr(ExprId),
+}
+
+pub enum ItemKind {
+    Module(Ident, Module),
+    FnDecl(FnDecl),
+    Struct(Ident, ThinVec<Ident>, ThinVec<Field>),
+    Const(Ident, Option<TypeId>, ExprId),
+    Trait(Trait),
+    Impl(Impl),
+}
+
 pub enum ExprKind {
     Unreachable,
-    Module(Module),
     Binary { lhs: ExprId, op: BinaryOp, rhs: ExprId },
     Unary { op: UnaryOp, expr: ExprId },
     FnCall { function: ExprId, args: ThinVec<ExprId> },
-    MethodCall { expr: ExprId, method: Identifier, args: ThinVec<ExprId> },
+    MethodCall { expr: ExprId, method: Ident, args: ThinVec<ExprId> },
     Ident(Symbol),
     Index { expr: ExprId, index: ExprId },
-    FieldAccess { expr: ExprId, field: Identifier },
+    FieldAccess { expr: ExprId, field: Ident },
     Lit(Lit),
     Block(BlockId),
-    Let { ident: Identifier, ty: Option<TypeId>, expr: ExprId },
-    Const { ident: Identifier, ty: Option<TypeId>, expr: ExprId },
+    Let { ident: Ident, ty: Option<TypeId>, expr: ExprId },
     While { condition: ExprId, block: BlockId },
-    For { ident: Identifier, iter: ExprId, body: BlockId },
+    For { ident: Ident, iter: ExprId, body: BlockId },
     If { arms: ThinVec<IfStmt>, els: Option<BlockId> },
     Match { scrutinee: ExprId, arms: ThinVec<MatchArm> },
     Is { scrutinee: ExprId, pat: Pat },
@@ -102,19 +109,13 @@ pub enum ExprKind {
     Assert(ExprId),
     Break,
     Continue,
-    Trait(Trait),
-    Impl(Impl),
-    FnDecl(FnDecl),
-    Struct { ident: Identifier, generics: ThinVec<Identifier>, fields: ThinVec<Field> },
 }
 
-#[derive(Debug)]
 pub struct Pat {
     pub kind: PatKind,
     pub span: Span,
 }
 
-#[derive(Debug)]
 pub enum PatKind {
     Bool(bool),
     Int(i64),
@@ -124,57 +125,49 @@ pub enum PatKind {
     Or(ThinVec<Pat>),
     And(ThinVec<Pat>),
     Ident(Symbol),
-    Struct(Identifier, ThinVec<PatArg>),
+    Struct(Ident, ThinVec<PatArg>),
     Array(ThinVec<Pat>),
 }
 
-#[derive(Debug)]
 pub struct PatArg {
-    pub ident: Identifier,
+    pub ident: Ident,
     pub pat: Pat,
 }
 
-#[derive(Debug)]
 pub struct MatchArm {
     pub pat: Pat,
     pub body: ExprId,
 }
 
-#[derive(Debug)]
 pub struct FnDecl {
-    pub ident: Identifier,
-    pub generics: ThinVec<Identifier>,
+    pub ident: Ident,
+    pub generics: ThinVec<Ident>,
     pub params: ThinVec<Param>,
     pub ret: Option<TypeId>,
     pub block: Option<BlockId>,
 }
 
-#[derive(Debug)]
 pub struct Trait {
-    pub ident: Identifier,
+    pub ident: Ident,
     pub methods: ThinVec<FnDecl>,
 }
 
-#[derive(Debug)]
 pub struct Impl {
-    pub generics: ThinVec<Identifier>,
+    pub generics: ThinVec<Ident>,
     pub ty: TypeId,
-    pub methods: ThinVec<ExprId>,
+    pub methods: ThinVec<ItemId>,
 }
 
-#[derive(Debug)]
 pub struct Expr {
     pub span: Span,
     pub kind: ExprKind,
 }
 
-#[derive(Debug)]
 pub struct ArraySeg {
     pub expr: ExprId,
     pub repeated: Option<ExprId>,
 }
 
-#[derive(Debug)]
 pub enum Lit {
     Unit,
     Bool(bool),
@@ -185,13 +178,13 @@ pub enum Lit {
     Array { segments: ThinVec<ArraySeg> },
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub struct BinaryOp {
     pub kind: BinOpKind,
     pub span: Span,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum BinOpKind {
     Assign,
     AddAssign,
@@ -226,12 +219,6 @@ pub enum UnaryOp {
     Not,
     Ref,
     Deref,
-}
-
-impl fmt::Debug for Block {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.stmts.fmt(f)
-    }
 }
 
 impl Ast {

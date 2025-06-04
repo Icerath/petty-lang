@@ -10,6 +10,7 @@ redundant_clone = "warn"
 
 [dependencies]
 arcstr = "1.2.0"
+bumpalo = "3.17.0"
 clap = { version = "4.5.32", features = ["derive"] }
 colored = "3.0.0"
 index_vec = "0.1.4"

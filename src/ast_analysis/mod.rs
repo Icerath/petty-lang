@@ -8,8 +8,8 @@ use miette::{Error, Result};
 use crate::{
     HashMap,
     ast::{
-        self, Ast, BinOpKind, BinaryOp, Block, BlockId, ExprId, ExprKind, FnDecl, Identifier, Impl,
-        Lit, Module, Pat, PatArg, PatKind, Trait, TypeId, UnaryOp,
+        self, Ast, BinOpKind, BinaryOp, Block, BlockId, ExprId, ExprKind, FnDecl, Ident, Impl,
+        ItemId, ItemKind, Lit, Module, Pat, PatArg, PatKind, Stmt, Trait, TypeId, UnaryOp,
     },
     span::Span,
     symbol::Symbol,
@@ -60,7 +60,7 @@ impl<'tcx> Body<'tcx> {
     }
     pub fn insert_var(
         &mut self,
-        ident: Identifier,
+        ident: Ident,
         ty: Ty<'tcx>,
         kind: Var,
     ) -> Option<(Ty<'tcx>, Var, Span)> {
@@ -93,8 +93,7 @@ struct Collector<'ast, 'tcx> {
     within_const: bool,
     fn_generics: GenericRange,
     impl_generics: GenericRange,
-    // the generics created by preanalyze impl/fndecl
-    produced_generics: HashMap<ExprId, GenericRange>,
+    produced_generics: HashMap<ItemId, GenericRange>,
     errors: Vec<Error>,
 }
 
@@ -123,9 +122,7 @@ pub fn analyze<'tcx>(ast: &Ast, tcx: &'tcx TyCtx<'tcx>) -> Result<TyInfo<'tcx>, 
         produced_generics: HashMap::default(),
         errors: vec![],
     };
-    let top_level_exprs = ast.root.items.iter().copied().collect();
-    let top_level = ast::Block { span: Span::ZERO, stmts: top_level_exprs, is_expr: false };
-    collector.analyze_body_with(&top_level, Body::new(Ty::NEVER)).map_err(|err| vec![err])?;
+    collector.analyze_module(&ast.root).map_err(|err| vec![err])?;
 
     if !collector.errors.is_empty() {
         return Err(collector.errors);
@@ -152,10 +149,14 @@ fn global_body<'tcx>() -> Body<'tcx> {
 }
 
 impl<'tcx> Collector<'_, 'tcx> {
-    fn preanalyze(&mut self, body: &mut Body<'tcx>, items: &[ExprId]) -> Result<()> {
+    fn preanalyze(
+        &mut self,
+        body: &mut Body<'tcx>,
+        items: impl IntoIterator<Item = ItemId> + Clone,
+    ) -> Result<()> {
         // look for structs/enums first.
-        for id in items {
-            let ExprKind::Struct { ident, generics, fields } = &self.ast.exprs[*id].kind else {
+        for id in items.clone() {
+            let ItemKind::Struct(ident, generics, fields) = &self.ast.items[id].kind else {
                 continue;
             };
             let generics = self.tcx.new_generics(generics);
@@ -179,16 +180,16 @@ impl<'tcx> Collector<'_, 'tcx> {
             );
         }
 
-        for &id in items {
-            match &self.ast.exprs[id].kind {
-                ExprKind::FnDecl(func) => self.preanalyze_fndecl(body, func, id)?,
-                ExprKind::Impl(impl_) => {
+        for id in items {
+            match &self.ast.items[id].kind {
+                ItemKind::FnDecl(func) => self.preanalyze_fndecl(body, func, id)?,
+                ItemKind::Impl(impl_) => {
                     let generics = self.tcx.new_generics(&impl_.generics);
                     self.impl_generics = generics;
                     self.produced_generics.insert(id, self.impl_generics);
                     let ty = self.read_ast_ty_with(impl_.ty, None);
                     for &method_id in &impl_.methods {
-                        let ExprKind::FnDecl(func) = &self.ast.exprs[method_id].kind else {
+                        let ItemKind::FnDecl(func) = &self.ast.items[method_id].kind else {
                             unreachable!()
                         };
                         self.preanalyze_method(body, ty, func, method_id);
@@ -204,7 +205,13 @@ impl<'tcx> Collector<'_, 'tcx> {
         block: &ast::Block,
         mut body: Body<'tcx>,
     ) -> Result<(Ty<'tcx>, Body<'tcx>)> {
-        self.preanalyze(&mut body, &block.stmts)?;
+        self.preanalyze(
+            &mut body,
+            block.stmts.iter().filter_map(|stmt| match stmt {
+                Stmt::Item(item) => Some(*item),
+                Stmt::Expr(..) => None,
+            }),
+        )?;
         self.bodies.push(body);
         let out = self.analyze_block_inner(block)?;
         Ok((out, self.bodies.pop().unwrap()))
@@ -214,7 +221,7 @@ impl<'tcx> Collector<'_, 'tcx> {
         &mut self,
         body: &mut Body<'tcx>,
         fndecl: &FnDecl,
-        id: ExprId,
+        id: ItemId,
     ) -> Result<()> {
         let FnDecl { ident, generics, params, ret, .. } = fndecl;
         self.fn_generics = self.tcx.new_generics(generics);
@@ -243,7 +250,7 @@ impl<'tcx> Collector<'_, 'tcx> {
         if prev.is_some() { Err(self.already_defined(*ident)) } else { Ok(()) }
     }
 
-    fn preanalyze_method(&mut self, body: &Body<'tcx>, ty: Ty<'tcx>, fndecl: &FnDecl, id: ExprId) {
+    fn preanalyze_method(&mut self, body: &Body<'tcx>, ty: Ty<'tcx>, fndecl: &FnDecl, id: ItemId) {
         _ = body;
         let FnDecl { ident, generics, params, ret, .. } = fndecl;
         self.fn_generics = self.tcx.new_generics(generics);
@@ -280,17 +287,25 @@ impl<'tcx> Collector<'_, 'tcx> {
     fn analyze_block_inner(&mut self, block: &Block) -> Result<Ty<'tcx>> {
         self.current().scopes.push(Scope::default());
         let mut ty = None;
-        for &id in &block.stmts {
-            ty = Some(self.analyze_expr(id)?);
+        for (index, &stmt) in block.stmts.iter().enumerate() {
+            let stmt_ty = match stmt {
+                Stmt::Expr(expr) => self.analyze_expr(expr)?,
+                Stmt::Item(item) => {
+                    self.analyze_item(item)?;
+                    Ty::UNIT
+                }
+            };
+            if index + 1 == block.stmts.len() {
+                ty = Some(stmt_ty);
+            }
         }
+        let ty = match block.expr {
+            Some(expr) => self.analyze_expr(expr)?,
+            None if ty.is_some_and(|ty| ty.is_never()) => Ty::NEVER,
+            None => Ty::UNIT,
+        };
         self.current().scopes.pop().unwrap();
-        Ok(if block.is_expr {
-            ty.unwrap_or(Ty::UNIT)
-        } else if ty.is_some_and(|ty| ty.is_never()) {
-            Ty::NEVER
-        } else {
-            Ty::UNIT
-        })
+        Ok(ty)
     }
 
     fn read_ast_ty(&mut self, id: ast::TypeId) -> Ty<'tcx> {
@@ -354,7 +369,7 @@ impl<'tcx> Collector<'_, 'tcx> {
         ty
     }
 
-    fn read_named_ty(&mut self, ident: Identifier) -> Ty<'tcx> {
+    fn read_named_ty(&mut self, ident: Ident) -> Ty<'tcx> {
         if let Some(&ty) =
             self.bodies.iter().rev().find_map(|body| body.ty_names.get(&ident.symbol))
         {
@@ -404,16 +419,36 @@ impl<'tcx> Collector<'_, 'tcx> {
         Infer { out: Ok(()) }
     }
 
+    fn analyze_item(&mut self, id: ItemId) -> Result<()> {
+        match &self.ast.items[id].kind {
+            ItemKind::Module(_, module) => self.analyze_module(module)?,
+            ItemKind::Trait(trait_) => self.analyze_trait(trait_, id)?,
+            ItemKind::Impl(impl_) => self.analyze_impl(impl_, id)?,
+            ItemKind::FnDecl(decl) => self.analyze_fndecl(decl, id)?,
+            ItemKind::Struct { .. } => {}
+            &ItemKind::Const(ident, ty, expr) => {
+                let within_const = std::mem::replace(&mut self.within_const, true);
+                let expr_ty = self.analyze_expr(expr)?;
+                self.within_const = within_const;
+                let ty = if let Some(ty) = ty {
+                    let ty = self.read_ast_ty(ty);
+                    self.sub(expr_ty, ty, expr);
+                    ty
+                } else {
+                    expr_ty
+                };
+                if self.tcx.try_infer_deep(ty).is_err() {
+                    return Err(self.cannot_infer(ty, self.ast.spans([expr])));
+                }
+                self.insert_var(ident, ty, Var::Const);
+            }
+        }
+        Ok(())
+    }
+
     fn analyze_expr(&mut self, id: ExprId) -> Result<Ty<'tcx>> {
         let pushed_scope = match self.ast.exprs[id].kind {
-            ExprKind::Module(..) // ?
-            | ExprKind::Block(..)
-            | ExprKind::Struct { .. }
-            | ExprKind::Impl(..)
-            | ExprKind::FnDecl { .. }
-            | ExprKind::Let { .. }
-            | ExprKind::Const { .. }
-            | ExprKind::Is { .. } => false,
+            ExprKind::Block(..) | ExprKind::Let { .. } | ExprKind::Is { .. } => false,
             _ => {
                 self.current().scopes.push(Scope::default());
                 true
@@ -429,25 +464,17 @@ impl<'tcx> Collector<'_, 'tcx> {
     #[expect(clippy::too_many_lines)]
     fn analyze_expr_inner(&mut self, id: ExprId) -> Result<Ty<'tcx>> {
         let expr_span = self.ast.exprs[id].span;
-        if !self.within_const && self.bodies.len() <= 2 && !self.is_item(id) {
-            return Err(self.expected_item(id));
-        }
         if self.within_const && !self.is_const(id) {
             return Err(self.expected_const(id));
         }
         let ty = match self.ast.exprs[id].kind {
-            ExprKind::Module(ref module) => self.analyze_module(module)?,
-            ExprKind::Trait(ref trait_) => self.analyze_trait(trait_, id)?,
-            ExprKind::Impl(ref impl_) => self.analyze_impl(impl_, id)?,
             ExprKind::Assert(expr) => {
                 let ty = self.analyze_expr(expr)?;
                 self.sub(ty, Ty::BOOL, expr);
                 Ty::UNIT
             }
             ExprKind::Lit(ref lit) => self.analyze_lit(lit)?,
-            ExprKind::Ident(ident) => {
-                self.read_ident(Identifier { symbol: ident, span: expr_span })
-            }
+            ExprKind::Ident(ident) => self.read_ident(Ident { symbol: ident, span: expr_span }),
             ExprKind::Unary { expr, op } => 'outer: {
                 let operand = self.analyze_expr(expr)?;
                 let ty = match op {
@@ -526,8 +553,6 @@ impl<'tcx> Collector<'_, 'tcx> {
 
                 ret
             }
-            ExprKind::FnDecl(ref decl) => self.analyze_fndecl(decl, id)?,
-            ExprKind::Struct { .. } => Ty::UNIT,
             ExprKind::Let { ident, ty, expr } => {
                 let expr_ty = self.analyze_expr(expr)?;
                 let ty = if let Some(ty) = ty {
@@ -538,23 +563,6 @@ impl<'tcx> Collector<'_, 'tcx> {
                     expr_ty
                 };
                 self.insert_var(ident, ty, Var::Let);
-                Ty::UNIT
-            }
-            ExprKind::Const { ident, ty, expr } => {
-                let within_const = std::mem::replace(&mut self.within_const, true);
-                let expr_ty = self.analyze_expr(expr)?;
-                self.within_const = within_const;
-                let ty = if let Some(ty) = ty {
-                    let ty = self.read_ast_ty(ty);
-                    self.sub(expr_ty, ty, expr);
-                    ty
-                } else {
-                    expr_ty
-                };
-                if self.tcx.try_infer_deep(ty).is_err() {
-                    return Err(self.cannot_infer(ty, self.ast.spans([expr])));
-                }
-                self.insert_var(ident, ty, Var::Const);
                 Ty::UNIT
             }
             ExprKind::For { ident, iter, body } => {
@@ -693,7 +701,7 @@ impl<'tcx> Collector<'_, 'tcx> {
         self.sub(lhs, rhs, expr);
     }
 
-    fn insert_var(&mut self, ident: Identifier, ty: Ty<'tcx>, kind: Var) {
+    fn insert_var(&mut self, ident: Ident, ty: Ty<'tcx>, kind: Var) {
         if ident.symbol.as_str() == "_" {
             return;
         }
@@ -726,7 +734,7 @@ impl<'tcx> Collector<'_, 'tcx> {
             }
             PatKind::Ident(ident) => {
                 // TODO: ...
-                let ident = Identifier { symbol: ident, span: pat.span };
+                let ident = Ident { symbol: ident, span: pat.span };
                 self.insert_var(ident, scrutinee, Var::Let);
             }
             PatKind::Bool(..) => _ = self.sub_span(Ty::BOOL, scrutinee, pat.span),
@@ -891,19 +899,14 @@ impl<'tcx> Collector<'_, 'tcx> {
         }
     }
 
-    fn analyze_method(
-        &mut self,
-        ty: Ty<'tcx>,
-        decl: &FnDecl,
-        method_id: ExprId,
-    ) -> Result<Ty<'tcx>> {
+    fn analyze_method(&mut self, ty: Ty<'tcx>, decl: &FnDecl, method_id: ItemId) -> Result<()> {
         let block_id = decl.block.unwrap();
         self.fn_generics = self.produced_generics[&method_id];
         let fn_ty = self.tcx.get_method(ty, decl.ident.symbol).unwrap();
         self.fndecl_inner(&decl.params, block_id, fn_ty)
     }
 
-    fn analyze_fndecl(&mut self, decl: &FnDecl, id: ExprId) -> Result<Ty<'tcx>> {
+    fn analyze_fndecl(&mut self, decl: &FnDecl, id: ItemId) -> Result<()> {
         self.fn_generics = self.produced_generics[&id];
         let block_id = decl.block.unwrap();
         // call `read_ident_raw` to avoid producing extra inference variables
@@ -919,7 +922,7 @@ impl<'tcx> Collector<'_, 'tcx> {
         params: &[ast::Param],
         block_id: BlockId,
         fn_ty: &'tcx Function<'tcx>,
-    ) -> Result<Ty<'tcx>> {
+    ) -> Result<()> {
         let Function { params: param_tys, ret, .. } = fn_ty;
         let mut body = Body::new(*ret);
         for (param, &ty) in std::iter::zip(params, param_tys) {
@@ -928,42 +931,40 @@ impl<'tcx> Collector<'_, 'tcx> {
         let block = &self.ast.blocks[block_id];
         let body_ret = self.analyze_body_with(block, body)?.0;
         self.sub_block(body_ret, *ret, block_id);
-        Ok(Ty::UNIT)
+        Ok(())
     }
 
-    fn analyze_module(&mut self, module: &Module) -> Result<Ty<'tcx>> {
+    fn analyze_module(&mut self, module: &Module) -> Result<()> {
         let mut body = Body::new(Ty::UNIT);
-        self.preanalyze(&mut body, &module.items)?;
+        self.preanalyze(&mut body, module.items.iter().copied())?;
         self.bodies.push(body);
         for &item in &module.items {
-            self.analyze_expr(item)?;
+            self.analyze_item(item)?;
         }
         let body = self.bodies.pop().unwrap();
         debug_assert_eq!(body.scopes.len(), 1);
         let [scope] = body.scopes.try_into().unwrap();
         self.current().scope().variables.extend(scope.variables);
-        Ok(Ty::UNIT)
+        Ok(())
     }
 
-    fn analyze_trait(&self, trait_: &Trait, id: ExprId) -> Result<Ty<'tcx>> {
-        _ = trait_;
-        _ = id;
+    fn analyze_trait(&self, _: &Trait, _: ItemId) -> Result<()> {
         todo!()
     }
 
-    fn analyze_impl(&mut self, impl_: &Impl, id: ExprId) -> Result<Ty<'tcx>> {
+    fn analyze_impl(&mut self, impl_: &Impl, id: ItemId) -> Result<()> {
         _ = id;
         let &Impl { ty, ref methods, .. } = impl_;
         self.impl_generics = self.produced_generics[&id];
         let ty = self.read_ast_ty(ty);
         for &method_id in methods {
-            let ExprKind::FnDecl(func) = &self.ast.exprs[method_id].kind else { unreachable!() };
+            let ItemKind::FnDecl(func) = &self.ast.items[method_id].kind else { unreachable!() };
             self.analyze_method(ty, func, method_id)?;
         }
-        Ok(Ty::UNIT)
+        Ok(())
     }
 
-    fn read_ident(&mut self, ident: Identifier) -> Ty<'tcx> {
+    fn read_ident(&mut self, ident: Ident) -> Ty<'tcx> {
         match self.read_ident_raw(ident) {
             (Interned(TyKind::Function(func)), Var::Const) => {
                 self.tcx.intern(TyKind::Function(func.caller(self.tcx)))
@@ -973,7 +974,7 @@ impl<'tcx> Collector<'_, 'tcx> {
     }
 
     // like `read_ident` but will not produce `TyVid`s for generic functions
-    fn read_ident_raw(&mut self, ident: Identifier) -> (Ty<'tcx>, Var) {
+    fn read_ident_raw(&mut self, ident: Ident) -> (Ty<'tcx>, Var) {
         if let Some(&out) = self.bodies.iter().rev().find_map(|body| {
             body.scopes.iter().rev().find_map(|scope| scope.variables.get(&ident.symbol))
         }) {
@@ -1020,17 +1021,6 @@ impl<'tcx> Collector<'_, 'tcx> {
         })
     }
 
-    fn is_item(&self, id: ExprId) -> bool {
-        matches!(
-            self.ast.exprs[id].kind,
-            ExprKind::Module(..)
-                | ExprKind::FnDecl(..)
-                | ExprKind::Struct { .. }
-                | ExprKind::Impl(..)
-                | ExprKind::Trait(..)
-                | ExprKind::Const { .. }
-        )
-    }
     fn is_const(&self, id: ExprId) -> bool {
         match self.ast.exprs[id].kind {
             ExprKind::Lit(ref lit) => match lit {

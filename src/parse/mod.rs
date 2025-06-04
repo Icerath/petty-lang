@@ -12,8 +12,8 @@ use token::{Token, TokenKind};
 use crate::{
     ast::{
         ArraySeg, Ast, BinOpKind, BinaryOp, Block, BlockId, Expr, ExprId, ExprKind, Field, FnDecl,
-        Identifier, IfStmt, Impl, Lit, MatchArm, Module, Param, Pat, PatArg, PatKind, Trait, Ty,
-        TyKind, TypeId,
+        Ident, IfStmt, Impl, Item, ItemId, ItemKind, Lit, MatchArm, Module, Param, Pat, PatArg,
+        PatKind, Stmt, Trait, Ty, TyKind, TypeId,
     },
     errors,
     span::Span,
@@ -24,15 +24,7 @@ pub fn parse(src: &str, path: &Path) -> Result<Ast> {
     let lexer = Lexer::new(src, path).into_diagnostic()?;
     let mut ast = Ast::default();
     let mut stream = Stream { lexer, ast: &mut ast };
-    let mut items = vec![];
-    loop {
-        match stream.peek().kind {
-            TokenKind::Eof => break,
-            TokenKind::Semicolon => _ = stream.lexer.next(),
-            _ => items.push(stream.parse()?),
-        }
-    }
-    ast.root.items = items;
+    ast.root.items = stream.parse_items(TokenKind::Eof)?;
     Ok(ast)
 }
 
@@ -42,6 +34,19 @@ struct Stream<'src> {
 }
 
 impl Stream<'_> {
+    fn parse_items(&mut self, terminator: TokenKind) -> Result<Vec<ItemId>> {
+        let mut items = vec![];
+        loop {
+            match self.peek().kind {
+                kind if kind == terminator => break,
+                TokenKind::Semicolon => _ = self.lexer.next(),
+                _ => items.push(self.parse()?),
+            }
+        }
+        _ = self.next();
+        Ok(items)
+    }
+
     fn next(&mut self) -> Token {
         self.lexer.next()
     }
@@ -115,7 +120,7 @@ impl Parse for Symbol {
 impl Parse for Block {
     fn parse(stream: &mut Stream) -> Result<Self> {
         let start = stream.lexer.current_pos() - 1; // ugly hack to include lbrace in span.
-        let mut stmts = thin_vec![];
+        let mut stmts: ThinVec<Stmt> = thin_vec![];
         let mut is_expr = false;
 
         loop {
@@ -134,9 +139,19 @@ impl Parse for Block {
                 }
             }
         }
+        let expr = if is_expr {
+            if let &Stmt::Expr(expr) = stmts.last().unwrap() {
+                stmts.pop();
+                Some(expr)
+            } else {
+                None
+            }
+        } else {
+            None
+        };
 
         let span = Span::new(start..stream.lexer.current_pos(), stream.lexer.source());
-        Ok(Self { stmts, is_expr, span })
+        Ok(Self { stmts, expr, span })
     }
 }
 
@@ -184,7 +199,7 @@ impl Parse for Ty {
                     ThinVec::new()
                 };
                 let symbol = Symbol::from(&stream.lexer.src()[any.span]);
-                TyKind::Name { ident: Identifier { symbol, span: any.span }, generics }
+                TyKind::Name { ident: Ident { symbol, span: any.span }, generics }
             }
             TokenKind::LBracket => {
                 let of = stream.parse()?;
@@ -208,19 +223,9 @@ impl Parse for Ty {
     }
 }
 
-impl Parse for Module {
-    fn parse(stream: &mut Stream) -> Result<Self> {
-        let name = stream.parse()?;
-        stream.expect(TokenKind::LBrace)?;
-        // TODO: parse items and expressions separately
-        let block: Block = stream.parse()?;
-        let items = block.stmts.into();
-        Ok(Self { name: Some(name), items })
-    }
-}
-
 impl Parse for Impl {
     fn parse(stream: &mut Stream) -> Result<Self> {
+        let start = stream.lexer.span(); // FIXME: include impl tok
         let generics = if stream.peek().kind == TokenKind::Less {
             _ = stream.next();
             stream.parse_separated(TokenKind::Comma, TokenKind::Greater)?
@@ -230,9 +235,10 @@ impl Parse for Impl {
         let ty = stream.parse()?;
         stream.expect(TokenKind::LBrace)?;
         let methods = parse_trait_methods(stream)?;
+        let span = start.with_end(stream.lexer.current_pos());
         let methods = methods
             .into_iter()
-            .map(|decl| stream.ast.exprs.push(ExprKind::FnDecl(decl).todo_span()))
+            .map(|decl| stream.ast.items.push(Item { kind: ItemKind::FnDecl(decl), span }))
             .collect();
         Ok(Self { generics, ty, methods })
     }
@@ -286,7 +292,7 @@ impl Parse for FnDecl {
     }
 }
 
-fn parse_struct(stream: &mut Stream) -> Result<Expr> {
+fn parse_struct(stream: &mut Stream) -> Result<ItemKind> {
     let ident = stream.parse()?;
     let peek = stream.clone().any(&[TokenKind::Less, TokenKind::LParen])?;
 
@@ -300,10 +306,21 @@ fn parse_struct(stream: &mut Stream) -> Result<Expr> {
     stream.expect(TokenKind::LParen)?;
     let fields = stream.parse_separated(TokenKind::Comma, TokenKind::RParen)?;
 
-    Ok((ExprKind::Struct { ident, generics, fields }).todo_span())
+    Ok(ItemKind::Struct(ident, generics, fields))
 }
 
-fn parse_var(stream: &mut Stream, let_tok: Token) -> Result<Expr> {
+fn parse_const(stream: &mut Stream) -> Result<ItemKind> {
+    let (ident, ty, expr) = parse_var(stream)?;
+    Ok(ItemKind::Const(ident, ty, expr))
+}
+
+fn parse_let(stream: &mut Stream, let_tok: Token) -> Result<Expr> {
+    let (ident, ty, expr) = parse_var(stream)?;
+    Ok((ExprKind::Let { ident, ty, expr })
+        .with_span(let_tok.span.with_end(stream.lexer.current_pos())))
+}
+
+fn parse_var(stream: &mut Stream) -> Result<(Ident, Option<TypeId>, ExprId)> {
     let ident = stream.parse()?;
     let tok = stream.any(&[TokenKind::Colon, TokenKind::Eq])?;
     let mut ty = None;
@@ -312,16 +329,7 @@ fn parse_var(stream: &mut Stream, let_tok: Token) -> Result<Expr> {
         stream.expect(TokenKind::Eq)?;
     }
     let expr = stream.parse()?;
-    let span = Span::new(
-        let_tok.span.start() as _..stream.lexer.current_pos() as _,
-        let_tok.span.source(),
-    );
-    Ok((match let_tok.kind {
-        TokenKind::Const => ExprKind::Const { ident, ty, expr },
-        TokenKind::Let => ExprKind::Let { ident, ty, expr },
-        _ => unreachable!(),
-    })
-    .with_span(span))
+    Ok((ident, ty, expr))
 }
 
 fn parse_while(stream: &mut Stream) -> Result<Expr> {
@@ -402,7 +410,7 @@ impl Parse for Pat {
                     _ = stream.next();
                     let symbol = Symbol::from(&stream.lexer.src()[tok.span]);
                     let args = stream.parse_separated(TokenKind::Comma, TokenKind::RParen)?;
-                    PatKind::Struct(Identifier { symbol, span: tok.span }, args)
+                    PatKind::Struct(Ident { symbol, span: tok.span }, args)
                 }
                 TokenKind::Ident => PatKind::Ident(Symbol::from(&stream.lexer.src()[tok.span])),
                 TokenKind::True => PatKind::Bool(true),
@@ -428,8 +436,8 @@ impl Parse for Pat {
                 }
                 _ => {
                     return Err(errors::error(
-                        &format!("expected `pattern`, found '{}'", tok.kind.repr()),
-                        [(stream.lexer.span(), "expected `pattern`")],
+                        &format!("expected pattern, found '{}'", tok.kind.repr()),
+                        [(stream.lexer.span(), "expected pattern")],
                     ));
                 }
             };
@@ -579,13 +587,7 @@ fn parse_atom_with(stream: &mut Stream, tok: Token) -> Result<ExprId> {
                 Ok(ExprKind::Return(Some(expr)).with_span(span))
             }
         }
-        TokenKind::Module => Ok(ExprKind::Module(stream.parse()?)
-            .with_span(tok.span.with_end(stream.lexer.current_pos()))),
-        TokenKind::Impl => Ok(ExprKind::Impl(stream.parse()?).todo_span()),
-        TokenKind::Trait => Ok(ExprKind::Trait(stream.parse()?).todo_span()),
-        TokenKind::Fn => Ok(ExprKind::FnDecl(stream.parse()?).todo_span()),
-        TokenKind::Struct => parse_struct(stream),
-        TokenKind::Const | TokenKind::Let => parse_var(stream, tok),
+        TokenKind::Let => parse_let(stream, tok),
         TokenKind::While => parse_while(stream),
         TokenKind::For => parse_for(stream),
         TokenKind::Match => parse_match(stream, tok),
@@ -604,8 +606,8 @@ fn parse_atom_with(stream: &mut Stream, tok: Token) -> Result<ExprId> {
         }
         found => {
             return Err(errors::error(
-                &format!("expected `expression`, found '{}'", found.repr()),
-                [(stream.lexer.span(), "expected `expression`")],
+                &format!("expected expression, found '{}'", found.repr()),
+                [(stream.lexer.span(), "expected expression")],
             ));
         }
     };
@@ -686,9 +688,62 @@ fn invalid_escape(span: Span, char: char) -> Error {
     )
 }
 
-impl Parse for Identifier {
+impl Parse for Ident {
     fn parse(stream: &mut Stream) -> Result<Self> {
         let span = stream.expect(TokenKind::Ident)?.span;
         Ok(Self { symbol: Symbol::from(&stream.lexer.src()[span]), span })
+    }
+}
+
+impl ItemKind {
+    pub fn with_span(self, span: Span) -> Item {
+        Item { kind: self, span }
+    }
+}
+
+impl Parse for Item {
+    fn parse(stream: &mut Stream) -> Result<Self> {
+        let tok = stream.next();
+        let kind = match tok.kind {
+            TokenKind::Module => {
+                let ident = stream.parse()?;
+                stream.expect(TokenKind::LBrace)?;
+                let module = stream.parse_items(TokenKind::RBrace)?;
+                ItemKind::Module(ident, Module { items: module })
+            }
+            TokenKind::Fn => ItemKind::FnDecl(stream.parse()?),
+            TokenKind::Struct => parse_struct(stream)?,
+            TokenKind::Impl => ItemKind::Impl(stream.parse()?),
+            TokenKind::Trait => ItemKind::Trait(stream.parse()?),
+            TokenKind::Const => parse_const(stream)?,
+            _ => {
+                return Err(errors::error(
+                    &format!("expected item, found `{}`", tok.kind.repr()),
+                    [(tok.span, "expected item")],
+                ));
+            }
+        };
+        Ok(kind.with_span(tok.span.with_end(stream.lexer.current_pos())))
+    }
+}
+
+impl Parse for ItemId {
+    fn parse(stream: &mut Stream) -> Result<Self> {
+        let item = stream.parse()?;
+        Ok(stream.ast.items.push(item))
+    }
+}
+
+impl Parse for Stmt {
+    fn parse(stream: &mut Stream) -> Result<Self> {
+        let token = stream.peek();
+        match token.kind {
+            TokenKind::Fn
+            | TokenKind::Struct
+            | TokenKind::Const
+            | TokenKind::Impl
+            | TokenKind::Trait => stream.parse().map(Stmt::Item),
+            _ => stream.parse().map(Stmt::Expr),
+        }
     }
 }

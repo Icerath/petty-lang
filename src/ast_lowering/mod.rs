@@ -1,7 +1,7 @@
 use thin_vec::{ThinVec, thin_vec};
 
 use crate::{
-    ast::{self, Ast, BinOpKind, BinaryOp},
+    ast::{self, Ast, BinOpKind, BinaryOp, Stmt},
     ast_analysis::TyInfo,
     errors,
     hir::{self, ExprKind, Hir, IfStmt, OpAssign, Pat, PatField},
@@ -9,15 +9,11 @@ use crate::{
     ty::{Function, Ty, TyKind},
 };
 
-pub fn lower(mut ast: Ast, ty_info: TyInfo<'_>) -> Hir<'_> {
+#[expect(clippy::needless_pass_by_value)]
+pub fn lower(ast: Ast, ty_info: TyInfo<'_>) -> Hir<'_> {
     assert_eq!(ast.exprs.len(), ty_info.expr_tys.len());
-    let top_level = std::mem::take(&mut ast.root.items);
     let mut lowering = Lowering { ast: &ast, hir: Hir::default(), ty_info };
-    let mut hir_root = vec![];
-    for expr in top_level {
-        hir_root.push(lowering.lower(expr));
-    }
-    lowering.hir.root = hir_root;
+    lowering.hir.root = lowering.lower_items(&ast.root.items);
     lowering.hir
 }
 
@@ -32,6 +28,61 @@ impl<'tcx> Lowering<'_, 'tcx> {
         self.ty_info.expr_tys[expr_id]
     }
 
+    fn lower_items(&mut self, items: &[ast::ItemId]) -> Vec<hir::ExprId> {
+        let mut exprs = vec![];
+        for &item in items {
+            exprs.push(self.lower_item(item));
+        }
+        exprs
+    }
+
+    fn lower_item(&mut self, item: ast::ItemId) -> hir::ExprId {
+        let item = &self.ast.items[item];
+        match &item.kind {
+            ast::ItemKind::FnDecl(decl) => {
+                let expr = self.lower_fn_decl(None, decl);
+                self.hir.exprs.push(expr)
+            }
+            ast::ItemKind::Module(_, module) => {
+                let items = self.lower_items(&module.items);
+                self.hir.exprs.push(ExprKind::Block(items.into()).with(Ty::UNIT))
+            }
+            ast::ItemKind::Struct(ident, generics, fields) => {
+                _ = generics;
+                let struct_ty = self.ty_info.struct_types[&ident.span];
+
+                let fields: ThinVec<_> = (fields.iter())
+                    .map(|field| hir::Param {
+                        ident: field.ident.symbol,
+                        ty: self.ty_info[field.ty],
+                    })
+                    .collect();
+
+                let body =
+                    ThinVec::from([self.hir.exprs.push(hir::ExprKind::StructInit.with(struct_ty))]);
+                self.hir.exprs.push(hir::Expr::from(hir::FnDecl {
+                    ident: ident.symbol,
+                    for_ty: None,
+                    params: fields.into(),
+                    ret: struct_ty,
+                    body,
+                }))
+            }
+            ast::ItemKind::Impl(impl_) => {
+                let mut block = thin_vec![];
+                for &method in &impl_.methods {
+                    let ast::ItemKind::FnDecl(decl) = &self.ast.items[method].kind else {
+                        unreachable!()
+                    };
+                    let expr = self.lower_fn_decl(Some(self.ty_info[impl_.ty]), decl);
+                    block.push(self.hir.exprs.push(expr));
+                }
+                self.hir.exprs.push(hir::ExprKind::Block(block).with(Ty::UNIT))
+            }
+            _ => todo!(),
+        }
+    }
+
     fn lower(&mut self, ast_expr: ast::ExprId) -> hir::ExprId {
         let hir_expr = self.lower_inner(ast_expr);
         self.hir.exprs.push(hir_expr)
@@ -41,19 +92,6 @@ impl<'tcx> Lowering<'_, 'tcx> {
     fn lower_inner(&mut self, expr_id: ast::ExprId) -> hir::Expr<'tcx> {
         let expr_ty = self.get_ty(expr_id);
         match self.ast.exprs[expr_id].kind {
-            ast::ExprKind::Module(..) => todo!(),
-            ast::ExprKind::Trait(..) => hir::Expr::UNIT,
-            ast::ExprKind::Impl(ref impl_) => {
-                let mut block = thin_vec![];
-                for &method in &impl_.methods {
-                    let ast::ExprKind::FnDecl(decl) = &self.ast.exprs[method].kind else {
-                        unreachable!()
-                    };
-                    let expr = self.lower_fn_decl(Some(self.ty_info[impl_.ty]), decl);
-                    block.push(self.hir.exprs.push(expr));
-                }
-                hir::ExprKind::Block(block).with(Ty::UNIT)
-            }
             ast::ExprKind::Unreachable => ExprKind::Unreachable.with(Ty::NEVER),
             ast::ExprKind::Binary {
                 lhs,
@@ -95,16 +133,14 @@ impl<'tcx> Lowering<'_, 'tcx> {
                     BinOpKind::RangeInclusive => hir::BinaryOp::RangeInclusive,
                     BinOpKind::And => hir::BinaryOp::And,
                     BinOpKind::Or => hir::BinaryOp::Or,
-                    _ => unreachable!("{op:?}"),
+                    _ => unreachable!(),
                 };
                 (hir::ExprKind::Binary { lhs: self.lower(lhs), op, rhs: self.lower(rhs) })
                     .with(expr_ty)
             }
             ast::ExprKind::Block(block) => self.lower_block(block),
             ast::ExprKind::Lit(ref lit) => self.lower_literal(lit, expr_id),
-            ast::ExprKind::FnDecl(ref decl) => self.lower_fn_decl(None, decl),
             ast::ExprKind::Let { ident, expr, .. } => self.lower_let_stmt(ident.symbol, expr),
-            ast::ExprKind::Const { .. } => todo!(),
             ast::ExprKind::If { ref arms, els } => self.lower_if_stmt(arms, els, expr_id),
             ast::ExprKind::Match { scrutinee, ref arms } => {
                 self.lower_match(scrutinee, arms, expr_id)
@@ -168,28 +204,6 @@ impl<'tcx> Lowering<'_, 'tcx> {
             ast::ExprKind::Unary { op, expr } => self.lower(expr).unary(op).with(expr_ty),
             ast::ExprKind::Break => hir::Expr::BREAK,
             ast::ExprKind::Continue => hir::Expr::CONTINUE,
-            ast::ExprKind::Struct { ident, ref generics, ref fields } => {
-                _ = generics;
-                let struct_ty = self.ty_info.struct_types[&ident.span];
-
-                let fields: ThinVec<_> = (fields.iter())
-                    .map(|field| hir::Param {
-                        ident: field.ident.symbol,
-                        ty: self.ty_info[field.ty],
-                    })
-                    .collect();
-
-                let body =
-                    ThinVec::from([self.hir.exprs.push(hir::ExprKind::StructInit.with(struct_ty))]);
-                (hir::FnDecl {
-                    ident: ident.symbol,
-                    for_ty: None,
-                    params: fields.into(),
-                    ret: struct_ty,
-                    body,
-                })
-                .into()
-            }
             ast::ExprKind::Assert(expr) => {
                 let msg = self.assert_failed_error(expr);
                 let abort = (self.hir.exprs).push(ExprKind::Abort { msg }.with(Ty::NEVER));
@@ -409,12 +423,17 @@ impl<'tcx> Lowering<'_, 'tcx> {
 
     fn lower_block_inner(&mut self, block_id: ast::BlockId) -> (Ty<'tcx>, ThinVec<hir::ExprId>) {
         let block = &self.ast.blocks[block_id];
-        let block_ty =
-            if block.is_expr { self.get_ty(*block.stmts.last().unwrap()) } else { Ty::UNIT };
+        let block_ty = if let Some(expr) = block.expr { self.get_ty(expr) } else { Ty::UNIT };
         let needs_unit = self.block_needs_terminating_unit(block);
 
         let mut new = ThinVec::with_capacity(block.stmts.len() + usize::from(needs_unit));
-        for &expr in &block.stmts {
+        for &stmt in &block.stmts {
+            new.push(match stmt {
+                Stmt::Expr(expr) => self.lower(expr),
+                Stmt::Item(item) => self.lower_item(item),
+            });
+        }
+        if let Some(expr) = block.expr {
             new.push(self.lower(expr));
         }
         if needs_unit {
@@ -425,9 +444,12 @@ impl<'tcx> Lowering<'_, 'tcx> {
 
     fn block_needs_terminating_unit(&self, block: &ast::Block) -> bool {
         // if a block isn't terminated by a semicolon then it already returns the correct type.
-        if block.is_expr {
+        if block.expr.is_some() {
             return false;
         }
-        block.stmts.last().is_some_and(|last| self.get_ty(*last) != Ty::UNIT)
+        block.stmts.last().is_some_and(|last| match last {
+            Stmt::Expr(expr) => self.get_ty(*expr) != Ty::UNIT,
+            Stmt::Item(..) => false,
+        })
     }
 }

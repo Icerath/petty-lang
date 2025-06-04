@@ -6,7 +6,7 @@ use super::{
     Function, GenericId, GenericRange, Interned, Struct, Ty, TyInterner, TyKey, TyKind, TyVid,
     kind::StructId,
 };
-use crate::{ast::Identifier, symbol::Symbol};
+use crate::{ast::Ident, symbol::Symbol};
 
 #[derive(Debug)]
 pub struct TyCtx<'tcx> {
@@ -18,7 +18,7 @@ impl<'tcx> TyCtx<'tcx> {
     pub fn new(interner: TyInterner<'tcx>) -> Self {
         Self { inner: RefCell::default(), interner }
     }
-    pub fn new_generics(&self, generics: &[Identifier]) -> GenericRange {
+    pub fn new_generics(&self, generics: &[Ident]) -> GenericRange {
         let mut inner = self.inner.borrow_mut();
         let mut iter = generics.iter();
         let Some(start) = iter.next() else { return GenericRange::EMPTY };
