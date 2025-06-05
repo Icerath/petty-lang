@@ -1,18 +1,26 @@
+use std::collections::BTreeMap;
+
 use thin_vec::{ThinVec, thin_vec};
 
 use crate::{
     ast::{self, Ast, BinOpKind, BinaryOp, Stmt},
     ast_analysis::TyInfo,
     errors,
-    hir::{self, ExprKind, Hir, IfStmt, OpAssign, Pat, PatField},
+    hir::{self, BodyId, ExprKind, Hir, IfStmt, OpAssign, Pat, PatField},
     symbol::Symbol,
-    ty::{Function, Ty, TyKind},
+    ty::{Function, Ty, TyKey, TyKind},
 };
 
 #[expect(clippy::needless_pass_by_value)]
 pub fn lower(ast: Ast, ty_info: TyInfo<'_>) -> Hir<'_> {
     assert_eq!(ast.exprs.len(), ty_info.expr_tys.len());
-    let mut lowering = Lowering { ast: &ast, hir: Hir::default(), ty_info };
+    let mut lowering = Lowering {
+        next_body: BodyId::from_raw(0),
+        ast: &ast,
+        hir: Hir::default(),
+        ty_info,
+        methods: BTreeMap::default(),
+    };
     lowering.hir.root = lowering.lower_items(&ast.root.items);
     lowering.hir
 }
@@ -21,6 +29,8 @@ struct Lowering<'ast, 'tcx> {
     ast: &'ast Ast,
     hir: Hir<'tcx>,
     ty_info: TyInfo<'tcx>,
+    methods: BTreeMap<(TyKey<'tcx>, Symbol), BodyId>,
+    next_body: BodyId,
 }
 
 impl<'tcx> Lowering<'_, 'tcx> {
@@ -40,7 +50,8 @@ impl<'tcx> Lowering<'_, 'tcx> {
         let item = &self.ast.items[item];
         match &item.kind {
             ast::ItemKind::FnDecl(decl) => {
-                let expr = self.lower_fn_decl(None, decl);
+                let body = self.next_body.incr();
+                let expr = self.lower_fn_decl(None, decl, body);
                 self.hir.exprs.push(expr)
             }
             ast::ItemKind::Module(_, module) => {
@@ -58,9 +69,11 @@ impl<'tcx> Lowering<'_, 'tcx> {
                     })
                     .collect();
 
+                let body_id = self.next_body.incr();
                 let body =
                     ThinVec::from([self.hir.exprs.push(hir::ExprKind::StructInit.with(struct_ty))]);
                 self.hir.exprs.push(hir::Expr::from(hir::FnDecl {
+                    id: body_id,
                     ident: ident.symbol,
                     for_ty: None,
                     params: fields.into(),
@@ -74,7 +87,10 @@ impl<'tcx> Lowering<'_, 'tcx> {
                     let ast::ItemKind::FnDecl(decl) = &self.ast.items[method].kind else {
                         unreachable!()
                     };
-                    let expr = self.lower_fn_decl(Some(self.ty_info[impl_.ty]), decl);
+                    let ty = self.ty_info[impl_.ty];
+                    let body = self.next_body.incr();
+                    self.methods.insert((TyKey(ty), decl.ident.symbol), body);
+                    let expr = self.lower_fn_decl(Some(self.ty_info[impl_.ty]), decl, body);
                     block.push(self.hir.exprs.push(expr));
                 }
                 self.hir.exprs.push(hir::ExprKind::Block(block).with(Ty::UNIT))
@@ -182,11 +198,10 @@ impl<'tcx> Lowering<'_, 'tcx> {
                 new_args.push(expr);
                 new_args.extend(args.iter().map(|arg| self.lower(*arg)));
 
-                let method = self
-                    .hir
-                    .exprs
-                    .push((hir::ExprKind::Method { ty, method: method.symbol }).with(fn_ty));
-                (hir::ExprKind::FnCall { function: method, args: new_args }).with(expr_ty)
+                let location = self.methods[&(TyKey(ty), method.symbol)];
+
+                let function = self.hir.exprs.push(hir::ExprKind::Func(location).with(fn_ty));
+                (hir::ExprKind::FnCall { function, args: new_args }).with(self.get_ty(expr_id))
             }
             ast::ExprKind::Index { expr, index } => (ExprKind::Index {
                 expr: self.lower(expr),
@@ -375,7 +390,12 @@ impl<'tcx> Lowering<'_, 'tcx> {
         (hir::ExprKind::Let { ident, expr: self.lower(expr) }).with(Ty::UNIT)
     }
 
-    fn lower_fn_decl(&mut self, for_ty: Option<Ty<'tcx>>, decl: &ast::FnDecl) -> hir::Expr<'tcx> {
+    fn lower_fn_decl(
+        &mut self,
+        for_ty: Option<Ty<'tcx>>,
+        decl: &ast::FnDecl,
+        id: BodyId,
+    ) -> hir::Expr<'tcx> {
         let ast::FnDecl { ident, ref params, ret, block, .. } = *decl;
 
         let block = block.unwrap();
@@ -390,7 +410,7 @@ impl<'tcx> Lowering<'_, 'tcx> {
             })
             .collect();
         let (_, body) = self.lower_block_inner(block);
-        (hir::FnDecl { ident: ident.symbol, for_ty, params, ret, body }).into()
+        (hir::FnDecl { id, ident: ident.symbol, for_ty, params, ret, body }).into()
     }
 
     fn lower_literal(&mut self, lit: &ast::Lit, expr_id: ast::ExprId) -> hir::Expr<'tcx> {

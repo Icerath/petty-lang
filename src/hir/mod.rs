@@ -13,6 +13,7 @@ pub struct Hir<'tcx> {
 
 define_id!(pub ExprId);
 define_id!(pub LocalId);
+define_id!(pub BodyId);
 
 #[derive(Debug)]
 pub struct Expr<'tcx> {
@@ -34,6 +35,7 @@ pub enum ExprKind<'tcx> {
     Abort { msg: Symbol },
     StructInit,
     Field { expr: ExprId, field: usize },
+    Func(BodyId),
     Ident(Symbol),
     Binary { lhs: ExprId, op: BinaryOp, rhs: ExprId },
     OpAssign { place: ExprId, op: OpAssign, expr: ExprId },
@@ -41,7 +43,6 @@ pub enum ExprKind<'tcx> {
     Unary { op: UnaryOp, expr: ExprId },
     Literal(Lit),
     Block(ThinVec<ExprId>),
-    Method { ty: Ty<'tcx>, method: Symbol },
     FnCall { function: ExprId, args: ThinVec<ExprId> },
     Index { expr: ExprId, index: ExprId, span: Span },
     FnDecl(Box<FnDecl<'tcx>>),
@@ -91,6 +92,7 @@ pub struct FnDecl<'tcx> {
     pub params: Vec<Param<'tcx>>,
     pub ret: Ty<'tcx>,
     pub body: ThinVec<ExprId>,
+    pub id: BodyId,
 }
 
 impl FnDecl<'_> {

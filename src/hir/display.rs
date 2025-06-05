@@ -59,6 +59,7 @@ impl Writer<'_, '_> {
     fn display_expr(&mut self, expr: ExprId) {
         let inside_expr = mem::replace(&mut self.inside_expr, true);
         match self.hir.exprs[expr].kind {
+            ExprKind::Func(func) => _ = self.f.write_fmt(format_args!("{func:?}")),
             ExprKind::Match { scrutinee, ref arms, .. } => {
                 ("match ", scrutinee, " {").write(self);
                 self.indent += 1;
@@ -83,7 +84,6 @@ impl Writer<'_, '_> {
             }
             ExprKind::OpAssign { place, op, expr } => (place, op, expr).write(self),
             ExprKind::Ident(ident) => ident.write(self),
-            ExprKind::Method { ty, method } => (ty, "::", method).write(self),
             ExprKind::FnCall { function, ref args } => {
                 (function, "(", Sep(args, ", "), ")").write(self);
             }
@@ -94,7 +94,7 @@ impl Writer<'_, '_> {
             ExprKind::Field { expr, field } => (expr, ".", field.to_string().as_str()).write(self),
             ExprKind::Block(ref block) => self.display_block(block),
             ExprKind::FnDecl(ref func) => {
-                let FnDecl { ident, for_ty, ref params, ret, ref body } = **func;
+                let FnDecl { ident, for_ty, ref params, ret, ref body, .. } = **func;
                 self.inside_expr = inside_expr;
                 (
                     "fn ",

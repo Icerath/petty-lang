@@ -2,10 +2,7 @@ mod intrinsics;
 mod loops;
 mod pattern;
 
-use std::{
-    collections::{BTreeMap, VecDeque},
-    mem,
-};
+use std::{collections::VecDeque, mem};
 
 use arcstr::ArcStr;
 use index_vec::IndexVec;
@@ -19,7 +16,7 @@ use crate::{
     },
     source::span::Span,
     symbol::Symbol,
-    ty::{self, GenericId, Struct, StructId, Ty, TyCtx, TyKey, TyKind},
+    ty::{self, GenericId, Struct, StructId, Ty, TyCtx, TyKind},
 };
 
 pub fn lower<'tcx>(hir: &Hir<'tcx>, tcx: &'tcx TyCtx<'tcx>) -> Mir {
@@ -34,9 +31,9 @@ pub fn lower<'tcx>(hir: &Hir<'tcx>, tcx: &'tcx TyCtx<'tcx>) -> Mir {
         bodies,
         struct_display_bodies: IndexVec::default(),
         array_display_bodies: HashMap::default(),
-        methods: BTreeMap::default(),
         strings: HashMap::default(),
         generic_fns: HashMap::default(),
+        non_generic_fns: HashMap::default(),
         mono_generics: VecDeque::default(),
         generic_map: None,
     };
@@ -55,9 +52,9 @@ struct Lowering<'hir, 'tcx> {
     bodies: Vec<BodyInfo>,
     struct_display_bodies: IndexVec<StructId, Option<BodyId>>,
     array_display_bodies: HashMap<Ty<'tcx>, BodyId>,
-    methods: BTreeMap<(TyKey<'tcx>, Symbol), BodyId>,
     strings: HashMap<Symbol, ArcStr>,
-    generic_fns: HashMap<BodyId, GenericFns<'tcx, 'hir>>,
+    generic_fns: HashMap<hir::BodyId, GenericFns<'tcx, 'hir>>,
+    non_generic_fns: HashMap<hir::BodyId, mir::BodyId>,
     mono_generics: VecDeque<(&'hir hir::FnDecl<'tcx>, &'tcx ty::Function<'tcx>, BodyId)>,
     generic_map: Option<HashMap<GenericId, Ty<'tcx>>>,
 }
@@ -79,7 +76,7 @@ macro_rules! str {
 
 struct BodyInfo {
     body: BodyId,
-    functions: HashMap<Symbol, BodyId>,
+    functions: HashMap<Symbol, hir::BodyId>,
     stmts: Vec<Statement>,
     breaks: Vec<BlockId>,
     continue_block: Option<BlockId>,
@@ -290,7 +287,7 @@ impl<'tcx> Lowering<'_, 'tcx> {
             }
             ExprKind::Literal(ref lit) => self.lit_rvalue(lit),
             ExprKind::FnDecl(ref decl) => {
-                let hir::FnDecl { ident, for_ty, ref params, ref body, .. } = **decl;
+                let hir::FnDecl { ident, for_ty, ref params, ref body, id: hir_id, .. } = **decl;
 
                 assert!(self.current_mut().stmts.is_empty(), "TODO");
 
@@ -302,13 +299,14 @@ impl<'tcx> Lowering<'_, 'tcx> {
                     .push(Body::new(Some(ident), params.len()).with_auto(is_generic));
 
                 if is_generic {
-                    self.generic_fns
-                        .insert(body_id, GenericFns { decl, impls: HashMap::default() });
+                    self.generic_fns.insert(hir_id, GenericFns { decl, impls: HashMap::default() });
+                } else {
+                    self.non_generic_fns.insert(hir_id, body_id);
                 }
 
                 match for_ty {
-                    Some(ty) => _ = self.methods.insert((TyKey(ty), ident), body_id),
-                    None => _ = self.current_mut().functions.insert(ident, body_id),
+                    Some(_) => {}
+                    None => _ = self.current_mut().functions.insert(ident, hir_id),
                 }
 
                 if is_generic {
@@ -403,21 +401,13 @@ impl<'tcx> Lowering<'_, 'tcx> {
             ExprKind::Unary { op, expr } => self.unary_op(op, expr),
             ExprKind::OpAssign { place, op, expr } => self.op_assign(place, op, expr),
             ExprKind::Ident(ident) => self.load_ident(ident, self.ty(id)),
-            ExprKind::Method { ty, method } => {
-                let location = self.methods[&(TyKey(ty), method)];
-
-                self.mono_fn(method, location, self.ty(id))
-            }
+            ExprKind::Func(body) => self.load_func(body, self.ty(id)),
             ExprKind::FnCall { function, ref args } => {
-                let ty = match self.hir.exprs[function].kind {
-                    ExprKind::Method { ty, .. } => Some(ty),
-                    _ => None,
-                };
                 let function = self.lower(function);
 
                 let args = args.iter().map(|arg| self.lower(*arg)).collect();
 
-                match self.try_call_intrinsic(function, ty, args) {
+                match self.try_call_intrinsic(function, None, args) {
                     Ok(rvalue) | Err(rvalue) => rvalue,
                 }
             }
@@ -451,9 +441,9 @@ impl<'tcx> Lowering<'_, 'tcx> {
         }
     }
 
-    fn mono_fn(&mut self, ident: Symbol, location: BodyId, ty: Ty<'tcx>) -> RValue {
+    fn mono_fn(&mut self, ident: Symbol, location: hir::BodyId, ty: Ty<'tcx>) -> RValue {
         let Some(generic_fns) = self.generic_fns.get_mut(&location) else {
-            return RValue::from(Constant::Func(location));
+            return RValue::from(Constant::Func(self.non_generic_fns[&location]));
         };
 
         let TyKind::Function(fn_ty) = ty.0 else { unreachable!("{}", self.tcx.display(ty)) };
@@ -753,6 +743,10 @@ impl<'tcx> Lowering<'_, 'tcx> {
             *self.bodies.iter().rev().find_map(|body| body.functions.get(&ident)).unwrap();
 
         self.mono_fn(ident, location, ty)
+    }
+
+    fn load_func(&mut self, body: hir::BodyId, ty: Ty<'tcx>) -> RValue {
+        self.mono_fn("".into(), body.index().into(), ty)
     }
 
     fn lit_rvalue(&mut self, lit: &Lit) -> RValue {
