@@ -8,6 +8,6 @@ fn main() {
 
     match Foo("bar") {
         Foo(val: "foo" or "bar") => assert true,
-        other => assert false,
+        _ => assert false,
     }
 }

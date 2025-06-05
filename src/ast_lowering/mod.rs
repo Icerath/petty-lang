@@ -170,7 +170,7 @@ impl<'tcx> Lowering<'_, 'tcx> {
                     arms: [
                         hir::MatchArm { pat, body: self.hir.exprs.push(hir::Expr::TRUE) },
                         hir::MatchArm {
-                            pat: Pat::Ident("_".into()),
+                            pat: Pat::Wildcard,
                             body: self.hir.exprs.push(hir::Expr::FALSE),
                         },
                     ]
@@ -362,6 +362,7 @@ impl<'tcx> Lowering<'_, 'tcx> {
                     })
                     .collect(),
             ),
+            ast::PatKind::Ident(ident) if ident.as_str() == "_" => Pat::Wildcard,
             ast::PatKind::Ident(ident) => Pat::Ident(ident),
             ast::PatKind::Str(str) => Pat::Expr(
                 self.hir.exprs.push(ExprKind::Literal(hir::Lit::String(str)).with(Ty::STR)),

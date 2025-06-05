@@ -77,6 +77,7 @@ pub enum Pat<'tcx> {
     Or(ThinVec<Pat<'tcx>>),
     And(ThinVec<Pat<'tcx>>),
     Array(ThinVec<Pat<'tcx>>),
+    Wildcard,
 }
 
 #[derive(Debug)]
