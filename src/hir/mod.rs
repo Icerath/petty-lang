@@ -36,7 +36,7 @@ pub enum ExprKind<'tcx> {
     StructInit,
     Field { expr: ExprId, field: usize },
     Func(BodyId),
-    Ident(Symbol),
+    Path(Path),
     Binary { lhs: ExprId, op: BinaryOp, rhs: ExprId },
     OpAssign { place: ExprId, op: OpAssign, expr: ExprId },
     Assignment { lhs: ExprId, expr: ExprId },
@@ -60,6 +60,11 @@ impl<'tcx> From<FnDecl<'tcx>> for Expr<'tcx> {
     fn from(decl: FnDecl<'tcx>) -> Self {
         ExprKind::FnDecl(Box::new(decl)).with(Ty::UNIT)
     }
+}
+
+#[derive(Debug)]
+pub struct Path {
+    pub segments: ThinVec<Symbol>,
 }
 
 #[derive(Debug)]
@@ -201,6 +206,15 @@ impl From<OpAssign> for BinaryOp {
             OpAssign::Mul => Self::Mul,
             OpAssign::Div => Self::Div,
             OpAssign::Mod => Self::Mod,
+        }
+    }
+}
+
+impl Path {
+    pub fn single(&self) -> Option<Symbol> {
+        match &*self.segments {
+            &[ident] => Some(ident),
+            _ => None,
         }
     }
 }

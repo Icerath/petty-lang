@@ -182,7 +182,9 @@ impl<'tcx> Lowering<'_, 'tcx> {
             ast::ExprKind::For { ident, iter, body } => {
                 self.lower_for_loop(ident.symbol, iter, body)
             }
-            ast::ExprKind::Ident(symbol) => ExprKind::Ident(symbol).with(expr_ty),
+            ast::ExprKind::Path(ref path) => {
+                hir::ExprKind::Path(self.lower_path(path)).with(expr_ty)
+            }
             ast::ExprKind::FnCall { function, ref args } => {
                 self.lower_fn_call(function, args, expr_id)
             }
@@ -389,6 +391,12 @@ impl<'tcx> Lowering<'_, 'tcx> {
 
     fn lower_let_stmt(&mut self, ident: Symbol, expr: ast::ExprId) -> hir::Expr<'tcx> {
         (hir::ExprKind::Let { ident, expr: self.lower(expr) }).with(Ty::UNIT)
+    }
+
+    #[expect(clippy::unused_self)]
+    fn lower_path(&mut self, path: &ast::Path) -> hir::Path {
+        let segments = path.segments.iter().map(|ident| ident.symbol).collect();
+        hir::Path { segments }
     }
 
     fn lower_fn_decl(

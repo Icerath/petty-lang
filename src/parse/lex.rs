@@ -93,6 +93,7 @@ impl Lexer<'_> {
             '!' if self.try_next('=') => TokenKind::Neq,
             '>' if self.try_next('=') => TokenKind::GreaterEq,
             '<' if self.try_next('=') => TokenKind::LessEq,
+            ':' if self.try_next(':') => TokenKind::PathSep,
             // Symbols
             '&' => TokenKind::Ampersand,
 

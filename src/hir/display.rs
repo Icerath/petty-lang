@@ -5,7 +5,7 @@ use std::{
 
 use super::{ArraySeg, ExprKind, FnDecl, MatchArm, OpAssign, Param, Pat, PatField};
 use crate::{
-    hir::{BinaryOp, ExprId, Hir, Lit, UnaryOp},
+    hir::{BinaryOp, ExprId, Hir, Lit, Path, UnaryOp},
     symbol::Symbol,
     ty::{Ty, TyCtx},
 };
@@ -84,7 +84,7 @@ impl Writer<'_, '_> {
                     .write(self);
             }
             ExprKind::OpAssign { place, op, expr } => (place, op, expr).write(self),
-            ExprKind::Ident(ident) => ident.write(self),
+            ExprKind::Path(ref path) => path.write(self),
             ExprKind::FnCall { function, ref args } => {
                 (function, "(", Sep(args, ", "), ")").write(self);
             }
@@ -179,6 +179,12 @@ impl<T: Dump, S: Dump> Dump for Sep<'_, T, S> {
         for (i, arg) in self.0.iter().enumerate() {
             ((i != 0).then_some(&self.1), arg).write(w);
         }
+    }
+}
+
+impl Dump for Path {
+    fn write(&self, w: &mut Writer) {
+        Sep(&self.segments, "::").write(w);
     }
 }
 

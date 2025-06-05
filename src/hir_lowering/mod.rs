@@ -9,7 +9,7 @@ use index_vec::IndexVec;
 
 use crate::{
     HashMap, errors,
-    hir::{self, ArraySeg, ExprId, ExprKind, FnDecl, Hir, Lit, OpAssign},
+    hir::{self, ArraySeg, ExprId, ExprKind, FnDecl, Hir, Lit, OpAssign, Path},
     mir::{
         self, BinaryOp, Block, BlockId, Body, BodyId, Constant, Local, Mir, Operand, Place,
         Projection, RValue, Statement, Terminator, UnaryOp,
@@ -400,7 +400,7 @@ impl<'tcx> Lowering<'_, 'tcx> {
             ExprKind::Binary { lhs, op, rhs } => self.binary_op(lhs, op, rhs),
             ExprKind::Unary { op, expr } => self.unary_op(op, expr),
             ExprKind::OpAssign { place, op, expr } => self.op_assign(place, op, expr),
-            ExprKind::Ident(ident) => self.load_ident(ident, self.ty(id)),
+            ExprKind::Path(ref path) => self.load_path(path, self.ty(id)),
             ExprKind::Func(body) => self.load_func(body, self.ty(id)),
             ExprKind::FnCall { function, ref args } => {
                 let function = self.lower(function);
@@ -643,6 +643,11 @@ impl<'tcx> Lowering<'_, 'tcx> {
         self.body_mut().blocks[to_fix].terminator.complete(current);
     }
 
+    fn read_path(&self, path: &Path) -> Local {
+        let Some(ident) = path.single() else { panic!() };
+        self.read_ident(ident)
+    }
+
     fn read_ident(&self, ident: Symbol) -> Local {
         *self.current().scopes.iter().rev().find_map(|scope| scope.variables.get(&ident)).unwrap()
     }
@@ -655,7 +660,7 @@ impl<'tcx> Lowering<'_, 'tcx> {
 
     fn lower_place_inner(&mut self, expr: hir::ExprId, proj: &mut Vec<Projection>) -> Local {
         match self.hir.exprs[expr].kind {
-            ExprKind::Ident(ident) => self.read_ident(ident),
+            ExprKind::Path(ref path) => self.read_path(path),
             ExprKind::Index { expr, index, span } => {
                 let index_rvalue = self.lower_rvalue(index);
 
@@ -733,16 +738,20 @@ impl<'tcx> Lowering<'_, 'tcx> {
         rvalue.unwrap_or(RValue::UNIT)
     }
 
-    fn load_ident(&mut self, ident: Symbol, ty: Ty<'tcx>) -> RValue {
-        if let Some(place) =
-            self.current().scopes.iter().rev().find_map(|scope| scope.variables.get(&ident))
-        {
-            return RValue::local(*place);
-        }
-        let location =
-            *self.bodies.iter().rev().find_map(|body| body.functions.get(&ident)).unwrap();
+    fn load_path(&mut self, path: &Path, ty: Ty<'tcx>) -> RValue {
+        if let Some(ident) = path.single() {
+            if let Some(place) =
+                self.current().scopes.iter().rev().find_map(|scope| scope.variables.get(&ident))
+            {
+                return RValue::local(*place);
+            }
+            let location =
+                *self.bodies.iter().rev().find_map(|body| body.functions.get(&ident)).unwrap();
 
-        self.mono_fn(ident, location, ty)
+            self.mono_fn(ident, location, ty)
+        } else {
+            todo!()
+        }
     }
 
     fn load_func(&mut self, body: hir::BodyId, ty: Ty<'tcx>) -> RValue {

@@ -11,9 +11,9 @@ use token::{Token, TokenKind};
 
 use crate::{
     ast::{
-        ArraySeg, Ast, BinOpKind, BinaryOp, Block, BlockId, Expr, ExprId, ExprKind, Field, FnDecl,
-        Ident, IfStmt, Impl, Item, ItemId, ItemKind, Lit, MatchArm, Module, Param, Pat, PatArg,
-        PatKind, Stmt, Trait, Ty, TyKind, TypeId,
+        self, ArraySeg, Ast, BinOpKind, BinaryOp, Block, BlockId, Expr, ExprId, ExprKind, Field,
+        FnDecl, Ident, IfStmt, Impl, Item, ItemId, ItemKind, Lit, MatchArm, Module, Param, Pat,
+        PatArg, PatKind, Stmt, Trait, Ty, TyKind, TypeId,
     },
     errors,
     span::Span,
@@ -602,7 +602,14 @@ fn parse_atom_with(stream: &mut Stream, tok: Token) -> Result<ExprId> {
             lit!(Lit::Char(str.chars().next().unwrap()))
         }
         TokenKind::Ident => {
-            Ok(ExprKind::Ident(stream.lexer.src()[tok.span].into()).with_span(tok.span))
+            let ident = Ident { symbol: stream.lexer.src()[tok.span].into(), span: tok.span };
+            let mut path = ast::Path::new_single(ident);
+            while stream.peek().kind == TokenKind::PathSep {
+                _ = stream.next();
+                let next = stream.parse()?;
+                path.segments.push(next);
+            }
+            Ok(ExprKind::Path(path).with_span(tok.span))
         }
         found => {
             return Err(errors::error(

@@ -9,7 +9,7 @@ use crate::{
     HashMap,
     ast::{
         self, Ast, BinOpKind, BinaryOp, Block, BlockId, ExprId, ExprKind, FnDecl, Ident, Impl,
-        ItemId, ItemKind, Lit, Module, Pat, PatArg, PatKind, Stmt, Trait, TypeId, UnaryOp,
+        ItemId, ItemKind, Lit, Module, Pat, PatArg, PatKind, Path, Stmt, Trait, TypeId, UnaryOp,
     },
     span::Span,
     symbol::Symbol,
@@ -474,7 +474,7 @@ impl<'tcx> Collector<'_, 'tcx> {
                 Ty::UNIT
             }
             ExprKind::Lit(ref lit) => self.analyze_lit(lit)?,
-            ExprKind::Ident(ident) => self.read_ident(Ident { symbol: ident, span: expr_span }),
+            ExprKind::Path(ref path) => self.read_path(path),
             ExprKind::Unary { expr, op } => 'outer: {
                 let operand = self.analyze_expr(expr)?;
                 let ty = match op {
@@ -910,7 +910,7 @@ impl<'tcx> Collector<'_, 'tcx> {
         self.fn_generics = self.produced_generics[&id];
         let block_id = decl.block.unwrap();
         // call `read_ident_raw` to avoid producing extra inference variables
-        let (fn_ty, _) = self.read_ident_raw(decl.ident);
+        let (fn_ty, _) = self.read_path_raw(&Path::new_single(decl.ident));
         let TyKind::Function(fn_ty) = fn_ty.0 else {
             unreachable!("should be validated by preanalyze_fndecl - {}", self.tcx.display(fn_ty))
         };
@@ -964,24 +964,27 @@ impl<'tcx> Collector<'_, 'tcx> {
         Ok(())
     }
 
-    fn read_ident(&mut self, ident: Ident) -> Ty<'tcx> {
-        match self.read_ident_raw(ident) {
+    fn read_path(&mut self, path: &Path) -> Ty<'tcx> {
+        match self.read_path_raw(path) {
             (Interned(TyKind::Function(func)), Var::Const) => {
                 self.tcx.intern(TyKind::Function(func.caller(self.tcx)))
             }
             (other, _) => other,
         }
     }
-
     // like `read_ident` but will not produce `TyVid`s for generic functions
-    fn read_ident_raw(&mut self, ident: Ident) -> (Ty<'tcx>, Var) {
-        if let Some(&out) = self.bodies.iter().rev().find_map(|body| {
-            body.scopes.iter().rev().find_map(|scope| scope.variables.get(&ident.symbol))
-        }) {
-            (out.0, out.1)
+    fn read_path_raw(&mut self, path: &Path) -> (Ty<'tcx>, Var) {
+        if let Some(ident) = path.single() {
+            if let Some(&out) = self.bodies.iter().rev().find_map(|body| {
+                body.scopes.iter().rev().find_map(|scope| scope.variables.get(&ident.symbol))
+            }) {
+                (out.0, out.1)
+            } else {
+                self.errors.push(self.ident_not_found(ident));
+                (Ty::POISON, Var::Let)
+            }
         } else {
-            self.errors.push(self.ident_not_found(ident));
-            (Ty::POISON, Var::Let)
+            todo!()
         }
     }
 

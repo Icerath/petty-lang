@@ -32,6 +32,10 @@ pub struct IfStmt {
     pub body: BlockId,
 }
 
+pub struct Path {
+    pub segments: ThinVec<Ident>,
+}
+
 #[derive(Clone, Copy)]
 pub struct Ident {
     pub symbol: Symbol,
@@ -94,7 +98,7 @@ pub enum ExprKind {
     Unary { op: UnaryOp, expr: ExprId },
     FnCall { function: ExprId, args: ThinVec<ExprId> },
     MethodCall { expr: ExprId, method: Ident, args: ThinVec<ExprId> },
-    Ident(Symbol),
+    Path(Path),
     Index { expr: ExprId, index: ExprId },
     FieldAccess { expr: ExprId, field: Ident },
     Lit(Lit),
@@ -312,5 +316,17 @@ impl Deref for BinaryOp {
     type Target = BinOpKind;
     fn deref(&self) -> &Self::Target {
         &self.kind
+    }
+}
+
+impl Path {
+    pub fn new_single(ident: Ident) -> Self {
+        Self { segments: [ident].into() }
+    }
+    pub fn single(&self) -> Option<Ident> {
+        match &*self.segments {
+            &[ident] => Some(ident),
+            _ => None,
+        }
     }
 }

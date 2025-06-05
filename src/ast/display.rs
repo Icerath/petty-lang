@@ -10,7 +10,7 @@ use super::{
     TypeId,
 };
 use crate::{
-    ast::{Ast, BinaryOp, BlockId, ExprId, ItemId, ItemKind, Lit, Stmt, UnaryOp},
+    ast::{Ast, BinaryOp, BlockId, ExprId, ItemId, ItemKind, Lit, Path, Stmt, UnaryOp},
     symbol::Symbol,
 };
 
@@ -92,7 +92,7 @@ impl Writer<'_> {
                 (inside_expr.then_some("("), lhs, " ", op, " ", rhs, inside_expr.then_some(")"))
                     .write(self);
             }
-            ExprKind::Ident(ident) => ident.write(self),
+            ExprKind::Path(ref path) => path.write(self),
             ExprKind::FnCall { function, ref args } => {
                 (function, "(", Sep(args, ", "), ")").write(self);
             }
@@ -390,6 +390,12 @@ impl Dump for ExprId {
 impl Dump for BlockId {
     fn write(&self, w: &mut Writer) {
         w.display_block(*self);
+    }
+}
+
+impl Dump for Path {
+    fn write(&self, w: &mut Writer) {
+        Sep(&self.segments, "::").write(w);
     }
 }
 
