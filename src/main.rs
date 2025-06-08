@@ -15,6 +15,7 @@ mod mir;
 mod mir_interpreter;
 mod mir_optimizations;
 mod parse;
+mod scope;
 mod source;
 mod symbol;
 mod ty;

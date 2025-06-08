@@ -248,13 +248,7 @@ impl<'tcx> Collector<'_, '_> {
     }
 
     fn available_names(&self) -> impl Iterator<Item = Symbol> {
-        self.bodies
-            .last()
-            .into_iter()
-            .flat_map(|body| &body.scopes)
-            .rev()
-            .flat_map(|scope| scope.variables.keys())
-            .copied()
+        self.scopes.available_names()
     }
 }
 

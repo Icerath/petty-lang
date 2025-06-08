@@ -11,6 +11,7 @@ use crate::{
         self, Ast, BinOpKind, BinaryOp, Block, BlockId, ExprId, ExprKind, FnDecl, Ident, Impl,
         ItemId, ItemKind, Lit, Module, Pat, PatArg, PatKind, Path, Stmt, Trait, TypeId, UnaryOp,
     },
+    scope::{ModuleScopes, Scope},
     span::Span,
     symbol::Symbol,
     ty::{Function, GenericRange, Interned, Ty, TyCtx, TyKind},
@@ -36,7 +37,6 @@ impl<'tcx> Index<TypeId> for TyInfo<'tcx> {
 struct Body<'tcx> {
     ty_names: HashMap<Symbol, Ty<'tcx>>,
     ret: Ty<'tcx>,
-    scopes: Vec<Scope<'tcx>>,
     loops: usize,
 }
 
@@ -54,25 +54,6 @@ impl Infer {
     }
 }
 
-impl<'tcx> Body<'tcx> {
-    pub fn scope(&mut self) -> &mut Scope<'tcx> {
-        self.scopes.last_mut().unwrap()
-    }
-    pub fn insert_var(
-        &mut self,
-        ident: Ident,
-        ty: Ty<'tcx>,
-        kind: Var,
-    ) -> Option<(Ty<'tcx>, Var, Span)> {
-        self.scope().variables.insert(ident.symbol, (ty, kind, ident.span))
-    }
-}
-
-#[derive(Debug, Default)]
-struct Scope<'tcx> {
-    variables: HashMap<Symbol, (Ty<'tcx>, Var, Span)>,
-}
-
 #[derive(Debug, Clone, Copy)]
 enum Var {
     Let,
@@ -81,13 +62,13 @@ enum Var {
 
 impl<'tcx> Body<'tcx> {
     pub fn new(ret: Ty<'tcx>) -> Self {
-        Self { ty_names: HashMap::default(), ret, scopes: vec![Scope::default()], loops: 0 }
+        Self { ty_names: HashMap::default(), ret, loops: 0 }
     }
 }
 
 struct Collector<'ast, 'tcx> {
+    scopes: ModuleScopes<Body<'tcx>, (Ty<'tcx>, Var, Span)>,
     ty_info: TyInfo<'tcx>,
-    bodies: Vec<Body<'tcx>>,
     ast: &'ast Ast,
     tcx: &'tcx TyCtx<'tcx>,
     within_const: bool,
@@ -115,12 +96,12 @@ pub fn analyze<'tcx>(ast: &Ast, tcx: &'tcx TyCtx<'tcx>) -> Result<TyInfo<'tcx>, 
         ty_info,
         ast,
         tcx,
-        bodies: vec![body],
         within_const: false,
         fn_generics: GenericRange::EMPTY,
         impl_generics: GenericRange::EMPTY,
         produced_generics: HashMap::default(),
         errors: vec![],
+        scopes: ModuleScopes::new(body),
     };
     collector.analyze_module(&ast.root).map_err(|err| vec![err])?;
 
@@ -149,11 +130,7 @@ fn global_body<'tcx>() -> Body<'tcx> {
 }
 
 impl<'tcx> Collector<'_, 'tcx> {
-    fn preanalyze(
-        &mut self,
-        body: &mut Body<'tcx>,
-        items: impl IntoIterator<Item = ItemId> + Clone,
-    ) -> Result<()> {
+    fn preanalyze(&mut self, items: impl IntoIterator<Item = ItemId> + Clone) -> Result<()> {
         // look for structs/enums first.
         for id in items.clone() {
             let ItemKind::Struct(ident, generics, fields) = &self.ast.items[id].kind else {
@@ -170,19 +147,22 @@ impl<'tcx> Collector<'_, 'tcx> {
                 })
                 .collect();
             let struct_ty = self.tcx.new_struct(ident.symbol, generics, fields);
-            self.current().ty_names.insert(ident.symbol, struct_ty);
+            self.scopes.body_mut().ty_names.insert(ident.symbol, struct_ty);
             self.ty_info.struct_types.insert(ident.span, struct_ty);
 
-            body.insert_var(
-                *ident,
-                self.tcx.intern(TyKind::Function(Function { params, ret: struct_ty })),
-                Var::Const,
+            self.scopes.scope_mut().insert(
+                ident.symbol,
+                (
+                    self.tcx.intern(TyKind::Function(Function { params, ret: struct_ty })),
+                    Var::Const,
+                    ident.span,
+                ),
             );
         }
 
         for id in items {
             match &self.ast.items[id].kind {
-                ItemKind::FnDecl(func) => self.preanalyze_fndecl(body, func, id)?,
+                ItemKind::FnDecl(func) => self.preanalyze_fndecl(func, id)?,
                 ItemKind::Impl(impl_) => {
                     let generics = self.tcx.new_generics(&impl_.generics);
                     self.impl_generics = generics;
@@ -192,7 +172,7 @@ impl<'tcx> Collector<'_, 'tcx> {
                         let ItemKind::FnDecl(func) = &self.ast.items[method_id].kind else {
                             unreachable!()
                         };
-                        self.preanalyze_method(body, ty, func, method_id);
+                        self.preanalyze_method(ty, func, method_id);
                     }
                 }
                 _ => {}
@@ -200,29 +180,16 @@ impl<'tcx> Collector<'_, 'tcx> {
         }
         Ok(())
     }
-    fn analyze_body_with(
-        &mut self,
-        block: &ast::Block,
-        mut body: Body<'tcx>,
-    ) -> Result<(Ty<'tcx>, Body<'tcx>)> {
-        self.preanalyze(
-            &mut body,
-            block.stmts.iter().filter_map(|stmt| match stmt {
-                Stmt::Item(item) => Some(*item),
-                Stmt::Expr(..) => None,
-            }),
-        )?;
-        self.bodies.push(body);
-        let out = self.analyze_block_inner(block)?;
-        Ok((out, self.bodies.pop().unwrap()))
+    fn analyze_body_with(&mut self, block: BlockId) -> Result<Ty<'tcx>> {
+        let stmts = &self.ast.blocks[block].stmts;
+        self.preanalyze(stmts.iter().filter_map(|stmt| match stmt {
+            Stmt::Item(item) => Some(*item),
+            Stmt::Expr(..) => None,
+        }))?;
+        self.analyze_block(block)
     }
 
-    fn preanalyze_fndecl(
-        &mut self,
-        body: &mut Body<'tcx>,
-        fndecl: &FnDecl,
-        id: ItemId,
-    ) -> Result<()> {
+    fn preanalyze_fndecl(&mut self, fndecl: &FnDecl, id: ItemId) -> Result<()> {
         let FnDecl { ident, generics, params, ret, .. } = fndecl;
         self.fn_generics = self.tcx.new_generics(generics);
         self.produced_generics.insert(id, self.fn_generics);
@@ -241,17 +208,15 @@ impl<'tcx> Collector<'_, 'tcx> {
                 }
             })
             .collect();
-        let prev = body.insert_var(
-            *ident,
-            self.tcx.intern(TyKind::Function(Function { params, ret })),
-            Var::Const,
+        let prev = self.scopes.scope_mut().insert(
+            ident.symbol,
+            (self.tcx.intern(TyKind::Function(Function { params, ret })), Var::Const, ident.span),
         );
 
         if prev.is_some() { Err(self.already_defined(*ident)) } else { Ok(()) }
     }
 
-    fn preanalyze_method(&mut self, body: &Body<'tcx>, ty: Ty<'tcx>, fndecl: &FnDecl, id: ItemId) {
-        _ = body;
+    fn preanalyze_method(&mut self, ty: Ty<'tcx>, fndecl: &FnDecl, id: ItemId) {
         let FnDecl { ident, generics, params, ret, .. } = fndecl;
         self.fn_generics = self.tcx.new_generics(generics);
         self.produced_generics.insert(id, self.fn_generics);
@@ -275,9 +240,6 @@ impl<'tcx> Collector<'_, 'tcx> {
         let fn_ty = Function { params, ret };
         self.tcx.add_method(ty, ident.symbol, fn_ty);
     }
-    fn current(&mut self) -> &mut Body<'tcx> {
-        self.bodies.last_mut().unwrap()
-    }
 
     fn analyze_block(&mut self, id: BlockId) -> Result<Ty<'tcx>> {
         let block = &self.ast.blocks[id];
@@ -285,7 +247,7 @@ impl<'tcx> Collector<'_, 'tcx> {
     }
 
     fn analyze_block_inner(&mut self, block: &Block) -> Result<Ty<'tcx>> {
-        self.current().scopes.push(Scope::default());
+        let scope_token = self.scopes.push_scope();
         let mut ty = None;
         for (index, &stmt) in block.stmts.iter().enumerate() {
             let stmt_ty = match stmt {
@@ -304,7 +266,7 @@ impl<'tcx> Collector<'_, 'tcx> {
             None if ty.is_some_and(|ty| ty.is_never()) => Ty::NEVER,
             None => Ty::UNIT,
         };
-        self.current().scopes.pop().unwrap();
+        self.scopes.pop_scope(scope_token);
         Ok(ty)
     }
 
@@ -371,7 +333,7 @@ impl<'tcx> Collector<'_, 'tcx> {
 
     fn read_named_ty(&mut self, ident: Ident) -> Ty<'tcx> {
         if let Some(&ty) =
-            self.bodies.iter().rev().find_map(|body| body.ty_names.get(&ident.symbol))
+            self.scopes.bodies.iter().rev().find_map(|body| body.data.ty_names.get(&ident.symbol))
         {
             return ty;
         }
@@ -447,16 +409,13 @@ impl<'tcx> Collector<'_, 'tcx> {
     }
 
     fn analyze_expr(&mut self, id: ExprId) -> Result<Ty<'tcx>> {
-        let pushed_scope = match self.ast.exprs[id].kind {
-            ExprKind::Block(..) | ExprKind::Let { .. } | ExprKind::Is { .. } => false,
-            _ => {
-                self.current().scopes.push(Scope::default());
-                true
-            }
+        let scope = match self.ast.exprs[id].kind {
+            ExprKind::Block(..) | ExprKind::Let { .. } | ExprKind::Is { .. } => None,
+            _ => Some(self.scopes.push_scope()),
         };
         let res = self.analyze_expr_inner(id);
-        if pushed_scope {
-            self.current().scopes.pop().unwrap();
+        if let Some(token) = scope {
+            self.scopes.pop_scope(token);
         }
         res
     }
@@ -575,39 +534,39 @@ impl<'tcx> Collector<'_, 'tcx> {
                     _ => return Err(self.cannot_iter(iter_ty, self.ast.exprs[iter].span)),
                 };
 
-                self.current().scopes.push(Scope::default());
+                let scope_token = self.scopes.push_scope();
                 self.insert_var(ident, ident_ty, Var::Let);
 
-                self.current().loops += 1;
+                self.scopes.body_mut().loops += 1;
                 let out = self.analyze_block(body)?;
-                self.current().loops -= 1;
-                self.current().scopes.pop().unwrap();
+                self.scopes.body_mut().loops -= 1;
+                self.scopes.pop_scope(scope_token);
 
                 self.sub_block(out, Ty::UNIT, body);
                 Ty::UNIT
             }
             ExprKind::While { condition, block } => {
                 let condition_ty = self.analyze_expr(condition)?;
-                self.current().scopes.push(Scope::default());
+                let scope_token = self.scopes.push_scope();
                 self.sub(condition_ty, Ty::BOOL, condition);
-                self.current().loops += 1;
+                self.scopes.body_mut().loops += 1;
                 self.analyze_block(block)?;
-                self.current().loops -= 1;
-                self.current().scopes.pop().unwrap();
+                self.scopes.body_mut().loops -= 1;
+                self.scopes.pop_scope(scope_token);
                 Ty::UNIT
             }
             ExprKind::Match { scrutinee, ref arms } => {
                 let mut ty = None;
                 let scrutinee = self.analyze_expr(scrutinee)?;
                 for arm in arms {
-                    self.current().scopes.push(Scope::default());
+                    let scope_token = self.scopes.push_scope();
                     self.analyze_pat(&arm.pat, scrutinee)?;
                     let arm_ty = self.analyze_expr(arm.body)?;
                     match ty {
                         None => ty = Some(arm_ty),
                         Some(ty) => _ = self.eq(arm_ty, ty, arm.body),
                     }
-                    self.current().scopes.pop().unwrap();
+                    self.scopes.pop_scope(scope_token);
                 }
                 // TODO: produce error here instead
                 ty.unwrap_or_else(|| self.tcx.new_infer())
@@ -643,12 +602,12 @@ impl<'tcx> Collector<'_, 'tcx> {
             ExprKind::Block(block_id) => self.analyze_block(block_id)?,
             ExprKind::Return(expr) => {
                 let ty = expr.map_or(Ok(Ty::UNIT), |expr| self.analyze_expr(expr))?;
-                let expected = self.current().ret;
+                let expected = self.scopes.body().ret;
                 self.sub(ty, expected, expr.unwrap_or(id));
                 Ty::NEVER
             }
             ExprKind::Break => {
-                if self.current().loops == 0 {
+                if self.scopes.body().loops == 0 {
                     self.errors.push(self.cannot_break(self.ast.exprs[id].span));
                     Ty::POISON
                 } else {
@@ -656,7 +615,7 @@ impl<'tcx> Collector<'_, 'tcx> {
                 }
             }
             ExprKind::Continue => {
-                if self.current().loops == 0 {
+                if self.scopes.body().loops == 0 {
                     self.errors.push(self.cannot_continue(self.ast.exprs[id].span));
                     Ty::POISON
                 } else {
@@ -705,7 +664,7 @@ impl<'tcx> Collector<'_, 'tcx> {
         if ident.symbol.as_str() == "_" {
             return;
         }
-        self.current().insert_var(ident, ty, kind);
+        self.scopes.scope_mut().insert(ident.symbol, (ty, kind, ident.span));
     }
 
     fn analyze_pat(&mut self, pat: &Pat, scrutinee: Ty<'tcx>) -> Result<()> {
@@ -753,11 +712,11 @@ impl<'tcx> Collector<'_, 'tcx> {
                 self.sub(ty, Ty::BOOL, expr);
             }
             PatKind::Or(ref patterns) => {
-                let mut scope: Option<Scope> = None;
+                let mut scope: Option<Scope<_>> = None;
                 for pat in patterns {
-                    self.current().scopes.push(Scope::default());
+                    let scope_token = self.scopes.push_scope();
                     self.analyze_pat(pat, scrutinee)?;
-                    let new_scope = self.current().scopes.pop().unwrap();
+                    let new_scope = self.scopes.pop_scope(scope_token);
                     if let Some(scope) = &scope {
                         let mut encountered_error = false;
                         for ident in scope.variables.keys() {
@@ -786,7 +745,7 @@ impl<'tcx> Collector<'_, 'tcx> {
                     }
                 }
                 if let Some(scope) = scope {
-                    self.current().scope().variables.extend(scope.variables);
+                    self.scopes.scope_mut().extend(scope);
                 }
             }
             PatKind::And(ref pats) => {
@@ -909,7 +868,7 @@ impl<'tcx> Collector<'_, 'tcx> {
     fn analyze_fndecl(&mut self, decl: &FnDecl, id: ItemId) -> Result<()> {
         self.fn_generics = self.produced_generics[&id];
         let block_id = decl.block.unwrap();
-        // call `read_ident_raw` to avoid producing extra inference variables
+        // call `read_path_raw` to avoid producing extra inference variables
         let (fn_ty, _) = self.read_path_raw(&Path::new_single(decl.ident));
         let TyKind::Function(fn_ty) = fn_ty.0 else {
             unreachable!("should be validated by preanalyze_fndecl - {}", self.tcx.display(fn_ty))
@@ -924,27 +883,21 @@ impl<'tcx> Collector<'_, 'tcx> {
         fn_ty: &'tcx Function<'tcx>,
     ) -> Result<()> {
         let Function { params: param_tys, ret, .. } = fn_ty;
-        let mut body = Body::new(*ret);
+        let body_token = self.scopes.push_body(Body::new(*ret));
         for (param, &ty) in std::iter::zip(params, param_tys) {
-            body.insert_var(param.ident, ty, Var::Let);
+            self.insert_var(param.ident, ty, Var::Let);
         }
-        let block = &self.ast.blocks[block_id];
-        let body_ret = self.analyze_body_with(block, body)?.0;
+        self.analyze_body_with(block_id)?;
+        let body_ret = self.scopes.pop_body(body_token).ret;
         self.sub_block(body_ret, *ret, block_id);
         Ok(())
     }
 
     fn analyze_module(&mut self, module: &Module) -> Result<()> {
-        let mut body = Body::new(Ty::UNIT);
-        self.preanalyze(&mut body, module.items.iter().copied())?;
-        self.bodies.push(body);
+        self.preanalyze(module.items.iter().copied())?;
         for &item in &module.items {
             self.analyze_item(item)?;
         }
-        let body = self.bodies.pop().unwrap();
-        debug_assert_eq!(body.scopes.len(), 1);
-        let [scope] = body.scopes.try_into().unwrap();
-        self.current().scope().variables.extend(scope.variables);
         Ok(())
     }
 
@@ -975,9 +928,7 @@ impl<'tcx> Collector<'_, 'tcx> {
     // like `read_ident` but will not produce `TyVid`s for generic functions
     fn read_path_raw(&mut self, path: &Path) -> (Ty<'tcx>, Var) {
         if let Some(ident) = path.single() {
-            if let Some(&out) = self.bodies.iter().rev().find_map(|body| {
-                body.scopes.iter().rev().find_map(|scope| scope.variables.get(&ident.symbol))
-            }) {
+            if let Some(&out) = self.scopes.get(ident.symbol) {
                 (out.0, out.1)
             } else {
                 self.errors.push(self.ident_not_found(ident));
