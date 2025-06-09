@@ -28,9 +28,9 @@ impl Lowering<'_, '_> {
             })
         });
 
-        self.begin_scope();
+        let scope_token = self.scopes.push_scope();
         iter(self);
-        self.end_scope();
+        self.scopes.pop_scope(scope_token);
 
         self.finish_with(Terminator::Goto(condition_block));
 
@@ -57,7 +57,7 @@ impl Lowering<'_, '_> {
             |lower| Some(condition(lower)),
             |lower| {
                 let ident_var = iter(lower);
-                lower.current_mut().scope().variables.insert(ident, ident_var);
+                lower.insert_local(ident, ident_var);
                 for expr in body {
                     lower.lower(*expr);
                 }

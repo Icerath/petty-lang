@@ -1,6 +1,7 @@
 use super::Lowering;
 use crate::{
     hir::{self, ExprId, MatchArm, Pat},
+    hir_lowering::Var,
     mir::{BinaryOp, BlockId, Constant, Operand, Projection, RValue, Terminator, UnaryOp},
     ty::{Ty, TyKind},
 };
@@ -81,13 +82,14 @@ impl<'tcx> Lowering<'_, 'tcx> {
             Pat::Wildcard => return None,
             Pat::Ident(ident) => {
                 // FIXME: avoid double lookup
-                let local = if let Some(&local) = self.current().scope_ref().variables.get(&ident) {
+                let var = if let Some(&local) = self.scopes.get(ident) {
                     local
                 } else {
                     let local = self.new_local();
-                    self.current_mut().scope().variables.insert(ident, local);
-                    local
+                    self.insert_local(ident, local);
+                    Var::Local(local)
                 };
+                let Var::Local(local) = var else { todo!() };
                 self.assign(local, scrutinee);
                 return None;
             }

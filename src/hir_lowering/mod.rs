@@ -14,21 +14,27 @@ use crate::{
         self, BinaryOp, Block, BlockId, Body, BodyId, Constant, Local, Mir, Operand, Place,
         Projection, RValue, Statement, Terminator, UnaryOp,
     },
+    scope::ModuleScopes,
     source::span::Span,
     symbol::Symbol,
     ty::{self, GenericId, Struct, StructId, Ty, TyCtx, TyKind},
 };
 
+#[derive(Clone, Copy)]
+enum Var {
+    Local(Local),
+    Func(hir::BodyId),
+}
+
 pub fn lower<'tcx>(hir: &Hir<'tcx>, tcx: &'tcx TyCtx<'tcx>) -> Mir {
     let mut mir = Mir::default();
     let root_body = mir.bodies.push(Body::new(None, 0).with_auto(true));
-    let bodies = vec![BodyInfo::new(root_body)];
 
     let mut lowering = Lowering {
         tcx,
         hir,
         mir,
-        bodies,
+        scopes: ModuleScopes::new(BodyInfo::new(root_body)),
         struct_display_bodies: IndexVec::default(),
         array_display_bodies: HashMap::default(),
         strings: HashMap::default(),
@@ -49,7 +55,7 @@ struct Lowering<'hir, 'tcx> {
     tcx: &'tcx TyCtx<'tcx>,
     hir: &'hir Hir<'tcx>,
     mir: Mir,
-    bodies: Vec<BodyInfo>,
+    scopes: ModuleScopes<BodyInfo, Var>,
     struct_display_bodies: IndexVec<StructId, Option<BodyId>>,
     array_display_bodies: HashMap<Ty<'tcx>, BodyId>,
     strings: HashMap<Symbol, ArcStr>,
@@ -75,38 +81,15 @@ macro_rules! str {
 }
 
 struct BodyInfo {
-    body: BodyId,
-    functions: HashMap<Symbol, hir::BodyId>,
+    id: BodyId,
     stmts: Vec<Statement>,
     breaks: Vec<BlockId>,
     continue_block: Option<BlockId>,
-    scopes: Vec<Scope>,
 }
 
 impl BodyInfo {
-    pub fn scope(&mut self) -> &mut Scope {
-        self.scopes.last_mut().unwrap()
-    }
-    pub fn scope_ref(&self) -> &Scope {
-        self.scopes.last().unwrap()
-    }
-}
-
-#[derive(Debug, Default)]
-struct Scope {
-    variables: HashMap<Symbol, Local>,
-}
-
-impl BodyInfo {
-    pub fn new(body: BodyId) -> Self {
-        Self {
-            body,
-            functions: HashMap::default(),
-            scopes: vec![Scope::default()],
-            stmts: vec![],
-            breaks: vec![],
-            continue_block: None,
-        }
+    pub fn new(id: BodyId) -> Self {
+        Self { id, stmts: vec![], breaks: vec![], continue_block: None }
     }
 }
 
@@ -129,27 +112,25 @@ impl<'tcx> Lowering<'_, 'tcx> {
         }
     }
 
+    fn insert_local(&mut self, ident: Symbol, local: Local) {
+        self.scopes.scope_mut().insert(ident, Var::Local(local));
+    }
+    fn insert_func(&mut self, ident: Symbol, func: hir::BodyId) {
+        self.scopes.scope_mut().insert(ident, Var::Func(func));
+    }
+
     fn body_ref(&self) -> &Body {
-        &self.mir.bodies[self.current().body]
+        &self.mir.bodies[self.current().id]
     }
     fn body_mut(&mut self) -> &mut Body {
-        let body = self.current().body;
-        &mut self.mir.bodies[body]
+        &mut self.mir.bodies[self.scopes.body().id]
     }
 
     fn current(&self) -> &BodyInfo {
-        self.bodies.last().unwrap()
+        self.scopes.body()
     }
     fn current_mut(&mut self) -> &mut BodyInfo {
-        self.bodies.last_mut().unwrap()
-    }
-
-    fn begin_scope(&mut self) {
-        self.current_mut().scopes.push(Scope::default());
-    }
-
-    fn end_scope(&mut self) {
-        self.current_mut().scopes.pop().unwrap();
+        self.scopes.body_mut()
     }
 
     fn finish_with(&mut self, terminator: Terminator) -> BlockId {
@@ -232,16 +213,14 @@ impl<'tcx> Lowering<'_, 'tcx> {
     fn lower_rvalue(&mut self, id: ExprId) -> RValue {
         let pushed_scope = match self.hir.exprs[id].kind {
             ExprKind::Match { new_scope: false, .. }
+            | ExprKind::Block(..)
             | ExprKind::Let { .. }
-            | ExprKind::FnDecl(..) => false,
-            _ => {
-                self.begin_scope();
-                true
-            }
+            | ExprKind::FnDecl(..) => None,
+            _ => Some(self.scopes.push_scope()),
         };
         let rvalue = self.lower_rvalue_unscoped(id);
-        if pushed_scope {
-            self.end_scope();
+        if let Some(scope) = pushed_scope {
+            self.scopes.pop_scope(scope);
         }
         rvalue
     }
@@ -275,7 +254,7 @@ impl<'tcx> Lowering<'_, 'tcx> {
                 }))
             }
             ExprKind::StructInit => {
-                let body = self.current_mut().body;
+                let body = self.current_mut().id;
                 let nparams = self.mir.bodies[body].params;
                 let local =
                     self.assign_new(Constant::UninitStruct { size: nparams.try_into().unwrap() });
@@ -306,24 +285,24 @@ impl<'tcx> Lowering<'_, 'tcx> {
 
                 match for_ty {
                     Some(_) => {}
-                    None => _ = self.current_mut().functions.insert(ident, hir_id),
+                    None => self.insert_func(ident, hir_id),
                 }
 
                 if is_generic {
                     return RValue::UNIT;
                 }
 
-                self.bodies.push(BodyInfo::new(body_id));
-                if self.bodies.len() == 2 && ident == "main" {
+                let body_token = self.scopes.push_body(BodyInfo::new(body_id));
+                if self.scopes.bodies.len() == 2 && ident == "main" {
                     self.mir.main_body = Some(body_id);
                 }
 
-                if self.bodies.len() == 2 && self.try_intrinsic(for_ty, ident) {
-                    let current = self.current_mut().body;
+                if self.scopes.bodies.len() == 2 && self.try_intrinsic(for_ty, ident) {
+                    let current = self.current().id;
                     self.mir.bodies[current].auto = true;
                 } else {
                     for (i, param) in params.iter().enumerate() {
-                        self.current_mut().scope().variables.insert(param.ident, Local::from(i));
+                        self.insert_local(param.ident, Local::from(i));
                     }
                     let mut last = Operand::UNIT;
                     for &expr in body {
@@ -331,13 +310,13 @@ impl<'tcx> Lowering<'_, 'tcx> {
                     }
                     self.finish_with(Terminator::Return(last));
                 }
-                self.bodies.pop().unwrap();
+                self.scopes.pop_body(body_token);
                 RValue::UNIT
             }
             ExprKind::Let { ident, expr } => {
                 let rvalue = self.lower_rvalue(expr);
                 let local = self.assign_new(rvalue);
-                self.current_mut().scope().variables.insert(ident, local);
+                self.insert_local(ident, local);
                 RValue::UNIT
             }
             ExprKind::Return(expr) => {
@@ -649,7 +628,7 @@ impl<'tcx> Lowering<'_, 'tcx> {
     }
 
     fn read_ident(&self, ident: Symbol) -> Local {
-        *self.current().scopes.iter().rev().find_map(|scope| scope.variables.get(&ident)).unwrap()
+        if let Var::Local(local) = self.scopes.get(ident).unwrap() { *local } else { panic!() }
     }
 
     fn lower_place(&mut self, expr: hir::ExprId) -> Place {
@@ -725,7 +704,7 @@ impl<'tcx> Lowering<'_, 'tcx> {
     }
 
     fn block_expr(&mut self, exprs: &[ExprId]) -> RValue {
-        self.begin_scope();
+        let scope_token = self.scopes.push_scope();
         let mut rvalue = None;
         for (i, &expr) in exprs.iter().enumerate() {
             if i == exprs.len() - 1 {
@@ -734,21 +713,16 @@ impl<'tcx> Lowering<'_, 'tcx> {
                 self.lower(expr);
             }
         }
-        self.end_scope();
+        self.scopes.pop_scope(scope_token);
         rvalue.unwrap_or(RValue::UNIT)
     }
 
     fn load_path(&mut self, path: &Path, ty: Ty<'tcx>) -> RValue {
         if let Some(ident) = path.single() {
-            if let Some(place) =
-                self.current().scopes.iter().rev().find_map(|scope| scope.variables.get(&ident))
-            {
-                return RValue::local(*place);
+            match *self.scopes.get(ident).unwrap() {
+                Var::Local(local) => RValue::local(local),
+                Var::Func(location) => self.mono_fn(ident, location, ty),
             }
-            let location =
-                *self.bodies.iter().rev().find_map(|body| body.functions.get(&ident)).unwrap();
-
-            self.mono_fn(ident, location, ty)
         } else {
             todo!()
         }
@@ -866,17 +840,16 @@ impl<'tcx> Lowering<'_, 'tcx> {
         if let Some(body) = self.array_display_bodies.get(&ty) {
             return *body;
         }
-        let previous = mem::take(&mut self.bodies);
         let body_id =
             self.mir.bodies.push(Body::new(Some("format_array".into()), 1).with_auto(true));
-        self.bodies.push(BodyInfo::new(body_id));
+        let body_token = self.scopes.push_body(BodyInfo::new(body_id));
 
         self.array_display_bodies.insert(ty, body_id);
 
         let out = self.format_array_inner(ty, Local::from(0));
         self.finish_with(Terminator::Return(out));
 
-        self.bodies = previous;
+        self.scopes.pop_body(body_token);
         body_id
     }
 
@@ -935,9 +908,8 @@ impl<'tcx> Lowering<'_, 'tcx> {
         if let Some(Some(body)) = self.struct_display_bodies.get(strct.id) {
             return *body;
         }
-        let previous = mem::take(&mut self.bodies);
         let body_id = self.mir.bodies.push(Body::new(None, 1).with_auto(true));
-        self.bodies.push(BodyInfo::new(body_id));
+        let body_token = self.scopes.push_body(BodyInfo::new(body_id));
 
         if self.struct_display_bodies.len() <= strct.id {
             self.struct_display_bodies.resize(strct.id.index() + 1, None);
@@ -963,7 +935,7 @@ impl<'tcx> Lowering<'_, 'tcx> {
             .assign_new(RValue::Unary { op: UnaryOp::StrJoin, operand: Operand::local(strings) });
         self.finish_with(Terminator::Return(Operand::local(out)));
 
-        self.bodies = previous;
+        self.scopes.pop_body(body_token);
         body_id
     }
 
@@ -973,14 +945,14 @@ impl<'tcx> Lowering<'_, 'tcx> {
             self.generic_map = Some(produce_generic_map(decl, fn_ty));
             let hir::FnDecl { ident, for_ty, ref body, ref params, .. } = *decl;
 
-            self.bodies.push(BodyInfo::new(body_id));
+            let body_token = self.scopes.push_body(BodyInfo::new(body_id));
 
-            if self.bodies.len() == 2 && self.try_intrinsic(for_ty, ident) {
-                let current = self.current_mut().body;
+            if self.scopes.bodies.len() == 2 && self.try_intrinsic(for_ty, ident) {
+                let current = self.current().id;
                 self.mir.bodies[current].auto = true;
             } else {
                 for (i, param) in params.iter().enumerate() {
-                    self.current_mut().scope().variables.insert(param.ident, Local::from(i));
+                    self.insert_local(param.ident, Local::from(i));
                 }
                 let mut last = Operand::UNIT;
                 for &expr in body {
@@ -988,7 +960,7 @@ impl<'tcx> Lowering<'_, 'tcx> {
                 }
                 self.finish_with(Terminator::Return(last));
             }
-            self.bodies.pop().unwrap();
+            self.scopes.pop_body(body_token);
         }
     }
 }
