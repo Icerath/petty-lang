@@ -324,19 +324,12 @@ impl<'tcx> Lowering<'_, 'tcx> {
                 self.finish_with(Terminator::Return(place));
                 RValue::UNIT
             }
-            ExprKind::Loop(ref block) => {
-                self.lower_loop(
-                    |_| None,
-                    |lower| {
-                        for &expr in block {
-                            lower.lower(expr);
-                        }
-                    },
-                );
+            ExprKind::Loop(expr) => {
+                self.lower_loop(|_| None, |lower| _ = lower.lower(expr));
                 RValue::UNIT
             }
             ExprKind::Match { scrutinee, ref arms, .. } => self.lower_match(scrutinee, arms),
-            ExprKind::If { ref arms, ref els } => {
+            ExprKind::If { ref arms, els } => {
                 let mut jump_to_ends = Vec::with_capacity(arms.len());
                 let out_local = self.new_local();
                 for arm in arms {
@@ -356,11 +349,13 @@ impl<'tcx> Lowering<'_, 'tcx> {
                     let current_block = self.current_block();
                     self.body_mut().blocks[to_fix].terminator.complete(current_block);
                 }
-                let els_out = self.block_expr(els);
-                if is_unit {
-                    self.process(els_out, self.ty(id));
-                } else {
-                    self.assign(out_local, els_out);
+                if let Some(els) = els {
+                    let els_out = self.lower_rvalue(els);
+                    if is_unit {
+                        self.process(els_out, self.ty(id));
+                    } else {
+                        self.assign(out_local, els_out);
+                    }
                 }
 
                 self.finish_next();

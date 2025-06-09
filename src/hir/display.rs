@@ -68,7 +68,7 @@ impl Writer<'_, '_> {
                 self.indent -= 1;
                 (Line, "}").write(self);
             }
-            ExprKind::Loop(ref block) => ("loop ", block.as_slice()).write(self),
+            ExprKind::Loop(expr) => ("loop ", expr).write(self),
             ExprKind::StructInit => "<struct init>".write(self),
             ExprKind::Assignment { lhs, expr } => (lhs, " = ", expr).write(self),
             ExprKind::Abort { msg } => {
@@ -127,7 +127,7 @@ impl Writer<'_, '_> {
                     )
                         .write(self);
                 }
-                (!els.is_empty()).then_some(("else ", els.as_slice())).write(self);
+                els.map(|els| ("else ", els)).write(self);
             }
             ExprKind::ForLoop { ident, iter, ref body } => {
                 self.inside_expr = inside_expr;

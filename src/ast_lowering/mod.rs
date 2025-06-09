@@ -228,7 +228,7 @@ impl<'tcx> Lowering<'_, 'tcx> {
                 let body = ThinVec::from([abort]);
                 let condition = self.lower_then_not(expr);
                 let arms = thin_vec![IfStmt { condition, body }];
-                (hir::ExprKind::If { arms, els: ThinVec::new() }).with(Ty::UNIT)
+                (hir::ExprKind::If { arms, els: None }).with(Ty::UNIT)
             }
             ast::ExprKind::FieldAccess { expr, field, .. } => {
                 let TyKind::Struct(strct) = self.get_ty(expr).0 else { unreachable!() };
@@ -287,17 +287,17 @@ impl<'tcx> Lowering<'_, 'tcx> {
     }
 
     fn lower_while_loop(&mut self, condition: ast::ExprId, body: ast::BlockId) -> hir::Expr<'tcx> {
-        let condition = self.lower_then_not(condition);
+        let condition = self.lower(condition);
         let break_ = self.hir.exprs.push(hir::Expr::BREAK);
 
+        let body = self.lower_block_inner(body).1;
         let if_stmt = (ExprKind::If {
-            arms: ThinVec::from([hir::IfStmt { condition, body: ThinVec::from([break_]) }]),
-            els: ThinVec::new(),
+            arms: ThinVec::from([hir::IfStmt { condition, body }]),
+            els: Some(break_),
         })
         .with(Ty::UNIT);
-        let mut block = self.lower_block_inner(body).1;
-        block.insert(0, self.hir.exprs.push(if_stmt));
-        ExprKind::Loop(block).with(Ty::UNIT)
+        let if_stmt = self.hir.exprs.push(if_stmt);
+        ExprKind::Loop(if_stmt).with(Ty::UNIT)
     }
 
     fn lower_for_loop(
@@ -325,7 +325,10 @@ impl<'tcx> Lowering<'_, 'tcx> {
             })
             .collect();
 
-        let els = els.map_or_else(ThinVec::new, |els| self.lower_block_inner(els).1);
+        let els = els.map(|els| {
+            let els = self.lower_block(els);
+            self.hir.exprs.push(els)
+        });
         (ExprKind::If { arms, els }).with(self.get_ty(id))
     }
 
