@@ -123,6 +123,7 @@ pub struct Pat {
 pub enum PatKind {
     Bool(bool),
     Int(i64),
+    Range(Box<RangePat>),
     Str(Symbol),
     Expr(BlockId),
     If(ExprId),
@@ -131,6 +132,19 @@ pub enum PatKind {
     Ident(Symbol),
     Struct(Ident, ThinVec<PatArg>),
     Array(ThinVec<Pat>),
+}
+
+#[expect(unused)]
+pub enum RangePat {
+    Range([Pat; 2], Inclusive),
+    RangeFrom(Pat, Inclusive),
+    RangeTo(Pat, Inclusive),
+    RangeFull,
+}
+
+pub enum Inclusive {
+    Yes,
+    No,
 }
 
 pub struct PatArg {

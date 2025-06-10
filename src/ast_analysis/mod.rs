@@ -669,6 +669,7 @@ impl<'tcx> Collector<'_, 'tcx> {
 
     fn analyze_pat(&mut self, pat: &Pat, scrutinee: Ty<'tcx>) -> Result<()> {
         match pat.kind {
+            PatKind::Range(..) => todo!(),
             PatKind::Struct(ident, ref fields) => {
                 let ty = self.read_named_ty(ident);
                 let strct = match self.tcx.infer_shallow(ty).0 {

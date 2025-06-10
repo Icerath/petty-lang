@@ -10,7 +10,10 @@ use super::{
     TypeId,
 };
 use crate::{
-    ast::{Ast, BinaryOp, BlockId, ExprId, ItemId, ItemKind, Lit, Path, Stmt, UnaryOp},
+    ast::{
+        Ast, BinaryOp, BlockId, ExprId, Inclusive, ItemId, ItemKind, Lit, Path, RangePat, Stmt,
+        UnaryOp,
+    },
     symbol::Symbol,
 };
 
@@ -190,6 +193,7 @@ impl Dump for Pat {
 impl Dump for PatKind {
     fn write(&self, w: &mut Writer) {
         match *self {
+            Self::Range(ref range) => range.write(w),
             Self::Bool(bool) => Lit::Bool(bool).write(w),
             Self::Ident(ident) => ident.write(w),
             Self::Struct(ident, ref fields) => (ident, "(", Sep(fields, ", "), ")").write(w),
@@ -201,6 +205,27 @@ impl Dump for PatKind {
             Self::And(ref pats) => Sep(pats, " and ").write(w),
             Self::Array(ref pats) => ("[", Sep(pats, ", "), "]").write(w),
         }
+    }
+}
+
+impl Dump for RangePat {
+    fn write(&self, w: &mut Writer) {
+        match self {
+            Self::Range(pats, inclusive) => (&pats[0], inclusive, &pats[1]).write(w),
+            Self::RangeFrom(pat, inclusive) => (pat, inclusive).write(w),
+            Self::RangeTo(pat, inclusive) => (inclusive, pat).write(w),
+            Self::RangeFull => "..".write(w),
+        }
+    }
+}
+
+impl Dump for Inclusive {
+    fn write(&self, w: &mut Writer) {
+        match self {
+            Self::Yes => "..=",
+            Self::No => "..",
+        }
+        .write(w);
     }
 }
 

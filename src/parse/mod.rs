@@ -12,8 +12,8 @@ use token::{Token, TokenKind};
 use crate::{
     ast::{
         self, ArraySeg, Ast, BinOpKind, BinaryOp, Block, BlockId, Expr, ExprId, ExprKind, Field,
-        FnDecl, Ident, IfStmt, Impl, Item, ItemId, ItemKind, Lit, MatchArm, Module, Param, Pat,
-        PatArg, PatKind, Stmt, Trait, Ty, TyKind, TypeId,
+        FnDecl, Ident, IfStmt, Impl, Inclusive, Item, ItemId, ItemKind, Lit, MatchArm, Module,
+        Param, Pat, PatArg, PatKind, RangePat, Stmt, Trait, Ty, TyKind, TypeId,
     },
     errors,
     span::Span,
@@ -451,21 +451,40 @@ impl Parse for Pat {
         let single_span = single.span;
         loop {
             let next = stream.peek().kind;
-            if !matches!(next, TokenKind::Or | TokenKind::And) {
-                return Ok(single);
+            match next {
+                TokenKind::Or | TokenKind::And => {
+                    let mut patterns = thin_vec![single];
+                    while stream.peek().kind == next {
+                        _ = stream.next();
+                        patterns.push(parse_single(stream)?);
+                    }
+                    let span = Span::new(
+                        single_span.start() as _..stream.lexer.current_pos() as _,
+                        single_span.source(),
+                    );
+                    let kind = if next == TokenKind::Or {
+                        PatKind::Or(patterns)
+                    } else {
+                        PatKind::And(patterns)
+                    };
+                    single = Pat { kind, span };
+                }
+                TokenKind::DotDot | TokenKind::DotDotEq => {
+                    _ = stream.next();
+                    let rhs = parse_single(stream)?;
+
+                    let inclusive = match next {
+                        TokenKind::DotDotEq => Inclusive::Yes,
+                        _ => Inclusive::No,
+                    };
+
+                    let range = RangePat::Range([single, rhs], inclusive);
+                    let kind = PatKind::Range(Box::new(range));
+                    let span = single_span.with_end(stream.lexer.current_pos());
+                    single = Pat { kind, span };
+                }
+                _ => break Ok(single),
             }
-            let mut patterns = thin_vec![single];
-            while stream.peek().kind == next {
-                _ = stream.next();
-                patterns.push(parse_single(stream)?);
-            }
-            let span = Span::new(
-                single_span.start() as _..stream.lexer.current_pos() as _,
-                single_span.source(),
-            );
-            let kind =
-                if next == TokenKind::Or { PatKind::Or(patterns) } else { PatKind::And(patterns) };
-            single = Pat { kind, span };
         }
     }
 }
