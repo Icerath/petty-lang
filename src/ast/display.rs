@@ -155,9 +155,12 @@ impl Writer<'_> {
             (stmt, ";", Line).write(self);
         }
         if let Some(expr) = &block.expr {
-            (expr, Line).write(self);
+            expr.write(self);
+            self.indent -= 1;
+            Line.write(self);
+        } else {
+            self.indent -= 1;
         }
-        self.indent -= 1;
         self.f.push('}');
     }
 }
