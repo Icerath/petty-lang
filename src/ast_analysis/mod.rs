@@ -669,7 +669,6 @@ impl<'tcx> Collector<'_, 'tcx> {
 
     fn analyze_pat(&mut self, pat: &Pat, scrutinee: Ty<'tcx>) -> Result<()> {
         match pat.kind {
-            PatKind::Range(..) => todo!(),
             PatKind::Struct(ident, ref fields) => {
                 let ty = self.read_named_ty(ident);
                 let strct = match self.tcx.infer_shallow(ty).0 {
@@ -700,6 +699,15 @@ impl<'tcx> Collector<'_, 'tcx> {
             PatKind::Bool(..) => _ = self.sub_span(Ty::BOOL, scrutinee, pat.span),
             PatKind::Str(..) => _ = self.sub_span(Ty::STR, scrutinee, pat.span),
             PatKind::Int(..) => _ = self.sub_span(Ty::INT, scrutinee, pat.span),
+
+            PatKind::RangeFull => {}
+            PatKind::Range(ref pats, _) => {
+                self.sub_span(Ty::INT, scrutinee, pat.span);
+                // TODO: error messages
+                assert!(pats[0].as_ref().is_none_or(valid_range_pat));
+                assert!(pats[1].as_ref().is_none_or(valid_range_pat));
+            }
+
             PatKind::Expr(block) => {
                 let ty = self.analyze_block(block)?;
                 let op = BinaryOp { span: pat.span, kind: BinOpKind::Eq };
@@ -988,4 +996,8 @@ impl<'tcx> Collector<'_, 'tcx> {
             _ => todo!(),
         }
     }
+}
+
+fn valid_range_pat(pat: &Pat) -> bool {
+    matches!(pat.kind, PatKind::Int(..))
 }
