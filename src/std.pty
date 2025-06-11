@@ -39,11 +39,11 @@ impl<T> [T] {
 }
 
 impl [str] {
-    fn join(self, seperator: str) -> str {
+    fn join(self, separator: str) -> str {
         let arr = [];
         for i in self {
             arr.push(i);
-            arr.push(seperator);
+            arr.push(separator);
         }
         if self.len() != 0 {
             arr.pop();
