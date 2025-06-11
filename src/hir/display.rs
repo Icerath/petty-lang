@@ -5,6 +5,7 @@ use std::{
 
 use super::{ArraySeg, ExprKind, FnDecl, MatchArm, OpAssign, Param, Pat, PatField};
 use crate::{
+    ast::Inclusive,
     hir::{BinaryOp, ExprId, Hir, Lit, Path, UnaryOp},
     symbol::Symbol,
     ty::{Ty, TyCtx},
@@ -36,6 +37,7 @@ impl Dump for MatchArm<'_> {
 impl Dump for Pat<'_> {
     fn write(&self, w: &mut Writer) {
         match *self {
+            Self::Range(ref pats, inclusive) => (&pats[0], inclusive, &pats[1]).write(w),
             Self::Wildcard => "_".write(w),
             Self::Array(ref pats) => ("[", Sep(pats, ", "), "]").write(w),
             Self::Struct(ident, ref fields) => {
@@ -46,6 +48,15 @@ impl Dump for Pat<'_> {
             Self::If(expr) => ("if ", expr).write(w),
             Self::Or(ref patterns) => Sep(patterns, " or ").write(w),
             Self::And(ref patterns) => Sep(patterns, " and ").write(w),
+        }
+    }
+}
+
+impl Dump for Inclusive {
+    fn write(&self, w: &mut Writer) {
+        match self {
+            Self::Yes => "..=".write(w),
+            Self::No => "..".write(w),
         }
     }
 }

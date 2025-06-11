@@ -3,7 +3,7 @@ mod display;
 use index_vec::IndexVec;
 use thin_vec::ThinVec;
 
-use crate::{define_id, source::span::Span, symbol::Symbol, ty::Ty};
+use crate::{ast::Inclusive, define_id, source::span::Span, symbol::Symbol, ty::Ty};
 
 #[derive(Default, Debug)]
 pub struct Hir<'tcx> {
@@ -75,6 +75,7 @@ pub struct MatchArm<'tcx> {
 
 #[derive(Debug)]
 pub enum Pat<'tcx> {
+    Range(Box<[Option<Pat<'tcx>>; 2]>, Inclusive),
     Struct(Ty<'tcx>, ThinVec<PatField<'tcx>>),
     Ident(Symbol),
     Expr(ExprId),

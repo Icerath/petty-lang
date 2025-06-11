@@ -355,7 +355,11 @@ impl<'tcx> Lowering<'_, 'tcx> {
 
     fn lower_pat(&mut self, pat: &ast::Pat) -> Pat<'tcx> {
         match pat.kind {
-            ast::PatKind::Range(..) => todo!(),
+            ast::PatKind::Range(ref pats, inclusive) => {
+                let lhs = pats[0].as_ref().map(|pat| self.lower_pat(pat));
+                let rhs = pats[0].as_ref().map(|pat| self.lower_pat(pat));
+                hir::Pat::Range(Box::new([lhs, rhs]), inclusive)
+            }
             ast::PatKind::RangeFull => Pat::Wildcard,
             ast::PatKind::Bool(true) => hir::Pat::Expr(self.hir.exprs.push(hir::Expr::TRUE)),
             ast::PatKind::Bool(false) => hir::Pat::Expr(self.hir.exprs.push(hir::Expr::FALSE)),

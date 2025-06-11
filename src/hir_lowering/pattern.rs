@@ -45,6 +45,7 @@ impl<'tcx> Lowering<'_, 'tcx> {
     #[expect(clippy::too_many_lines)]
     fn try_pattern(&mut self, scrutinee: Operand, ty: Ty<'tcx>, pat: &Pat<'tcx>) -> Option<RValue> {
         Some(match *pat {
+            Pat::Range(..) => todo!(),
             Pat::Struct(ty, ref fields) => {
                 let TyKind::Struct(strct) = ty.0 else { unreachable!() };
                 let scrutinee_place = self.process_to_place(scrutinee);
