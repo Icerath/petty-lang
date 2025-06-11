@@ -10,7 +10,7 @@ struct CliArgs {
     path: PathBuf,
     #[arg(short, long, action = clap::ArgAction::Count)]
     verbose: u8,
-    #[arg(long, help = "Turns off all optimizations unless overriden")]
+    #[arg(short = 'x', long, help = "Turns off all optimizations unless overriden")]
     no_default_optimizations: bool,
     #[arg(long, action = clap::ArgAction::Set, default_value = "true", help = "Dumps the ast/hir/mir to the target directory ")]
     dump: bool,
