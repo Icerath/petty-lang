@@ -207,6 +207,7 @@ pub enum Constant {
 pub enum BinaryOp {
     BoolEq,
     BoolNeq,
+    BoolAnd,
 
     IntAdd,
     IntSub,

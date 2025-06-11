@@ -197,6 +197,7 @@ pub fn binary_op(lhs: Value, op: BinaryOp, rhs: Value) -> Value {
     match op {
         BinaryOp::BoolEq => Value::Bool(lhs.unwrap_bool() == rhs.unwrap_bool()),
         BinaryOp::BoolNeq => Value::Bool(lhs.unwrap_bool() != rhs.unwrap_bool()),
+        BinaryOp::BoolAnd => Value::Bool(lhs.unwrap_bool() && rhs.unwrap_bool()),
 
         BinaryOp::IntAdd => Value::Int(lhs.unwrap_int() + rhs.unwrap_int()),
         BinaryOp::IntSub => Value::Int(lhs.unwrap_int() - rhs.unwrap_int()),

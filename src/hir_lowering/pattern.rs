@@ -1,5 +1,6 @@
 use super::Lowering;
 use crate::{
+    ast::Inclusive,
     hir::{self, ExprId, MatchArm, Pat},
     hir_lowering::Var,
     mir::{BinaryOp, BlockId, Constant, Operand, Projection, RValue, Terminator, UnaryOp},
@@ -45,7 +46,42 @@ impl<'tcx> Lowering<'_, 'tcx> {
     #[expect(clippy::too_many_lines)]
     fn try_pattern(&mut self, scrutinee: Operand, ty: Ty<'tcx>, pat: &Pat<'tcx>) -> Option<RValue> {
         Some(match *pat {
-            Pat::Range(..) => todo!(),
+            Pat::Range(ref pats, inclusive) => match (&pats[0], &pats[1]) {
+                (Some(Pat::Expr(lit)), None) => {
+                    let lit = self.lower(*lit);
+                    RValue::Binary { lhs: scrutinee, op: BinaryOp::IntGreaterEq, rhs: lit }
+                }
+                (None, Some(Pat::Expr(lit))) => {
+                    let lit = self.lower(*lit);
+                    let op = match inclusive {
+                        Inclusive::Yes => BinaryOp::IntLessEq,
+                        Inclusive::No => BinaryOp::IntLess,
+                    };
+                    RValue::Binary { lhs: scrutinee, op, rhs: lit }
+                }
+                (Some(Pat::Expr(lhs)), Some(Pat::Expr(rhs))) => {
+                    let lhs = self.lower(*lhs);
+                    let rhs = self.lower(*rhs);
+                    let less_op = match inclusive {
+                        Inclusive::Yes => BinaryOp::IntLessEq,
+                        Inclusive::No => BinaryOp::IntLess,
+                    };
+                    let first = self.assign_new(RValue::Binary {
+                        lhs: scrutinee.clone(),
+                        op: BinaryOp::IntGreaterEq,
+                        rhs: lhs,
+                    });
+                    let second =
+                        self.assign_new(RValue::Binary { lhs: scrutinee, op: less_op, rhs });
+                    RValue::Binary {
+                        lhs: Operand::local(first),
+                        op: BinaryOp::BoolAnd,
+                        rhs: Operand::local(second),
+                    }
+                }
+                (None, None) => return None,
+                _ => unreachable!(),
+            },
             Pat::Struct(ty, ref fields) => {
                 let TyKind::Struct(strct) = ty.0 else { unreachable!() };
                 let scrutinee_place = self.process_to_place(scrutinee);

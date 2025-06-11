@@ -136,7 +136,7 @@ pub enum PatKind {
     Array(ThinVec<Pat>),
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Inclusive {
     Yes,
     No,
