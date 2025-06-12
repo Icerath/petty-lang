@@ -71,6 +71,7 @@ impl Writer<'_, '_> {
     fn display_expr(&mut self, expr: ExprId) {
         let inside_expr = mem::replace(&mut self.inside_expr, true);
         match self.hir.exprs[expr].kind {
+            ExprKind::Module(name, ref body) => ("mod ", name, body.as_slice()).write(self),
             ExprKind::Func(func) => _ = self.f.write_fmt(format_args!("{func:?}")),
             ExprKind::Match { scrutinee, ref arms, .. } => {
                 ("match ", scrutinee, " {").write(self);

@@ -46,6 +46,7 @@ pub enum ExprKind<'tcx> {
     FnCall { function: ExprId, args: ThinVec<ExprId> },
     Index { expr: ExprId, index: ExprId, span: Span },
     FnDecl(Box<FnDecl<'tcx>>),
+    Module(Symbol, ThinVec<ExprId>),
     Let { ident: Symbol, expr: ExprId },
     If { arms: ThinVec<IfStmt>, els: Option<ExprId> },
     Match { scrutinee: ExprId, arms: ThinVec<MatchArm<'tcx>>, new_scope: bool },

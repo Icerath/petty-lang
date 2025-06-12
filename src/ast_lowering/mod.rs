@@ -54,9 +54,9 @@ impl<'tcx> Lowering<'_, 'tcx> {
                 let expr = self.lower_fn_decl(None, decl, body);
                 self.hir.exprs.push(expr)
             }
-            ast::ItemKind::Module(_, module) => {
-                let items = self.lower_items(&module.items);
-                self.hir.exprs.push(ExprKind::Block(items.into()).with(Ty::UNIT))
+            ast::ItemKind::Module(name, module) => {
+                let body = self.lower_items(&module.items).into();
+                self.hir.exprs.push(hir::ExprKind::Module(name.symbol, body).with(Ty::UNIT))
             }
             ast::ItemKind::Struct(ident, generics, fields) => {
                 _ = generics;

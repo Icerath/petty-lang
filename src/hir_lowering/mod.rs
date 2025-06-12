@@ -212,7 +212,8 @@ impl<'tcx> Lowering<'_, 'tcx> {
 
     fn lower_rvalue(&mut self, id: ExprId) -> RValue {
         let pushed_scope = match self.hir.exprs[id].kind {
-            ExprKind::Match { new_scope: false, .. }
+            ExprKind::Module(..)
+            | ExprKind::Match { new_scope: false, .. }
             | ExprKind::Block(..)
             | ExprKind::Let { .. }
             | ExprKind::FnDecl(..) => None,
@@ -230,6 +231,12 @@ impl<'tcx> Lowering<'_, 'tcx> {
         let is_unit = self.ty(id).is_unit();
 
         match self.hir.exprs[id].kind {
+            ExprKind::Module(_, ref body) => {
+                for &expr in body {
+                    self.lower(expr);
+                }
+                RValue::UNIT
+            }
             ExprKind::ForLoop { ident, iter, ref body } => {
                 match self.ty(iter).0 {
                     TyKind::Range => self.range_for(ident, iter, body),
