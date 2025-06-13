@@ -11,6 +11,12 @@ impl Symbol {
     }
 }
 
+impl AsRef<Symbol> for Symbol {
+    fn as_ref(&self) -> &Symbol {
+        self
+    }
+}
+
 impl From<&str> for Symbol {
     fn from(value: &str) -> Self {
         Self { inner: value.into() }

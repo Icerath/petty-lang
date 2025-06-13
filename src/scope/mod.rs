@@ -1,8 +1,23 @@
-use std::marker::PhantomData;
+use std::{
+    marker::PhantomData,
+    ops::{Deref, DerefMut},
+};
 
-use crate::{HashMap, symbol::Symbol};
+use index_vec::IndexVec;
+
+use crate::{HashMap, define_id, symbol::Symbol};
+
+pub struct Global<B, T> {
+    module_storage: IndexVec<ModuleId, ModuleScopes<B, T>>,
+    root: ModuleId,
+    current: ModuleId,
+}
 
 pub struct ModuleScopes<B, T> {
+    #[expect(unused)]
+    pub name: Symbol,
+    pub parent: Option<ModuleId>,
+    pub modules: HashMap<Symbol, ModuleId>,
     pub bodies: Vec<Body<B, T>>,
 }
 
@@ -36,9 +51,58 @@ impl<T> Default for Scope<T> {
     }
 }
 
-impl<B, T> ModuleScopes<B, T> {
+impl<B, T> Global<B, T> {
     pub fn new(body: B) -> Self {
-        Self { bodies: vec![Body::new(body)] }
+        let root = ModuleScopes::new("crate".into(), None, body);
+        let mut module_storage = IndexVec::new();
+        let root = module_storage.push(root);
+        Self { module_storage, root, current: root }
+    }
+    pub fn current(&self) -> &ModuleScopes<B, T> {
+        &self.module_storage[self.current]
+    }
+    pub fn current_mut(&mut self) -> &mut ModuleScopes<B, T> {
+        &mut self.module_storage[self.current]
+    }
+    pub fn push_module(&mut self, name: Symbol, body: B) -> ModuleToken {
+        let module = self.module_storage.push(ModuleScopes::new(name, Some(self.current), body));
+        self.modules.insert(name, module);
+        self.current = module;
+        ModuleToken { __priv: PhantomData }
+    }
+    pub fn pop_module(&mut self, _: ModuleToken) {
+        let parent = self.module_storage[self.current].parent.unwrap();
+        self.current = parent;
+    }
+
+    pub fn get_path(&self, path: impl IntoIterator<Item = impl AsRef<Symbol>>) -> Option<&T> {
+        let path = path.into_iter().map(|s| *s.as_ref());
+        let fully_qualified = path;
+        self.get_path_inner(fully_qualified)
+    }
+    fn get_path_inner(&self, mut iter: impl Iterator<Item = Symbol>) -> Option<&T> {
+        let Some(mut last) = iter.next() else { unreachable!() };
+        let mut current_module = self.current();
+
+        for next in iter {
+            // FIXME: remove hack
+            let next_module = match current_module.modules.get(&last) {
+                Some(id) => *id,
+                None => self.root,
+            };
+            current_module = &self.module_storage[next_module];
+            last = next;
+        }
+        match current_module.get(last) {
+            Some(t) => Some(t),
+            None => self.module_storage[self.root].get(last),
+        }
+    }
+}
+
+impl<B, T> ModuleScopes<B, T> {
+    pub fn new(name: Symbol, parent: Option<ModuleId>, body: B) -> Self {
+        Self { name, parent, bodies: vec![Body::new(body)], modules: HashMap::default() }
     }
     fn raw_body(&self) -> &Body<B, T> {
         self.bodies.last().unwrap()
@@ -56,18 +120,14 @@ impl<B, T> ModuleScopes<B, T> {
         self.bodies.push(Body { data: body, scopes: vec![Scope::default()] });
         BodyToken { __priv: PhantomData }
     }
-    #[expect(clippy::needless_pass_by_value)]
-    pub fn pop_body(&mut self, token: BodyToken) -> B {
-        _ = token;
+    pub fn pop_body(&mut self, _: BodyToken) -> B {
         self.bodies.pop().unwrap().data
     }
     pub fn push_scope(&mut self) -> ScopeToken {
         self.raw_body_mut().scopes.push(Scope::default());
         ScopeToken { __priv: PhantomData }
     }
-    #[expect(clippy::needless_pass_by_value)]
-    pub fn pop_scope(&mut self, token: ScopeToken) -> Scope<T> {
-        _ = token;
+    pub fn pop_scope(&mut self, _: ScopeToken) -> Scope<T> {
         self.raw_body_mut().scopes.pop().unwrap()
     }
     #[expect(unused)]
@@ -106,4 +166,24 @@ pub struct ScopeToken {
 #[must_use]
 pub struct BodyToken {
     __priv: PhantomData<()>,
+}
+
+#[must_use]
+pub struct ModuleToken {
+    __priv: PhantomData<()>,
+}
+
+define_id!(pub ModuleId);
+
+impl<B, T> Deref for Global<B, T> {
+    type Target = ModuleScopes<B, T>;
+    fn deref(&self) -> &Self::Target {
+        self.current()
+    }
+}
+
+impl<B, T> DerefMut for Global<B, T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.current_mut()
+    }
 }

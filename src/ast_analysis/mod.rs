@@ -11,7 +11,7 @@ use crate::{
         self, Ast, BinOpKind, BinaryOp, Block, BlockId, ExprId, ExprKind, FnDecl, Ident, Impl,
         ItemId, ItemKind, Lit, Module, Pat, PatArg, PatKind, Path, Stmt, Trait, TypeId, UnaryOp,
     },
-    scope::{ModuleScopes, Scope},
+    scope::{Global, Scope},
     span::Span,
     symbol::Symbol,
     ty::{Function, GenericRange, Interned, Ty, TyCtx, TyKind},
@@ -67,7 +67,7 @@ impl<'tcx> Body<'tcx> {
 }
 
 struct Collector<'ast, 'tcx> {
-    scopes: ModuleScopes<Body<'tcx>, (Ty<'tcx>, Var, Span)>,
+    scopes: Global<Body<'tcx>, (Ty<'tcx>, Var, Span)>,
     ty_info: TyInfo<'tcx>,
     ast: &'ast Ast,
     tcx: &'tcx TyCtx<'tcx>,
@@ -101,9 +101,9 @@ pub fn analyze<'tcx>(ast: &Ast, tcx: &'tcx TyCtx<'tcx>) -> Result<TyInfo<'tcx>, 
         impl_generics: GenericRange::EMPTY,
         produced_generics: HashMap::default(),
         errors: vec![],
-        scopes: ModuleScopes::new(body),
+        scopes: Global::new(body),
     };
-    collector.analyze_module(&ast.root).map_err(|err| vec![err])?;
+    collector.analyze_module(None, &ast.root).map_err(|err| vec![err])?;
 
     if !collector.errors.is_empty() {
         return Err(collector.errors);
@@ -383,7 +383,7 @@ impl<'tcx> Collector<'_, 'tcx> {
 
     fn analyze_item(&mut self, id: ItemId) -> Result<()> {
         match &self.ast.items[id].kind {
-            ItemKind::Module(_, module) => self.analyze_module(module)?,
+            ItemKind::Module(name, module) => self.analyze_module(Some(*name), module)?,
             ItemKind::Trait(trait_) => self.analyze_trait(trait_, id)?,
             ItemKind::Impl(impl_) => self.analyze_impl(impl_, id)?,
             ItemKind::FnDecl(decl) => self.analyze_fndecl(decl, id)?,
@@ -902,10 +902,15 @@ impl<'tcx> Collector<'_, 'tcx> {
         Ok(())
     }
 
-    fn analyze_module(&mut self, module: &Module) -> Result<()> {
+    fn analyze_module(&mut self, name: Option<Ident>, module: &Module) -> Result<()> {
+        let pushed_module =
+            name.map(|name| self.scopes.push_module(name.symbol, Body::new(Ty::NEVER)));
         self.preanalyze(module.items.iter().copied())?;
         for &item in &module.items {
             self.analyze_item(item)?;
+        }
+        if let Some(module) = pushed_module {
+            self.scopes.pop_module(module);
         }
         Ok(())
     }
@@ -936,15 +941,12 @@ impl<'tcx> Collector<'_, 'tcx> {
     }
     // like `read_ident` but will not produce `TyVid`s for generic functions
     fn read_path_raw(&mut self, path: &Path) -> (Ty<'tcx>, Var) {
-        if let Some(ident) = path.single() {
-            if let Some(&out) = self.scopes.get(ident.symbol) {
-                (out.0, out.1)
-            } else {
-                self.errors.push(self.ident_not_found(ident));
-                (Ty::POISON, Var::Let)
-            }
+        if let Some(&out) = self.scopes.get_path(&path.segments) {
+            (out.0, out.1)
         } else {
-            todo!()
+            // TODO: better error for invalid paths
+            self.errors.push(self.ident_not_found(path.segments[0]));
+            (Ty::POISON, Var::Let)
         }
     }
 

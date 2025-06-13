@@ -248,7 +248,7 @@ impl<'tcx> Collector<'_, '_> {
     }
 
     fn available_names(&self) -> impl Iterator<Item = Symbol> {
-        self.scopes.available_names()
+        self.scopes.current().available_names()
     }
 }
 

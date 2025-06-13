@@ -219,4 +219,7 @@ impl Path {
             _ => None,
         }
     }
+    pub fn last(&self) -> Symbol {
+        *self.segments.last().unwrap()
+    }
 }

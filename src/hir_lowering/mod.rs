@@ -14,7 +14,7 @@ use crate::{
         self, BinaryOp, Block, BlockId, Body, BodyId, Constant, Local, Mir, Operand, Place,
         Projection, RValue, Statement, Terminator, UnaryOp,
     },
-    scope::ModuleScopes,
+    scope::Global,
     source::span::Span,
     symbol::Symbol,
     ty::{self, GenericId, Struct, StructId, Ty, TyCtx, TyKind},
@@ -34,7 +34,7 @@ pub fn lower<'tcx>(hir: &Hir<'tcx>, tcx: &'tcx TyCtx<'tcx>) -> Mir {
         tcx,
         hir,
         mir,
-        scopes: ModuleScopes::new(BodyInfo::new(root_body)),
+        scopes: Global::new(BodyInfo::new(root_body)),
         struct_display_bodies: IndexVec::default(),
         array_display_bodies: HashMap::default(),
         strings: HashMap::default(),
@@ -55,7 +55,7 @@ struct Lowering<'hir, 'tcx> {
     tcx: &'tcx TyCtx<'tcx>,
     hir: &'hir Hir<'tcx>,
     mir: Mir,
-    scopes: ModuleScopes<BodyInfo, Var>,
+    scopes: Global<BodyInfo, Var>,
     struct_display_bodies: IndexVec<StructId, Option<BodyId>>,
     array_display_bodies: HashMap<Ty<'tcx>, BodyId>,
     strings: HashMap<Symbol, ArcStr>,
@@ -231,10 +231,13 @@ impl<'tcx> Lowering<'_, 'tcx> {
         let is_unit = self.ty(id).is_unit();
 
         match self.hir.exprs[id].kind {
-            ExprKind::Module(_, ref body) => {
+            ExprKind::Module(name, ref body) => {
+                let body_id = self.mir.bodies.push(Body::new(None, 0).with_auto(true));
+                let module_token = self.scopes.push_module(name, BodyInfo::new(body_id));
                 for &expr in body {
                     self.lower(expr);
                 }
+                self.scopes.pop_module(module_token);
                 RValue::UNIT
             }
             ExprKind::ForLoop { ident, iter, ref body } => {
@@ -720,13 +723,9 @@ impl<'tcx> Lowering<'_, 'tcx> {
     }
 
     fn load_path(&mut self, path: &Path, ty: Ty<'tcx>) -> RValue {
-        if let Some(ident) = path.single() {
-            match *self.scopes.get(ident).unwrap() {
-                Var::Local(local) => RValue::local(local),
-                Var::Func(location) => self.mono_fn(ident, location, ty),
-            }
-        } else {
-            todo!()
+        match *self.scopes.get_path(&path.segments).unwrap() {
+            Var::Local(local) => RValue::local(local),
+            Var::Func(location) => self.mono_fn(path.last(), location, ty),
         }
     }
 

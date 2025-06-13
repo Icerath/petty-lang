@@ -332,10 +332,10 @@ impl Path {
     pub fn new_single(ident: Ident) -> Self {
         Self { segments: [ident].into() }
     }
-    pub fn single(&self) -> Option<Ident> {
-        match &*self.segments {
-            &[ident] => Some(ident),
-            _ => None,
-        }
+}
+
+impl AsRef<Symbol> for Ident {
+    fn as_ref(&self) -> &Symbol {
+        &self.symbol
     }
 }
