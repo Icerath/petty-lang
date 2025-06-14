@@ -905,8 +905,8 @@ impl<'tcx> Collector<'_, 'tcx> {
         for (param, &ty) in std::iter::zip(params, param_tys) {
             self.insert_var(param.ident, ty, Var::Let);
         }
-        self.analyze_body_with(block_id)?;
-        let body_ret = self.scopes.pop_body(body_token).ret;
+        let body_ret = self.analyze_body_with(block_id)?;
+        self.scopes.pop_body(body_token);
         self.sub_block(body_ret, *ret, block_id);
         Ok(())
     }
