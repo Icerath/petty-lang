@@ -49,17 +49,15 @@ impl Dump for ItemId {
                 ("trait ", ident, methods).write(w);
             }
             ItemKind::Module(ident, module) => {
-                ("mod ", ident, "{ ", Line, Sep(&module.items, Line), "}").write(w);
+                ("mod ", ident, LBrace, Sep(&module.items, Line), RBrace).write(w);
             }
             ItemKind::Impl(impl_) => {
                 (
-                    "impl ",
+                    "impl",
                     Generics(&impl_.generics),
+                    " ",
                     impl_.ty,
-                    "{",
-                    Line,
-                    Sep(&impl_.methods, Line),
-                    "}",
+                    Braced(Sep(&impl_.methods, Line)),
                 )
                     .write(w);
             }
@@ -121,16 +119,9 @@ impl Writer<'_> {
             ExprKind::If { ref arms, els } => {
                 self.inside_expr = inside_expr;
                 for (i, arm) in arms.iter().enumerate() {
-                    (
-                        (i != 0).then_some("else "),
-                        "if ",
-                        arm.condition,
-                        arm.body,
-                        (i + 1 != arms.len()).then_some(Line),
-                    )
-                        .write(self);
+                    ((i != 0).then_some(" else "), "if ", arm.condition, arm.body).write(self);
                 }
-                els.map(|els| ("else ", els)).write(self);
+                els.map(|els| (" else ", els)).write(self);
             }
         }
     }
@@ -147,18 +138,15 @@ impl Writer<'_> {
         }
         self.indent += 1;
         ("{", (!block.stmts.is_empty() || block.expr.is_some()).then_some(Line)).write(self);
-        for stmt in &block.stmts {
+        for (i, stmt) in block.stmts.iter().enumerate() {
             self.inside_expr = false;
-            (stmt, ";", Line).write(self);
+            (stmt, ";", (i + 1 != block.stmts.len() || block.expr.is_some()).then_some(Line))
+                .write(self);
         }
         if let Some(expr) = &block.expr {
             expr.write(self);
-            self.indent -= 1;
-            Line.write(self);
-        } else {
-            self.indent -= 1;
         }
-        self.f.push('}');
+        RBrace.write(self);
     }
 }
 trait Dump {
@@ -273,7 +261,8 @@ impl Dump for FStr<'_> {
         for &seg in self.0 {
             let expr = &w.ast.exprs[seg];
             if let ExprKind::Lit(Lit::Str(str)) = &expr.kind {
-                w.f.push_str(str);
+                let str = str.replace('\n', "\\n");
+                w.f.push_str(&str);
             } else {
                 w.f.push_str("${");
                 seg.write(w);
@@ -326,15 +315,14 @@ impl Dump for ThinVec<ExprId> {
             w.f.push_str("{}");
             return;
         }
-        w.indent += 1;
-        ("{", Line).write(w);
+        LBrace.write(w);
         for (index, decl) in self.iter().enumerate() {
             decl.write(w);
             if index + 1 == self.len() {
-                w.indent -= 1;
+                (Line).write(w);
             }
-            (Line).write(w);
         }
+        RBrace.write(w);
         w.f.push('}');
     }
 }
@@ -415,10 +403,35 @@ impl Dump for Path {
 }
 
 struct Line;
+struct LBrace;
+struct RBrace;
+
 impl Dump for Line {
     fn write(&self, w: &mut Writer) {
         w.f.push('\n');
         w.f.extend(std::iter::repeat_n(' ', w.indent * 4));
+    }
+}
+
+impl Dump for LBrace {
+    fn write(&self, w: &mut Writer) {
+        w.indent += 1;
+        (" {", Line).write(w);
+    }
+}
+
+impl Dump for RBrace {
+    fn write(&self, w: &mut Writer) {
+        w.indent -= 1;
+        (Line, "}").write(w);
+    }
+}
+
+struct Braced<T>(T);
+
+impl<T: Dump> Dump for Braced<T> {
+    fn write(&self, w: &mut Writer) {
+        (LBrace, &self.0, RBrace).write(w);
     }
 }
 
