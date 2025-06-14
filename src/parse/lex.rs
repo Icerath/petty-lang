@@ -11,7 +11,7 @@ pub struct Lexer<'src> {
     src: &'src str,
     chars: Chars<'src>,
     token_start: usize,
-    source_list: Vec<SourceId>,
+    source: SourceId,
 }
 
 impl<'src> Lexer<'src> {
@@ -21,13 +21,13 @@ impl<'src> Lexer<'src> {
             src.root = Some(source);
             Ok::<_, io::Error>(source)
         })?;
-        Ok(Self { src, token_start: 0, chars: src.chars(), source_list: vec![source] })
+        Ok(Self { src, token_start: 0, chars: src.chars(), source })
     }
     pub fn new(path: &Path) -> io::Result<Self> {
         let source = Source::with_global(|src| src.init(path))?;
         // TODO: better source handling
         let src = source.contents().leak();
-        Ok(Self { src, token_start: 0, chars: src.chars(), source_list: vec![source] })
+        Ok(Self { src, token_start: 0, chars: src.chars(), source })
     }
     #[cfg_attr(debug_assertions, track_caller)]
     pub fn bump(&mut self, bytes: usize) {
@@ -65,7 +65,7 @@ impl<'src> Lexer<'src> {
 
 impl Lexer<'_> {
     pub fn source(&self) -> SourceId {
-        *self.source_list.last().unwrap()
+        self.source
     }
     pub fn next(&mut self) -> Token {
         let char = loop {
