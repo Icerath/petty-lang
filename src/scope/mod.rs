@@ -76,11 +76,22 @@ impl<B, T> Global<B, T> {
     }
 
     pub fn get_path(&self, path: impl IntoIterator<Item = impl AsRef<Symbol>>) -> Option<&T> {
+        let (module, last) = self.get_module(path);
+        module.get(last)
+    }
+
+    pub fn get_module(
+        &self,
+        path: impl IntoIterator<Item = impl AsRef<Symbol>>,
+    ) -> (&ModuleScopes<B, T>, Symbol) {
         let path = path.into_iter().map(|s| *s.as_ref());
         let fully_qualified = path;
-        self.get_path_inner(fully_qualified)
+        self.get_module_inner(fully_qualified)
     }
-    fn get_path_inner(&self, mut iter: impl Iterator<Item = Symbol>) -> Option<&T> {
+    fn get_module_inner(
+        &self,
+        mut iter: impl Iterator<Item = Symbol>,
+    ) -> (&ModuleScopes<B, T>, Symbol) {
         let Some(mut last) = iter.next() else { unreachable!() };
         let mut current_module = self.current();
 
@@ -93,10 +104,7 @@ impl<B, T> Global<B, T> {
             current_module = &self.module_storage[next_module];
             last = next;
         }
-        match current_module.get(last) {
-            Some(t) => Some(t),
-            None => self.module_storage[self.root].get(last),
-        }
+        (current_module, last)
     }
 }
 

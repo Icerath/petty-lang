@@ -359,16 +359,16 @@ impl Dump for Ident {
 
 impl Dump for TypeId {
     fn write(&self, w: &mut Writer) {
-        match w.ast.types[*self].kind {
+        match &w.ast.types[*self].kind {
             TyKind::Ref(inner) => ("&", inner).write(w),
-            TyKind::Func { ref params, ret } => {
+            TyKind::Func { params, ret } => {
                 ("fn(", Sep(params, ", "), ")", ret.map(|ret| (" -> ", ret))).write(w);
             }
             TyKind::Never => w.f.push('!'),
             TyKind::Unit => w.f.push_str("()"),
             TyKind::Array(of) => ("[", of, "]").write(w),
-            TyKind::Name { ident, ref generics } if generics.is_empty() => ident.write(w),
-            TyKind::Name { ident, ref generics } => (ident, "<", Sep(generics, ", "), ">").write(w),
+            TyKind::Name { path, generics } if generics.is_empty() => path.write(w),
+            TyKind::Name { path, generics } => (path, "<", Sep(generics, ", "), ">").write(w),
         }
     }
 }

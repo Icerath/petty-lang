@@ -2,8 +2,6 @@ mod expr;
 mod lex;
 mod token;
 
-use std::path::Path;
-
 use lex::Lexer;
 use miette::{Error, IntoDiagnostic, Result};
 use thin_vec::{ThinVec, thin_vec};
@@ -13,14 +11,14 @@ use crate::{
     ast::{
         self, ArraySeg, Ast, BinOpKind, BinaryOp, Block, BlockId, Expr, ExprId, ExprKind, Field,
         FnDecl, Ident, IfStmt, Impl, Inclusive, Item, ItemId, ItemKind, Lit, MatchArm, Module,
-        Param, Pat, PatArg, PatKind, Stmt, Trait, Ty, TyKind, TypeId,
+        Param, Pat, PatArg, PatKind, Path, Stmt, Trait, Ty, TyKind, TypeId,
     },
     errors,
     span::Span,
     symbol::Symbol,
 };
 
-pub fn parse(src: &str, path: &Path) -> Result<Ast> {
+pub fn parse(src: &str, path: &std::path::Path) -> Result<Ast> {
     let lexer = Lexer::new_root(src, path).into_diagnostic()?;
     let mut ast = Ast::default();
     let mut stream = Stream { lexer, ast: &mut ast };
@@ -192,14 +190,14 @@ impl Parse for Ty {
             }
             TokenKind::Not => TyKind::Never,
             TokenKind::Ident => {
+                let path = parse_path(stream, any.span)?;
                 let generics = if stream.peek().kind == TokenKind::Less {
                     _ = stream.next();
                     stream.parse_separated(TokenKind::Comma, TokenKind::Greater)?
                 } else {
                     ThinVec::new()
                 };
-                let symbol = Symbol::from(&stream.lexer.src()[any.span]);
-                TyKind::Name { ident: Ident { symbol, span: any.span }, generics }
+                TyKind::Name { path, generics }
             }
             TokenKind::LBracket => {
                 let of = stream.parse()?;
@@ -624,14 +622,9 @@ fn parse_atom_with(stream: &mut Stream, tok: Token) -> Result<ExprId> {
             lit!(Lit::Char(str.chars().next().unwrap()))
         }
         TokenKind::Ident => {
-            let ident = Ident { symbol: stream.lexer.src()[tok.span].into(), span: tok.span };
-            let mut path = ast::Path::new_single(ident);
-            while stream.peek().kind == TokenKind::PathSep {
-                _ = stream.next();
-                let next = stream.parse()?;
-                path.segments.push(next);
-            }
-            Ok(ExprKind::Path(path).with_span(tok.span))
+            let path = parse_path(stream, tok.span)?;
+            let span = tok.span.with_end(stream.lexer.current_pos());
+            Ok(ExprKind::Path(path).with_span(span))
         }
         found => {
             return Err(errors::error(
@@ -641,6 +634,17 @@ fn parse_atom_with(stream: &mut Stream, tok: Token) -> Result<ExprId> {
         }
     };
     Ok(stream.ast.exprs.push(expr?))
+}
+
+fn parse_path(stream: &mut Stream, ident_span: Span) -> Result<Path> {
+    let ident = Ident { symbol: stream.lexer.src()[ident_span].into(), span: ident_span };
+    let mut path = ast::Path::new_single(ident);
+    while stream.peek().kind == TokenKind::PathSep {
+        _ = stream.next();
+        let next = stream.parse()?;
+        path.segments.push(next);
+    }
+    Ok(path)
 }
 
 fn parse_string(stream: &mut Stream, outer_span: Span) -> Result<Expr> {

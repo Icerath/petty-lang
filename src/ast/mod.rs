@@ -60,7 +60,7 @@ pub struct Ty {
 pub enum TyKind {
     Never,
     Unit,
-    Name { ident: Ident, generics: ThinVec<TypeId> },
+    Name { path: Path, generics: ThinVec<TypeId> },
     Array(TypeId),
     Func { params: ThinVec<TypeId>, ret: Option<TypeId> },
     Ref(TypeId),
@@ -331,6 +331,12 @@ impl Deref for BinaryOp {
 impl Path {
     pub fn new_single(ident: Ident) -> Self {
         Self { segments: [ident].into() }
+    }
+    pub fn single(&self) -> Option<Ident> {
+        (self.segments.len() == 1).then(|| self.segments[0])
+    }
+    pub fn last(&self) -> Ident {
+        self.segments[self.segments.len() - 1]
     }
 }
 

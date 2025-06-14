@@ -4,7 +4,7 @@ use miette::Error;
 
 use super::Collector;
 use crate::{
-    ast::{BinaryOp, BlockId, ExprId, ExprKind, Ident},
+    ast::{BinaryOp, BlockId, ExprId, ExprKind, Ident, Path},
     errors::{error, error_with},
     span::Span,
     symbol::Symbol,
@@ -189,7 +189,8 @@ impl<'tcx> Collector<'_, '_> {
             help.as_deref(),
         )
     }
-    pub fn unknown_type_err(&self, ident: Ident) -> Error {
+    pub fn unknown_type_err(&self, path: &Path) -> Error {
+        let ident = path.last();
         error(
             &format!("cannot find type `{}` in this scope", ident.symbol),
             [(ident.span, format!("type `{}` not found", ident.symbol))],
