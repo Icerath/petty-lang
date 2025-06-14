@@ -15,8 +15,18 @@ pub struct Lexer<'src> {
 }
 
 impl<'src> Lexer<'src> {
-    pub fn new(src: &'src str, path: &Path) -> io::Result<Self> {
+    pub fn new_root(src: &'src str, path: &Path) -> io::Result<Self> {
+        let source = Source::with_global(|src| {
+            let source = src.init(path)?;
+            src.root = Some(source);
+            Ok::<_, io::Error>(source)
+        })?;
+        Ok(Self { src, token_start: 0, chars: src.chars(), source_list: vec![source] })
+    }
+    pub fn new(path: &Path) -> io::Result<Self> {
         let source = Source::with_global(|src| src.init(path))?;
+        // TODO: better source handling
+        let src = source.contents().leak();
         Ok(Self { src, token_start: 0, chars: src.chars(), source_list: vec![source] })
     }
     #[cfg_attr(debug_assertions, track_caller)]

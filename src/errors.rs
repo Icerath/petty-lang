@@ -2,7 +2,10 @@ use std::path::Path;
 
 use miette::{Error, LabeledSpan, NamedSource};
 
-use crate::{source::SourceId, span::Span};
+use crate::{
+    source::{Source, SourceId},
+    span::Span,
+};
 
 #[inline(never)]
 #[cold]
@@ -45,6 +48,9 @@ fn source(path: &Path, src: String) -> NamedSource<String> {
 }
 
 fn offset_span(span: Span) -> Span {
+    if Source::with_global(|src| src.root != Some(span.source())) {
+        return span;
+    }
     if span == Span::ZERO {
         return span;
     }

@@ -21,7 +21,7 @@ use crate::{
 };
 
 pub fn parse(src: &str, path: &Path) -> Result<Ast> {
-    let lexer = Lexer::new(src, path).into_diagnostic()?;
+    let lexer = Lexer::new_root(src, path).into_diagnostic()?;
     let mut ast = Ast::default();
     let mut stream = Stream { lexer, ast: &mut ast };
     ast.root.items = stream.parse_items(TokenKind::Eof)?;
@@ -736,9 +736,32 @@ impl Parse for Item {
         let kind = match tok.kind {
             TokenKind::Module => {
                 let ident = stream.parse()?;
-                stream.expect(TokenKind::LBrace)?;
-                let module = stream.parse_items(TokenKind::RBrace)?;
-                ItemKind::Module(ident, Module { items: module })
+                let next = stream.any(&[TokenKind::LBrace, TokenKind::Semicolon])?;
+                match next.kind {
+                    TokenKind::LBrace => {
+                        let module = stream.parse_items(TokenKind::RBrace)?;
+                        ItemKind::Module(ident, Module { items: module })
+                    }
+                    TokenKind::Semicolon => {
+                        let path = stream
+                            .lexer
+                            .source()
+                            .path()
+                            .with_file_name(ident.symbol.as_str())
+                            .with_extension("pty");
+                        let Ok(lexer) = Lexer::new(&path) else {
+                            return Err(errors::error(
+                                &format!("failed to read module {}", path.display()),
+                                [(ident.span, format!("failed to read module {}", path.display()))],
+                            ));
+                        };
+                        let lexer = std::mem::replace(&mut stream.lexer, lexer);
+                        let items = stream.parse_items(TokenKind::Eof)?;
+                        stream.lexer = lexer;
+                        ItemKind::Module(ident, Module { items })
+                    }
+                    _ => unreachable!(),
+                }
             }
             TokenKind::Fn => ItemKind::FnDecl(stream.parse()?),
             TokenKind::Struct => parse_struct(stream)?,
