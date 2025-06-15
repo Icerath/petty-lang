@@ -11,7 +11,7 @@ use crate::{
     ast::{
         self, ArraySeg, Ast, BinOpKind, BinaryOp, Block, BlockId, Expr, ExprId, ExprKind, Field,
         FnDecl, Ident, IfStmt, Impl, Inclusive, Item, ItemId, ItemKind, Lit, MatchArm, Module,
-        Param, Pat, PatArg, PatKind, Path, Stmt, Trait, Ty, TyKind, TypeId,
+        Param, Pat, PatArg, PatKind, Path, Stmt, Trait, Ty, TyKind, TypeId, Use, UseKind,
     },
     errors,
     span::Span,
@@ -522,6 +522,37 @@ impl Parse for Field {
     }
 }
 
+impl Parse for Use {
+    fn parse(stream: &mut Stream) -> Result<Self> {
+        let ident: Ident = stream.parse()?;
+        let ident_span = ident.span;
+        let ident = Ident { symbol: stream.lexer.src()[ident_span].into(), span: ident_span };
+        let mut path = ast::Path::new_single(ident);
+
+        let kind = loop {
+            match stream.peek().kind {
+                TokenKind::PathSep => _ = stream.next(),
+                _ => break None,
+            }
+            let next = stream.next();
+            match next.kind {
+                TokenKind::LBrace => {
+                    let many = stream.parse_separated(TokenKind::Comma, TokenKind::RBrace)?;
+                    break Some(UseKind::Block(many));
+                }
+                TokenKind::Ident => path
+                    .segments
+                    .push(Ident { symbol: stream.lexer.src()[next.span].into(), span: next.span }),
+                TokenKind::Star => {
+                    break Some(UseKind::Wildcard);
+                }
+                _ => todo!("{:?}", next.kind),
+            }
+        };
+        Ok(Use { path, kind })
+    }
+}
+
 impl TryFrom<Token> for BinaryOp {
     type Error = ();
     fn try_from(token: Token) -> Result<Self, Self::Error> {
@@ -738,6 +769,7 @@ impl Parse for Item {
     fn parse(stream: &mut Stream) -> Result<Self> {
         let tok = stream.next();
         let kind = match tok.kind {
+            TokenKind::Use => ItemKind::Use(stream.parse()?),
             TokenKind::Module => {
                 let ident = stream.parse()?;
                 let next = stream.any(&[TokenKind::LBrace, TokenKind::Semicolon])?;
@@ -798,7 +830,8 @@ impl Parse for Stmt {
             | TokenKind::Struct
             | TokenKind::Const
             | TokenKind::Impl
-            | TokenKind::Trait => stream.parse().map(Stmt::Item),
+            | TokenKind::Trait
+            | TokenKind::Use => stream.parse().map(Stmt::Item),
             _ => stream.parse().map(Stmt::Expr),
         }
     }

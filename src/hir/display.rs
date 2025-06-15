@@ -6,7 +6,7 @@ use std::{
 use super::{ArraySeg, ExprKind, FnDecl, MatchArm, OpAssign, Param, Pat, PatField};
 use crate::{
     ast::Inclusive,
-    hir::{BinaryOp, ExprId, Hir, Lit, Path, UnaryOp},
+    hir::{BinaryOp, ExprId, Hir, Lit, Path, UnaryOp, Use, UseKind},
     symbol::Symbol,
     ty::{Ty, TyCtx},
 };
@@ -71,6 +71,7 @@ impl Writer<'_, '_> {
     fn display_expr(&mut self, expr: ExprId) {
         let inside_expr = mem::replace(&mut self.inside_expr, true);
         match self.hir.exprs[expr].kind {
+            ExprKind::Use(ref use_) => use_.write(self),
             ExprKind::Module(name, ref body) => ("mod ", name, body.as_slice()).write(self),
             ExprKind::Func(func) => _ = self.f.write_fmt(format_args!("{func:?}")),
             ExprKind::Match { scrutinee, ref arms, .. } => {
@@ -332,6 +333,22 @@ impl Dump for &'_ str {
 impl Dump for Symbol {
     fn write(&self, w: &mut Writer) {
         w.f.push_str(self.as_str());
+    }
+}
+
+impl Dump for Use {
+    fn write(&self, w: &mut Writer) {
+        (&self.path, &self.kind).write(w);
+    }
+}
+
+impl Dump for UseKind {
+    fn write(&self, w: &mut Writer) {
+        "::".write(w);
+        match self {
+            Self::Wildcard => "*".write(w),
+            Self::Block(imports) => ("{", Sep(imports, ", "), "}").write(w),
+        }
     }
 }
 

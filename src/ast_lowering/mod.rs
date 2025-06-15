@@ -49,6 +49,10 @@ impl<'tcx> Lowering<'_, 'tcx> {
     fn lower_item(&mut self, item: ast::ItemId) -> hir::ExprId {
         let item = &self.ast.items[item];
         match &item.kind {
+            ast::ItemKind::Use(use_) => {
+                let expr = hir::ExprKind::Use(self.lower_use(use_)).with(Ty::UNIT);
+                self.hir.exprs.push(expr)
+            }
             ast::ItemKind::FnDecl(decl) => {
                 let body = self.next_body.incr();
                 let expr = self.lower_fn_decl(None, decl, body);
@@ -97,6 +101,18 @@ impl<'tcx> Lowering<'_, 'tcx> {
             }
             _ => todo!(),
         }
+    }
+
+    fn lower_use(&mut self, use_: &ast::Use) -> hir::Use {
+        let path = self.lower_path(&use_.path);
+        let kind = match &use_.kind {
+            Some(ast::UseKind::Wildcard) => Some(hir::UseKind::Wildcard),
+            Some(ast::UseKind::Block(block)) => {
+                Some(hir::UseKind::Block(block.iter().map(|use_| self.lower_use(use_)).collect()))
+            }
+            None => None,
+        };
+        hir::Use { path, kind }
     }
 
     fn lower(&mut self, ast_expr: ast::ExprId) -> hir::ExprId {

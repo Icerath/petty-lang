@@ -227,6 +227,7 @@ fn ident_kind(str: &str) -> TokenKind {
         "while" => TokenKind::While,
         "match" => TokenKind::Match,
         "mod" => TokenKind::Module,
+        "use" => TokenKind::Use,
         _ => TokenKind::Ident,
     }
 }

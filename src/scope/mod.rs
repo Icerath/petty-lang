@@ -1,6 +1,6 @@
 use std::{
     marker::PhantomData,
-    ops::{Deref, DerefMut},
+    ops::{Deref, DerefMut, Index, IndexMut},
 };
 
 use index_vec::IndexVec;
@@ -8,9 +8,9 @@ use index_vec::IndexVec;
 use crate::{HashMap, define_id, symbol::Symbol};
 
 pub struct Global<B, T> {
-    module_storage: IndexVec<ModuleId, ModuleScopes<B, T>>,
+    pub module_storage: IndexVec<ModuleId, ModuleScopes<B, T>>,
     root: ModuleId,
-    current: ModuleId,
+    pub current: ModuleId,
 }
 
 pub struct ModuleScopes<B, T> {
@@ -23,7 +23,7 @@ pub struct ModuleScopes<B, T> {
 
 pub struct Body<B, T> {
     pub data: B,
-    scopes: Vec<Scope<T>>,
+    pub scopes: Vec<Scope<T>>,
 }
 
 impl<B, T> Body<B, T> {
@@ -77,31 +77,38 @@ impl<B, T> Global<B, T> {
 
     pub fn get_path(&self, path: impl IntoIterator<Item = impl AsRef<Symbol>>) -> Option<&T> {
         let (module, last) = self.get_module(path);
-        module.get(last)
+        self[module].get(last)
     }
 
     pub fn get_module(
         &self,
         path: impl IntoIterator<Item = impl AsRef<Symbol>>,
-    ) -> (&ModuleScopes<B, T>, Symbol) {
+    ) -> (ModuleId, Symbol) {
+        self.get_module_with(path, self.current)
+    }
+    pub fn get_module_with(
+        &self,
+        path: impl IntoIterator<Item = impl AsRef<Symbol>>,
+        current: ModuleId,
+    ) -> (ModuleId, Symbol) {
         let path = path.into_iter().map(|s| *s.as_ref());
         let fully_qualified = path;
-        self.get_module_inner(fully_qualified)
+        self.get_module_inner(fully_qualified, current)
     }
     fn get_module_inner(
         &self,
         mut iter: impl Iterator<Item = Symbol>,
-    ) -> (&ModuleScopes<B, T>, Symbol) {
+        mut current_module: ModuleId,
+    ) -> (ModuleId, Symbol) {
         let Some(mut last) = iter.next() else { unreachable!() };
-        let mut current_module = self.current();
 
         for next in iter {
             // FIXME: remove hack
-            let next_module = match current_module.modules.get(&last) {
+            let next_module = match self[current_module].modules.get(&last) {
                 Some(id) => *id,
                 None => self.root,
             };
-            current_module = &self.module_storage[next_module];
+            current_module = next_module;
             last = next;
         }
         (current_module, last)
@@ -138,7 +145,6 @@ impl<B, T> ModuleScopes<B, T> {
     pub fn pop_scope(&mut self, _: ScopeToken) -> Scope<T> {
         self.raw_body_mut().scopes.pop().unwrap()
     }
-    #[expect(unused)]
     pub fn scope(&self) -> &Scope<T> {
         self.raw_body().scopes.last().unwrap()
     }
@@ -193,5 +199,18 @@ impl<B, T> Deref for Global<B, T> {
 impl<B, T> DerefMut for Global<B, T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.current_mut()
+    }
+}
+
+impl<B, T> Index<ModuleId> for Global<B, T> {
+    type Output = ModuleScopes<B, T>;
+    fn index(&self, index: ModuleId) -> &Self::Output {
+        &self.module_storage[index]
+    }
+}
+
+impl<B, T> IndexMut<ModuleId> for Global<B, T> {
+    fn index_mut(&mut self, index: ModuleId) -> &mut Self::Output {
+        &mut self.module_storage[index]
     }
 }

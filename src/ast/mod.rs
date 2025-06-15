@@ -32,11 +32,12 @@ pub struct IfStmt {
     pub body: BlockId,
 }
 
+#[derive(Debug)]
 pub struct Path {
     pub segments: ThinVec<Ident>,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub struct Ident {
     pub symbol: Symbol,
     pub span: Span,
@@ -71,6 +72,18 @@ pub struct Module {
     pub items: Vec<ItemId>,
 }
 
+#[derive(Debug)]
+pub struct Use {
+    pub path: Path,
+    pub kind: Option<UseKind>,
+}
+
+#[derive(Debug)]
+pub enum UseKind {
+    Block(ThinVec<Use>),
+    Wildcard,
+}
+
 pub struct Item {
     #[expect(unused)]
     pub span: Span,
@@ -85,6 +98,7 @@ pub enum Stmt {
 
 pub enum ItemKind {
     Module(Ident, Module),
+    Use(Use),
     FnDecl(FnDecl),
     Struct(Ident, ThinVec<Ident>, ThinVec<Field>),
     Const(Ident, Option<TypeId>, ExprId),

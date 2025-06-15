@@ -46,6 +46,7 @@ pub enum ExprKind<'tcx> {
     FnCall { function: ExprId, args: ThinVec<ExprId> },
     Index { expr: ExprId, index: ExprId, span: Span },
     FnDecl(Box<FnDecl<'tcx>>),
+    Use(Use),
     Module(Symbol, ThinVec<ExprId>),
     Let { ident: Symbol, expr: ExprId },
     If { arms: ThinVec<IfStmt>, els: Option<ExprId> },
@@ -172,6 +173,18 @@ pub struct Param<'tcx> {
 pub struct IfStmt {
     pub condition: ExprId,
     pub body: ThinVec<ExprId>,
+}
+
+#[derive(Debug)]
+pub struct Use {
+    pub path: Path,
+    pub kind: Option<UseKind>,
+}
+
+#[derive(Debug)]
+pub enum UseKind {
+    Block(ThinVec<Use>),
+    Wildcard,
 }
 
 impl<'tcx> ExprKind<'tcx> {

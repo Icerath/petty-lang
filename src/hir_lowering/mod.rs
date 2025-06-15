@@ -9,12 +9,12 @@ use index_vec::IndexVec;
 
 use crate::{
     HashMap, errors,
-    hir::{self, ArraySeg, ExprId, ExprKind, FnDecl, Hir, Lit, OpAssign, Path},
+    hir::{self, ArraySeg, ExprId, ExprKind, FnDecl, Hir, Lit, OpAssign, Path, UseKind},
     mir::{
         self, BinaryOp, Block, BlockId, Body, BodyId, Constant, Local, Mir, Operand, Place,
         Projection, RValue, Statement, Terminator, UnaryOp,
     },
-    scope::Global,
+    scope::{Global, ModuleId},
     source::span::Span,
     symbol::Symbol,
     ty::{self, GenericId, Struct, StructId, Ty, TyCtx, TyKind},
@@ -212,7 +212,8 @@ impl<'tcx> Lowering<'_, 'tcx> {
 
     fn lower_rvalue(&mut self, id: ExprId) -> RValue {
         let pushed_scope = match self.hir.exprs[id].kind {
-            ExprKind::Module(..)
+            ExprKind::Use(..)
+            | ExprKind::Module(..)
             | ExprKind::Match { new_scope: false, .. }
             | ExprKind::Block(..)
             | ExprKind::Let { .. }
@@ -231,6 +232,10 @@ impl<'tcx> Lowering<'_, 'tcx> {
         let is_unit = self.ty(id).is_unit();
 
         match self.hir.exprs[id].kind {
+            ExprKind::Use(ref use_) => {
+                self.lower_use(use_, self.scopes.current);
+                RValue::UNIT
+            }
             ExprKind::Module(name, ref body) => {
                 let body_id = self.mir.bodies.push(Body::new(None, 0).with_auto(true));
                 let module_token = self.scopes.push_module(name, BodyInfo::new(body_id));
@@ -962,6 +967,42 @@ impl<'tcx> Lowering<'_, 'tcx> {
                 self.finish_with(Terminator::Return(last));
             }
             self.scopes.pop_body(body_token);
+        }
+    }
+
+    fn lower_use(&mut self, use_: &hir::Use, current: ModuleId) {
+        let (module, last) = self.scopes.get_module_with(&use_.path.segments, current);
+        let Some(kind) = &use_.kind else {
+            if let Some(&module) = self.scopes[module].modules.get(&last) {
+                self.scopes.modules.insert(last, module);
+            }
+            if let Some(&var) = self.scopes[module].scope().variables.get(&last) {
+                self.scopes.scope_mut().insert(last, var);
+            }
+
+            return;
+        };
+
+        let module = *self.scopes[module].modules.get(&last).unwrap();
+        match kind {
+            UseKind::Block(imports) => {
+                for use_ in imports {
+                    self.lower_use(use_, module);
+                }
+            }
+            UseKind::Wildcard => {
+                let [module, current] = self
+                    .scopes
+                    .module_storage
+                    .as_mut_vec()
+                    .get_disjoint_mut([module.index(), current.index()])
+                    .unwrap();
+                assert!(module.bodies.len() == 1);
+                let body = &module.bodies[0];
+                let scope = body.scopes.last().unwrap().variables.iter().map(|(s, t)| (*s, *t));
+                let current_body = current.bodies.last_mut().unwrap();
+                current_body.scopes.last_mut().unwrap().variables.extend(scope);
+            }
         }
     }
 }

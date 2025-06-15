@@ -10,7 +10,10 @@ use super::{
     TypeId,
 };
 use crate::{
-    ast::{Ast, BinaryOp, BlockId, ExprId, Inclusive, ItemId, ItemKind, Lit, Path, Stmt, UnaryOp},
+    ast::{
+        Ast, BinaryOp, BlockId, ExprId, Inclusive, ItemId, ItemKind, Lit, Path, Stmt, UnaryOp, Use,
+        UseKind,
+    },
     symbol::Symbol,
 };
 
@@ -51,6 +54,7 @@ impl Dump for ItemId {
             ItemKind::Module(ident, module) => {
                 ("mod ", ident, LBrace, Sep(&module.items, Line), RBrace).write(w);
             }
+            ItemKind::Use(use_) => ("use ", &use_.path, &use_.kind, ";").write(w),
             ItemKind::Impl(impl_) => {
                 (
                     "impl",
@@ -270,6 +274,22 @@ impl Dump for FStr<'_> {
             }
         }
         w.f.push('"');
+    }
+}
+
+impl Dump for Use {
+    fn write(&self, w: &mut Writer) {
+        (&self.path, &self.kind).write(w);
+    }
+}
+
+impl Dump for UseKind {
+    fn write(&self, w: &mut Writer) {
+        "::".write(w);
+        match self {
+            Self::Wildcard => "*".write(w),
+            Self::Block(imports) => Braced(Sep(imports, ", ")).write(w),
+        }
     }
 }
 

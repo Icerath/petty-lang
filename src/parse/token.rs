@@ -67,6 +67,7 @@ pub enum TokenKind {
     Trait,
     Impl,
     Module,
+    Use,
     // Literals
     Char,
     Int,
@@ -86,6 +87,7 @@ pub struct Token {
 impl TokenKind {
     pub const fn repr(self) -> &'static str {
         match self {
+            Self::Use => "use",
             Self::Module => "mod",
             Self::And => "and",
             Self::Or => "or",

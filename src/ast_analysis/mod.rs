@@ -11,7 +11,7 @@ use crate::{
         self, Ast, BinOpKind, BinaryOp, Block, BlockId, ExprId, ExprKind, FnDecl, Ident, Impl,
         ItemId, ItemKind, Lit, Module, Pat, PatArg, PatKind, Path, Stmt, Trait, TypeId, UnaryOp,
     },
-    scope::{Global, Scope},
+    scope::{Global, ModuleId, Scope},
     span::Span,
     symbol::Symbol,
     ty::{Function, GenericRange, Interned, Ty, TyCtx, TyKind},
@@ -342,7 +342,7 @@ impl<'tcx> Collector<'_, 'tcx> {
     fn read_named_ty(&mut self, path: &Path) -> Ty<'tcx> {
         let (module, ident) = self.scopes.get_module(&path.segments);
         if let Some(&ty) =
-            module.bodies.iter().rev().find_map(|body| body.data.ty_names.get(&ident))
+            self.scopes[module].bodies.iter().rev().find_map(|body| body.data.ty_names.get(&ident))
         {
             return ty;
         }
@@ -393,6 +393,7 @@ impl<'tcx> Collector<'_, 'tcx> {
     fn analyze_item(&mut self, id: ItemId) -> Result<()> {
         match &self.ast.items[id].kind {
             ItemKind::Module(name, module) => self.analyze_module(Some(*name), module)?,
+            ItemKind::Use(use_) => self.analyze_use(use_, self.scopes.current)?,
             ItemKind::Trait(trait_) => self.analyze_trait(trait_, id)?,
             ItemKind::Impl(impl_) => self.analyze_impl(impl_, id)?,
             ItemKind::FnDecl(decl) => self.analyze_fndecl(decl, id)?,
@@ -414,6 +415,54 @@ impl<'tcx> Collector<'_, 'tcx> {
                 self.insert_var(ident, ty, Var::Const);
             }
         }
+        Ok(())
+    }
+
+    fn analyze_use(&mut self, use_: &ast::Use, current: ModuleId) -> Result<()> {
+        let (module, last) = self.scopes.get_module_with(&use_.path.segments, current);
+        let Some(kind) = &use_.kind else {
+            if let Some(&module) = self.scopes[module].modules.get(&last) {
+                self.scopes.modules.insert(last, module);
+            }
+            if let Some(&var) = self.scopes[module].scope().variables.get(&last) {
+                self.scopes.scope_mut().insert(last, var);
+            }
+            if let Some(&ty) = self.scopes[module]
+                .bodies
+                .iter()
+                .rev()
+                .find_map(|body| body.data.ty_names.get(&last))
+            {
+                self.scopes.body_mut().ty_names.insert(last, ty);
+            }
+
+            return Ok(());
+        };
+
+        let module = *self.scopes[module].modules.get(&last).unwrap();
+        match kind {
+            ast::UseKind::Block(imports) => {
+                for use_ in imports {
+                    self.analyze_use(use_, module)?;
+                }
+            }
+            ast::UseKind::Wildcard => {
+                let [module, current] = self
+                    .scopes
+                    .module_storage
+                    .as_mut_vec()
+                    .get_disjoint_mut([module.index(), self.scopes.current.index()])
+                    .unwrap();
+                assert!(module.bodies.len() == 1);
+                let body = &module.bodies[0];
+                let ty_names = body.data.ty_names.iter().map(|(s, t)| (*s, *t));
+                let scope = body.scopes.last().unwrap().variables.iter().map(|(s, t)| (*s, *t));
+                let current_body = current.bodies.last_mut().unwrap();
+                current_body.data.ty_names.extend(ty_names);
+                current_body.scopes.last_mut().unwrap().variables.extend(scope);
+            }
+        }
+
         Ok(())
     }
 
