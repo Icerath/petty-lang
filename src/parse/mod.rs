@@ -48,9 +48,6 @@ impl Stream<'_> {
     fn next(&mut self) -> Token {
         self.lexer.next()
     }
-    fn clone(&mut self) -> Stream {
-        Stream { lexer: self.lexer.clone(), ast: self.ast }
-    }
     fn peek(&mut self) -> Token {
         self.lexer.clone().next()
     }
@@ -118,7 +115,7 @@ impl Parse for Symbol {
 
 impl Parse for Block {
     fn parse(stream: &mut Stream) -> Result<Self> {
-        let start = stream.lexer.current_pos() - 1; // ugly hack to include lbrace in span.
+        let start = stream.lexer.span();
         let mut stmts: ThinVec<Stmt> = thin_vec![];
         let mut is_expr = false;
 
@@ -149,7 +146,7 @@ impl Parse for Block {
             None
         };
 
-        let span = Span::new(start..stream.lexer.current_pos(), stream.lexer.source());
+        let span = start.with_end(stream.lexer.current_pos());
         Ok(Self { stmts, expr, span })
     }
 }
@@ -268,15 +265,7 @@ fn parse_trait_methods(stream: &mut Stream) -> Result<ThinVec<FnDecl>> {
 impl Parse for FnDecl {
     fn parse(stream: &mut Stream) -> Result<Self> {
         let ident = stream.parse()?;
-        let peek = stream.clone().any(&[Token::Less, Token::LParen])?;
-        let generics = if peek == Token::Less {
-            _ = stream.next();
-            stream.parse_separated(Token::Comma, Token::Greater)?
-        } else {
-            ThinVec::new()
-        };
-
-        stream.expect(Token::LParen)?;
+        let generics = parse_generics(stream)?;
         let params = stream.parse_separated(Token::Comma, Token::RParen)?;
 
         let mut chosen = stream.any(&[Token::LBrace, Token::ThinArrow, Token::Semicolon])?;
@@ -290,18 +279,21 @@ impl Parse for FnDecl {
     }
 }
 
-fn parse_struct(stream: &mut Stream) -> Result<ItemKind> {
-    let ident = stream.parse()?;
-    let peek = stream.clone().any(&[Token::Less, Token::LParen])?;
-
-    let generics = if peek == Token::Less {
-        _ = stream.next();
-        stream.parse_separated(Token::Comma, Token::Greater)?
+/// Parses generics followed by a '('
+fn parse_generics(stream: &mut Stream<'_>) -> Result<ThinVec<Ident>, Error> {
+    let generics = if stream.any(&[Token::Less, Token::LParen])? == Token::Less {
+        let generics = stream.parse_separated(Token::Comma, Token::Greater)?;
+        stream.expect(Token::LParen)?;
+        generics
     } else {
         ThinVec::new()
     };
+    Ok(generics)
+}
 
-    stream.expect(Token::LParen)?;
+fn parse_struct(stream: &mut Stream) -> Result<ItemKind> {
+    let ident = stream.parse()?;
+    let generics = parse_generics(stream)?;
     let fields = stream.parse_separated(Token::Comma, Token::RParen)?;
 
     Ok(ItemKind::Struct(ident, generics, fields))
@@ -493,8 +485,7 @@ impl Parse for Param {
         let ident = stream.parse()?;
 
         let mut ty = None;
-        let next = stream.clone().any(&[Token::Comma, Token::Colon, Token::RParen])?;
-        if next == Token::Colon {
+        if stream.peek() == Token::Colon {
             _ = stream.next();
             ty = Some(stream.parse()?);
         }
