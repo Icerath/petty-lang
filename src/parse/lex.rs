@@ -1,6 +1,6 @@
 use std::{io, path::Path, str::Chars};
 
-use super::token::{Token, TokenKind};
+use super::token::Token;
 use crate::{
     source::{Source, SourceId},
     span::Span,
@@ -70,10 +70,7 @@ impl Lexer<'_> {
     pub fn next(&mut self) -> Token {
         let char = loop {
             let Some(next) = self.chars.next() else {
-                return Token {
-                    span: Span::new(self.current_pos()..self.current_pos(), self.source()),
-                    kind: TokenKind::Eof,
-                };
+                return Token::Eof;
             };
             match next {
                 char if char.is_whitespace() => self.whitespace(),
@@ -83,60 +80,59 @@ impl Lexer<'_> {
             }
         };
         self.token_start = self.current_pos() - char.len_utf8();
-        let kind = match char {
+        match char {
             // Longer Symbols
             '.' if self.try_next('.') => {
                 if self.try_next('=') {
-                    TokenKind::DotDotEq
+                    Token::DotDotEq
                 } else {
-                    TokenKind::DotDot
+                    Token::DotDot
                 }
             }
-            '=' if self.try_next('>') => TokenKind::FatArrow,
-            '-' if self.try_next('>') => TokenKind::ThinArrow,
-            '+' if self.try_next('=') => TokenKind::PlusEq,
-            '-' if self.try_next('=') => TokenKind::MinusEq,
-            '*' if self.try_next('=') => TokenKind::MulEq,
-            '/' if self.try_next('=') => TokenKind::DivEq,
-            '%' if self.try_next('=') => TokenKind::ModEq,
-            '=' if self.try_next('=') => TokenKind::EqEq,
-            '!' if self.try_next('=') => TokenKind::Neq,
-            '>' if self.try_next('=') => TokenKind::GreaterEq,
-            '<' if self.try_next('=') => TokenKind::LessEq,
-            ':' if self.try_next(':') => TokenKind::PathSep,
+            '=' if self.try_next('>') => Token::FatArrow,
+            '-' if self.try_next('>') => Token::ThinArrow,
+            '+' if self.try_next('=') => Token::PlusEq,
+            '-' if self.try_next('=') => Token::MinusEq,
+            '*' if self.try_next('=') => Token::MulEq,
+            '/' if self.try_next('=') => Token::DivEq,
+            '%' if self.try_next('=') => Token::ModEq,
+            '=' if self.try_next('=') => Token::EqEq,
+            '!' if self.try_next('=') => Token::Neq,
+            '>' if self.try_next('=') => Token::GreaterEq,
+            '<' if self.try_next('=') => Token::LessEq,
+            ':' if self.try_next(':') => Token::PathSep,
             // Symbols
-            '&' => TokenKind::Ampersand,
+            '&' => Token::Ampersand,
 
-            '.' => TokenKind::Dot,
-            ',' => TokenKind::Comma,
-            ';' => TokenKind::Semicolon,
-            ':' => TokenKind::Colon,
+            '.' => Token::Dot,
+            ',' => Token::Comma,
+            ';' => Token::Semicolon,
+            ':' => Token::Colon,
 
-            '{' => TokenKind::LBrace,
-            '}' => TokenKind::RBrace,
-            '[' => TokenKind::LBracket,
-            ']' => TokenKind::RBracket,
-            '(' => TokenKind::LParen,
-            ')' => TokenKind::RParen,
+            '{' => Token::LBrace,
+            '}' => Token::RBrace,
+            '[' => Token::LBracket,
+            ']' => Token::RBracket,
+            '(' => Token::LParen,
+            ')' => Token::RParen,
 
-            '+' => TokenKind::Plus,
-            '-' => TokenKind::Minus,
-            '*' => TokenKind::Star,
-            '/' => TokenKind::Slash,
-            '%' => TokenKind::Percent,
+            '+' => Token::Plus,
+            '-' => Token::Minus,
+            '*' => Token::Star,
+            '/' => Token::Slash,
+            '%' => Token::Percent,
 
-            '=' => TokenKind::Eq,
-            '!' => TokenKind::Not,
-            '>' => TokenKind::Greater,
-            '<' => TokenKind::Less,
+            '=' => Token::Eq,
+            '!' => Token::Not,
+            '>' => Token::Greater,
+            '<' => Token::Less,
 
             '\'' => self.char(),
             '"' => self.str(),
             '0'..='9' => self.int(),
             'a'..='z' | 'A'..='Z' | '_' => self.ident(self.token_start),
-            _ => TokenKind::Unknown,
-        };
-        Token { span: Span::new(self.token_start..self.current_pos(), self.source()), kind }
+            _ => Token::Unknown,
+        }
     }
 }
 
@@ -155,14 +151,14 @@ impl Lexer<'_> {
         let Some(end) = self.chars.as_str().find("*/") else { return };
         self.chars = self.chars.as_str()[end + 2..].chars();
     }
-    fn char(&mut self) -> TokenKind {
+    fn char(&mut self) -> Token {
         if self.chars.next().is_some_and(|c| c == '\\') {
             self.chars.next();
         }
         self.chars.next();
-        TokenKind::Char
+        Token::Char
     }
-    fn str(&mut self) -> TokenKind {
+    fn str(&mut self) -> Token {
         while let Some(next) = self.chars.next() {
             if next == '"' {
                 break;
@@ -184,15 +180,15 @@ impl Lexer<'_> {
                 self.chars.next();
             }
         }
-        TokenKind::Str
+        Token::Str
     }
-    fn int(&mut self) -> TokenKind {
+    fn int(&mut self) -> Token {
         while (self.chars.clone().next()).is_some_and(|c| c.is_numeric() || c == '_') {
             self.chars.next();
         }
-        TokenKind::Int
+        Token::Int
     }
-    fn ident(&mut self, span_start: usize) -> TokenKind {
+    fn ident(&mut self, span_start: usize) -> Token {
         let is_ident_char = |c| matches!(c, 'a'..='z' | 'A'..='Z' | '_' | '0'..='9');
         while (self.chars.clone().next()).is_some_and(is_ident_char) {
             self.chars.next();
@@ -202,32 +198,32 @@ impl Lexer<'_> {
     }
 }
 
-fn ident_kind(str: &str) -> TokenKind {
+fn ident_kind(str: &str) -> Token {
     match str {
-        "and" => TokenKind::And,
-        "or" => TokenKind::Or,
-        "trait" => TokenKind::Trait,
-        "impl" => TokenKind::Impl,
-        "unreachable" => TokenKind::Unreachable,
-        "in" => TokenKind::In,
-        "is" => TokenKind::Is,
-        "for" => TokenKind::For,
-        "assert" => TokenKind::Assert,
-        "break" => TokenKind::Break,
-        "continue" => TokenKind::Continue,
-        "else" => TokenKind::Else,
-        "false" => TokenKind::False,
-        "fn" => TokenKind::Fn,
-        "if" => TokenKind::If,
-        "let" => TokenKind::Let,
-        "const" => TokenKind::Const,
-        "return" => TokenKind::Return,
-        "struct" => TokenKind::Struct,
-        "true" => TokenKind::True,
-        "while" => TokenKind::While,
-        "match" => TokenKind::Match,
-        "mod" => TokenKind::Module,
-        "use" => TokenKind::Use,
-        _ => TokenKind::Ident,
+        "and" => Token::And,
+        "or" => Token::Or,
+        "trait" => Token::Trait,
+        "impl" => Token::Impl,
+        "unreachable" => Token::Unreachable,
+        "in" => Token::In,
+        "is" => Token::Is,
+        "for" => Token::For,
+        "assert" => Token::Assert,
+        "break" => Token::Break,
+        "continue" => Token::Continue,
+        "else" => Token::Else,
+        "false" => Token::False,
+        "fn" => Token::Fn,
+        "if" => Token::If,
+        "let" => Token::Let,
+        "const" => Token::Const,
+        "return" => Token::Return,
+        "struct" => Token::Struct,
+        "true" => Token::True,
+        "while" => Token::While,
+        "match" => Token::Match,
+        "mod" => Token::Module,
+        "use" => Token::Use,
+        _ => Token::Ident,
     }
 }

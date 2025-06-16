@@ -1,7 +1,5 @@
-use crate::span::Span;
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum TokenKind {
+pub enum Token {
     // Symbols
     DotDot,
     DotDotEq,
@@ -78,13 +76,7 @@ pub enum TokenKind {
     Eof,
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct Token {
-    pub span: Span,
-    pub kind: TokenKind,
-}
-
-impl TokenKind {
+impl Token {
     pub const fn repr(self) -> &'static str {
         match self {
             Self::Use => "use",
@@ -155,7 +147,7 @@ impl TokenKind {
     }
 }
 
-impl TokenKind {
+impl Token {
     // returns true if this token can never start an expression
     pub fn is_terminator(self) -> bool {
         matches!(

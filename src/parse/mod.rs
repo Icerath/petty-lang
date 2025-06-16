@@ -5,13 +5,13 @@ mod token;
 use lex::Lexer;
 use miette::{Error, IntoDiagnostic, Result};
 use thin_vec::{ThinVec, thin_vec};
-use token::{Token, TokenKind};
+use token::Token;
 
 use crate::{
     ast::{
-        self, ArraySeg, Ast, BinOpKind, BinaryOp, Block, BlockId, Expr, ExprId, ExprKind, Field,
-        FnDecl, Ident, IfStmt, Impl, Inclusive, Item, ItemId, ItemKind, Lit, MatchArm, Module,
-        Param, Pat, PatArg, PatKind, Path, Stmt, Trait, Ty, TyKind, TypeId, Use, UseKind,
+        self, ArraySeg, Ast, BinOpKind, Block, BlockId, Expr, ExprId, ExprKind, Field, FnDecl,
+        Ident, IfStmt, Impl, Inclusive, Item, ItemId, ItemKind, Lit, MatchArm, Module, Param, Pat,
+        PatArg, PatKind, Path, Stmt, Trait, Ty, TyKind, TypeId, Use, UseKind,
     },
     errors,
     span::Span,
@@ -22,7 +22,7 @@ pub fn parse(src: &str, path: &std::path::Path) -> Result<Ast> {
     let lexer = Lexer::new_root(src, path).into_diagnostic()?;
     let mut ast = Ast::default();
     let mut stream = Stream { lexer, ast: &mut ast };
-    ast.root.items = stream.parse_items(TokenKind::Eof)?;
+    ast.root.items = stream.parse_items(Token::Eof)?;
     Ok(ast)
 }
 
@@ -32,12 +32,12 @@ struct Stream<'src> {
 }
 
 impl Stream<'_> {
-    fn parse_items(&mut self, terminator: TokenKind) -> Result<Vec<ItemId>> {
+    fn parse_items(&mut self, terminator: Token) -> Result<Vec<ItemId>> {
         let mut items = vec![];
         loop {
-            match self.peek().kind {
+            match self.peek() {
                 kind if kind == terminator => break,
-                TokenKind::Semicolon => _ = self.lexer.next(),
+                Token::Semicolon => _ = self.lexer.next(),
                 _ => items.push(self.parse()?),
             }
         }
@@ -52,32 +52,32 @@ impl Stream<'_> {
         Stream { lexer: self.lexer.clone(), ast: self.ast }
     }
     fn peek(&mut self) -> Token {
-        self.clone().next()
+        self.lexer.clone().next()
     }
-    fn expect(&mut self, kind: TokenKind) -> Result<Token> {
+    fn expect(&mut self, expected: Token) -> Result<()> {
         let token = self.next();
-        if token.kind != kind {
+        if token != expected {
             return Err(errors::error(
-                &format!("expected `{}`, found: `{}`", kind.repr(), token.kind.repr()),
-                [(self.lexer.span(), format!("expected `{}`", kind.repr()))],
+                &format!("expected `{}`, found: `{}`", expected.repr(), token.repr()),
+                [(self.lexer.span(), format!("expected `{}`", expected.repr()))],
             ));
         }
-        Ok(token)
+        Ok(())
     }
-    fn any(&mut self, toks: &[TokenKind]) -> Result<Token> {
+    fn any(&mut self, toks: &[Token]) -> Result<Token> {
         let token = self.next();
-        if toks.contains(&token.kind) {
+        if toks.contains(&token) {
             return Ok(token);
         }
         Err(self.any_failed(token, toks))
     }
     #[inline(never)]
     #[cold]
-    fn any_failed(&self, found: Token, toks: &[TokenKind]) -> Error {
+    fn any_failed(&self, found: Token, toks: &[Token]) -> Error {
         let toks =
             toks.iter().map(|kind| format!("`{}`", kind.repr())).collect::<Vec<_>>().join(" or ");
         errors::error(
-            &format!("expected one of {toks}, found `{}`", found.kind.repr()),
+            &format!("expected one of {toks}, found `{}`", found.repr()),
             [(self.lexer.span(), format!("expected one of '{toks}'"))],
         )
     }
@@ -85,18 +85,18 @@ impl Stream<'_> {
     fn parse<T: Parse>(&mut self) -> Result<T> {
         T::parse(self)
     }
-    fn parse_separated<T: Parse>(&mut self, sep: TokenKind, term: TokenKind) -> Result<ThinVec<T>> {
+    fn parse_separated<T: Parse>(&mut self, sep: Token, term: Token) -> Result<ThinVec<T>> {
         let mut args = thin_vec![];
         loop {
-            if self.peek().kind == term {
+            if self.peek() == term {
                 _ = self.next();
                 break;
             }
             let expr = self.parse()?;
             args.push(expr);
             match self.next() {
-                tok if tok.kind == term => break,
-                tok if tok.kind == sep => {}
+                tok if tok == term => break,
+                tok if tok == sep => {}
                 found => return Err(self.any_failed(found, &[sep, term])),
             }
         }
@@ -110,8 +110,9 @@ trait Parse: Sized {
 
 impl Parse for Symbol {
     fn parse(stream: &mut Stream) -> Result<Self> {
-        let token = stream.expect(TokenKind::Ident)?;
-        Ok(Symbol::from(&stream.lexer.src()[token.span]))
+        stream.expect(Token::Ident)?;
+        let span = stream.lexer.span();
+        Ok(Symbol::from(&stream.lexer.src()[span]))
     }
 }
 
@@ -122,12 +123,12 @@ impl Parse for Block {
         let mut is_expr = false;
 
         loop {
-            match stream.peek().kind {
-                TokenKind::RBrace => {
+            match stream.peek() {
+                Token::RBrace => {
                     _ = stream.next();
                     break;
                 }
-                TokenKind::Semicolon => {
+                Token::Semicolon => {
                     is_expr = false;
                     _ = stream.next();
                 }
@@ -168,19 +169,19 @@ impl Parse for TypeId {
 impl Parse for Ty {
     fn parse(stream: &mut Stream) -> Result<Self> {
         let any = stream.any(&[
-            TokenKind::Fn,
-            TokenKind::Ident,
-            TokenKind::LBracket,
-            TokenKind::LParen,
-            TokenKind::Not,
-            TokenKind::Ampersand,
+            Token::Fn,
+            Token::Ident,
+            Token::LBracket,
+            Token::LParen,
+            Token::Not,
+            Token::Ampersand,
         ])?;
-        let start = any.span;
-        let kind = match any.kind {
-            TokenKind::Fn => {
-                stream.expect(TokenKind::LParen)?;
-                let params = stream.parse_separated(TokenKind::Comma, TokenKind::RParen)?;
-                let ret = if stream.peek().kind == TokenKind::ThinArrow {
+        let start = stream.lexer.span();
+        let kind = match any {
+            Token::Fn => {
+                stream.expect(Token::LParen)?;
+                let params = stream.parse_separated(Token::Comma, Token::RParen)?;
+                let ret = if stream.peek() == Token::ThinArrow {
                     _ = stream.next();
                     Some(stream.parse()?)
                 } else {
@@ -188,24 +189,24 @@ impl Parse for Ty {
                 };
                 TyKind::Func { params, ret }
             }
-            TokenKind::Not => TyKind::Never,
-            TokenKind::Ident => {
-                let path = parse_path(stream, any.span)?;
-                let generics = if stream.peek().kind == TokenKind::Less {
+            Token::Not => TyKind::Never,
+            Token::Ident => {
+                let path = parse_path(stream, start)?;
+                let generics = if stream.peek() == Token::Less {
                     _ = stream.next();
-                    stream.parse_separated(TokenKind::Comma, TokenKind::Greater)?
+                    stream.parse_separated(Token::Comma, Token::Greater)?
                 } else {
                     ThinVec::new()
                 };
                 TyKind::Name { path, generics }
             }
-            TokenKind::LBracket => {
+            Token::LBracket => {
                 let of = stream.parse()?;
-                stream.expect(TokenKind::RBracket)?;
+                stream.expect(Token::RBracket)?;
                 TyKind::Array(of)
             }
-            TokenKind::LParen => {
-                if stream.peek().kind == TokenKind::RParen {
+            Token::LParen => {
+                if stream.peek() == Token::RParen {
                     _ = stream.next();
                     TyKind::Unit
                 } else {
@@ -214,7 +215,7 @@ impl Parse for Ty {
                     return ty;
                 }
             }
-            TokenKind::Ampersand => TyKind::Ref(stream.parse()?),
+            Token::Ampersand => TyKind::Ref(stream.parse()?),
             _ => unreachable!(),
         };
         Ok(Self { kind, span: start.with_end(stream.lexer.current_pos()) })
@@ -224,14 +225,14 @@ impl Parse for Ty {
 impl Parse for Impl {
     fn parse(stream: &mut Stream) -> Result<Self> {
         let start = stream.lexer.span(); // FIXME: include impl tok
-        let generics = if stream.peek().kind == TokenKind::Less {
+        let generics = if stream.peek() == Token::Less {
             _ = stream.next();
-            stream.parse_separated(TokenKind::Comma, TokenKind::Greater)?
+            stream.parse_separated(Token::Comma, Token::Greater)?
         } else {
             ThinVec::new()
         };
         let ty = stream.parse()?;
-        stream.expect(TokenKind::LBrace)?;
+        stream.expect(Token::LBrace)?;
         let methods = parse_trait_methods(stream)?;
         let span = start.with_end(stream.lexer.current_pos());
         let methods = methods
@@ -245,7 +246,7 @@ impl Parse for Impl {
 impl Parse for Trait {
     fn parse(stream: &mut Stream) -> Result<Self> {
         let ident = stream.parse()?;
-        stream.expect(TokenKind::LBrace)?;
+        stream.expect(Token::LBrace)?;
         let methods = parse_trait_methods(stream)?;
         Ok(Self { ident, methods })
     }
@@ -255,10 +256,10 @@ fn parse_trait_methods(stream: &mut Stream) -> Result<ThinVec<FnDecl>> {
     let mut methods = ThinVec::new();
 
     loop {
-        let next = stream.any(&[TokenKind::Fn, TokenKind::RBrace])?;
-        match next.kind {
-            TokenKind::Fn => methods.push(stream.parse()?),
-            TokenKind::RBrace => break Ok(methods),
+        let next = stream.any(&[Token::Fn, Token::RBrace])?;
+        match next {
+            Token::Fn => methods.push(stream.parse()?),
+            Token::RBrace => break Ok(methods),
             _ => unreachable!(),
         }
     }
@@ -267,42 +268,41 @@ fn parse_trait_methods(stream: &mut Stream) -> Result<ThinVec<FnDecl>> {
 impl Parse for FnDecl {
     fn parse(stream: &mut Stream) -> Result<Self> {
         let ident = stream.parse()?;
-        let peek = stream.clone().any(&[TokenKind::Less, TokenKind::LParen])?;
-        let generics = if peek.kind == TokenKind::Less {
+        let peek = stream.clone().any(&[Token::Less, Token::LParen])?;
+        let generics = if peek == Token::Less {
             _ = stream.next();
-            stream.parse_separated(TokenKind::Comma, TokenKind::Greater)?
+            stream.parse_separated(Token::Comma, Token::Greater)?
         } else {
             ThinVec::new()
         };
 
-        stream.expect(TokenKind::LParen)?;
-        let params = stream.parse_separated(TokenKind::Comma, TokenKind::RParen)?;
+        stream.expect(Token::LParen)?;
+        let params = stream.parse_separated(Token::Comma, Token::RParen)?;
 
-        let mut chosen =
-            stream.any(&[TokenKind::LBrace, TokenKind::ThinArrow, TokenKind::Semicolon])?;
+        let mut chosen = stream.any(&[Token::LBrace, Token::ThinArrow, Token::Semicolon])?;
         let mut ret = None;
-        if chosen.kind == TokenKind::ThinArrow {
+        if chosen == Token::ThinArrow {
             ret = Some(stream.parse()?);
-            chosen = stream.any(&[TokenKind::Semicolon, TokenKind::LBrace])?;
+            chosen = stream.any(&[Token::Semicolon, Token::LBrace])?;
         }
-        let block = if chosen.kind == TokenKind::Semicolon { None } else { Some(stream.parse()?) };
+        let block = if chosen == Token::Semicolon { None } else { Some(stream.parse()?) };
         Ok(Self { ident, generics, params, ret, block })
     }
 }
 
 fn parse_struct(stream: &mut Stream) -> Result<ItemKind> {
     let ident = stream.parse()?;
-    let peek = stream.clone().any(&[TokenKind::Less, TokenKind::LParen])?;
+    let peek = stream.clone().any(&[Token::Less, Token::LParen])?;
 
-    let generics = if peek.kind == TokenKind::Less {
+    let generics = if peek == Token::Less {
         _ = stream.next();
-        stream.parse_separated(TokenKind::Comma, TokenKind::Greater)?
+        stream.parse_separated(Token::Comma, Token::Greater)?
     } else {
         ThinVec::new()
     };
 
-    stream.expect(TokenKind::LParen)?;
-    let fields = stream.parse_separated(TokenKind::Comma, TokenKind::RParen)?;
+    stream.expect(Token::LParen)?;
+    let fields = stream.parse_separated(Token::Comma, Token::RParen)?;
 
     Ok(ItemKind::Struct(ident, generics, fields))
 }
@@ -312,19 +312,18 @@ fn parse_const(stream: &mut Stream) -> Result<ItemKind> {
     Ok(ItemKind::Const(ident, ty, expr))
 }
 
-fn parse_let(stream: &mut Stream, let_tok: Token) -> Result<Expr> {
+fn parse_let(stream: &mut Stream) -> Result<Expr> {
+    let let_span = stream.lexer.span();
     let (ident, ty, expr) = parse_var(stream)?;
-    Ok((ExprKind::Let { ident, ty, expr })
-        .with_span(let_tok.span.with_end(stream.lexer.current_pos())))
+    Ok((ExprKind::Let { ident, ty, expr }).with_span(let_span.with_end(stream.lexer.current_pos())))
 }
 
 fn parse_var(stream: &mut Stream) -> Result<(Ident, Option<TypeId>, ExprId)> {
     let ident = stream.parse()?;
-    let tok = stream.any(&[TokenKind::Colon, TokenKind::Eq])?;
     let mut ty = None;
-    if tok.kind == TokenKind::Colon {
+    if stream.any(&[Token::Colon, Token::Eq])? == Token::Colon {
         ty = Some(stream.parse()?);
-        stream.expect(TokenKind::Eq)?;
+        stream.expect(Token::Eq)?;
     }
     let expr = stream.parse()?;
     Ok((ident, ty, expr))
@@ -332,55 +331,55 @@ fn parse_var(stream: &mut Stream) -> Result<(Ident, Option<TypeId>, ExprId)> {
 
 fn parse_while(stream: &mut Stream) -> Result<Expr> {
     let condition = stream.parse()?;
-    stream.expect(TokenKind::LBrace)?;
+    stream.expect(Token::LBrace)?;
     let block = stream.parse()?;
     Ok((ExprKind::While { condition, block }).todo_span())
 }
 
 fn parse_for(stream: &mut Stream) -> Result<Expr> {
     let ident = stream.parse()?;
-    stream.expect(TokenKind::In)?;
+    stream.expect(Token::In)?;
     let iter = stream.parse()?;
-    stream.expect(TokenKind::LBrace)?;
+    stream.expect(Token::LBrace)?;
     let body = stream.parse()?;
     Ok((ExprKind::For { ident, iter, body }).todo_span())
 }
 
-fn parse_match(stream: &mut Stream, tok: Token) -> Result<Expr> {
+fn parse_match(stream: &mut Stream) -> Result<Expr> {
+    let kw_span = stream.lexer.span();
     let scrutinee = stream.parse()?;
-    stream.expect(TokenKind::LBrace)?;
-    let arms = stream.parse_separated(TokenKind::Comma, TokenKind::RBrace)?;
+    stream.expect(Token::LBrace)?;
+    let arms = stream.parse_separated(Token::Comma, Token::RBrace)?;
     let end = stream.lexer.current_pos();
-    let span = Span::new(tok.span.start()..end, tok.span.source());
-    Ok((ExprKind::Match { scrutinee, arms }).with_span(span))
+    Ok((ExprKind::Match { scrutinee, arms }).with_span(kw_span.with_end(end)))
 }
 
-fn parse_ifchain(stream: &mut Stream, if_tok: Token) -> Result<Expr> {
+fn parse_ifchain(stream: &mut Stream) -> Result<Expr> {
+    let start = stream.lexer.span();
     let mut arms = thin_vec![];
     let els = loop {
         let condition = stream.parse()?;
-        stream.expect(TokenKind::LBrace)?;
+        stream.expect(Token::LBrace)?;
         let body = stream.parse()?;
         arms.push(IfStmt { condition, body });
-        if stream.peek().kind != TokenKind::Else {
+        if stream.peek() != Token::Else {
             break None;
         }
         _ = stream.next();
-        if stream.peek().kind == TokenKind::If {
-            _ = stream.next();
-        } else {
-            stream.expect(TokenKind::LBrace)?;
-            break Some(stream.parse()?);
+        match stream.any(&[Token::If, Token::LBrace])? {
+            Token::If => {}
+            Token::LBrace => break Some(stream.parse()?),
+            _ => unreachable!(),
         }
     };
-    let span = if_tok.span.with_end(stream.lexer.current_pos());
+    let span = start.with_end(stream.lexer.current_pos());
     Ok((ExprKind::If { arms, els }).with_span(span))
 }
 
 impl Parse for ArraySeg {
     fn parse(stream: &mut Stream) -> Result<Self> {
         let expr = stream.parse()?;
-        let repeated = if stream.peek().kind == TokenKind::Semicolon {
+        let repeated = if stream.peek() == Token::Semicolon {
             _ = stream.next();
             Some(stream.parse()?)
         } else {
@@ -393,7 +392,7 @@ impl Parse for ArraySeg {
 impl Parse for PatArg {
     fn parse(stream: &mut Stream) -> Result<Self> {
         let ident = stream.parse()?;
-        stream.expect(TokenKind::Colon)?;
+        stream.expect(Token::Colon)?;
         let pat = stream.parse()?;
         Ok(Self { ident, pat })
     }
@@ -403,54 +402,48 @@ impl Parse for Pat {
     fn parse(stream: &mut Stream) -> Result<Self> {
         fn parse_single(stream: &mut Stream) -> Result<Pat> {
             let tok = stream.next();
-            let kind = match tok.kind {
-                TokenKind::Ident if stream.peek().kind == TokenKind::LParen => {
+            let tok_span = stream.lexer.span();
+            let kind = match tok {
+                Token::Ident if stream.peek() == Token::LParen => {
                     _ = stream.next();
-                    let symbol = Symbol::from(&stream.lexer.src()[tok.span]);
-                    let args = stream.parse_separated(TokenKind::Comma, TokenKind::RParen)?;
-                    PatKind::Struct(Ident { symbol, span: tok.span }, args)
+                    let symbol = Symbol::from(&stream.lexer.src()[tok_span]);
+                    let args = stream.parse_separated(Token::Comma, Token::RParen)?;
+                    PatKind::Struct(Ident { symbol, span: tok_span }, args)
                 }
-                TokenKind::Ident => PatKind::Ident(Symbol::from(&stream.lexer.src()[tok.span])),
-                TokenKind::True => PatKind::Bool(true),
-                TokenKind::False => PatKind::Bool(false),
-                TokenKind::Str => {
-                    PatKind::Str(Symbol::from(&stream.lexer.src()[tok.span.shrink(1)]))
-                }
-                TokenKind::Int => {
-                    PatKind::Int(stream.lexer.src()[tok.span].parse::<i64>().unwrap())
-                }
-                TokenKind::LBrace => {
+                Token::Ident => PatKind::Ident(Symbol::from(&stream.lexer.src()[tok_span])),
+                Token::True => PatKind::Bool(true),
+                Token::False => PatKind::Bool(false),
+                Token::Str => PatKind::Str(Symbol::from(&stream.lexer.src()[tok_span.shrink(1)])),
+                Token::Int => PatKind::Int(stream.lexer.src()[tok_span].parse::<i64>().unwrap()),
+                Token::LBrace => {
                     let block: BlockId = stream.parse()?;
                     PatKind::Expr(block)
                 }
-                TokenKind::LBracket => {
-                    PatKind::Array(stream.parse_separated(TokenKind::Comma, TokenKind::RBracket)?)
+                Token::LBracket => {
+                    PatKind::Array(stream.parse_separated(Token::Comma, Token::RBracket)?)
                 }
-                TokenKind::If => PatKind::If(stream.parse()?),
-                TokenKind::LParen => {
+                Token::If => PatKind::If(stream.parse()?),
+                Token::LParen => {
                     let pat = stream.parse()?;
-                    stream.expect(TokenKind::RParen)?;
+                    stream.expect(Token::RParen)?;
                     return Ok(pat);
                 }
                 _ => {
                     return Err(errors::error(
-                        &format!("expected pattern, found '{}'", tok.kind.repr()),
+                        &format!("expected pattern, found '{}'", tok.repr()),
                         [(stream.lexer.span(), "expected pattern")],
                     ));
                 }
             };
-            let span = Span::new(
-                tok.span.start() as _..stream.lexer.current_pos() as _,
-                tok.span.source(),
-            );
+            let span = tok_span.with_end(stream.lexer.current_pos());
             Ok(Pat { kind, span })
         }
         fn parse_range(stream: &mut Stream) -> Result<Pat> {
             let lhs = parse_single(stream)?;
-            match stream.peek().kind {
-                kind @ (TokenKind::DotDot | TokenKind::DotDotEq) => {
+            match stream.peek() {
+                kind @ (Token::DotDot | Token::DotDotEq) => {
                     let inclusive = match kind {
-                        TokenKind::DotDotEq => Inclusive::Yes,
+                        Token::DotDotEq => Inclusive::Yes,
                         _ => Inclusive::No,
                     };
                     _ = stream.next();
@@ -465,19 +458,15 @@ impl Parse for Pat {
         let mut single = parse_range(stream)?;
         let single_span = single.span;
         loop {
-            let next = stream.peek().kind;
-            match next {
-                TokenKind::Or | TokenKind::And => {
+            match stream.peek() {
+                op @ (Token::Or | Token::And) => {
                     let mut patterns = thin_vec![single];
-                    while stream.peek().kind == next {
+                    while stream.peek() == op {
                         _ = stream.next();
                         patterns.push(parse_range(stream)?);
                     }
-                    let span = Span::new(
-                        single_span.start() as _..stream.lexer.current_pos() as _,
-                        single_span.source(),
-                    );
-                    let kind = if next == TokenKind::Or {
+                    let span = single_span.with_end(stream.lexer.current_pos());
+                    let kind = if op == Token::Or {
                         PatKind::Or(patterns)
                     } else {
                         PatKind::And(patterns)
@@ -493,7 +482,7 @@ impl Parse for Pat {
 impl Parse for MatchArm {
     fn parse(stream: &mut Stream) -> Result<Self> {
         let pat = stream.parse()?;
-        stream.expect(TokenKind::FatArrow)?;
+        stream.expect(Token::FatArrow)?;
         let body = stream.parse()?;
         Ok(Self { pat, body })
     }
@@ -504,8 +493,8 @@ impl Parse for Param {
         let ident = stream.parse()?;
 
         let mut ty = None;
-        let next = stream.clone().any(&[TokenKind::Comma, TokenKind::Colon, TokenKind::RParen])?;
-        if next.kind == TokenKind::Colon {
+        let next = stream.clone().any(&[Token::Comma, Token::Colon, Token::RParen])?;
+        if next == Token::Colon {
             _ = stream.next();
             ty = Some(stream.parse()?);
         }
@@ -516,7 +505,7 @@ impl Parse for Param {
 impl Parse for Field {
     fn parse(stream: &mut Stream) -> Result<Self> {
         let ident = stream.parse()?;
-        stream.expect(TokenKind::Colon)?;
+        stream.expect(Token::Colon)?;
         let ty = stream.parse()?;
         Ok(Self { ident, ty })
     }
@@ -530,147 +519,142 @@ impl Parse for Use {
         let mut path = ast::Path::new_single(ident);
 
         let kind = loop {
-            match stream.peek().kind {
-                TokenKind::PathSep => _ = stream.next(),
+            match stream.peek() {
+                Token::PathSep => _ = stream.next(),
                 _ => break None,
             }
             let next = stream.next();
-            match next.kind {
-                TokenKind::LBrace => {
-                    let many = stream.parse_separated(TokenKind::Comma, TokenKind::RBrace)?;
+            let next_span = stream.lexer.span();
+            match next {
+                Token::LBrace => {
+                    let many = stream.parse_separated(Token::Comma, Token::RBrace)?;
                     break Some(UseKind::Block(many));
                 }
-                TokenKind::Ident => path
+                Token::Ident => path
                     .segments
-                    .push(Ident { symbol: stream.lexer.src()[next.span].into(), span: next.span }),
-                TokenKind::Star => {
+                    .push(Ident { symbol: stream.lexer.src()[next_span].into(), span: next_span }),
+                Token::Star => {
                     break Some(UseKind::Wildcard);
                 }
-                _ => todo!("{:?}", next.kind),
+                _ => todo!("{:?}", next),
             }
         };
         Ok(Use { path, kind })
     }
 }
 
-impl TryFrom<Token> for BinaryOp {
+impl TryFrom<Token> for BinOpKind {
     type Error = ();
-    fn try_from(token: Token) -> Result<Self, Self::Error> {
-        let kind = BinOpKind::try_from(token.kind)?;
-        Ok(Self { kind, span: token.span })
-    }
-}
-
-impl TryFrom<TokenKind> for BinOpKind {
-    type Error = ();
-    fn try_from(kind: TokenKind) -> Result<Self, Self::Error> {
+    fn try_from(kind: Token) -> Result<Self, Self::Error> {
         Ok(match kind {
-            TokenKind::Eq => Self::Assign,
-            TokenKind::PlusEq => Self::AddAssign,
-            TokenKind::MinusEq => Self::SubAssign,
-            TokenKind::MulEq => Self::MulAssign,
-            TokenKind::DivEq => Self::DivAssign,
-            TokenKind::ModEq => Self::ModAssign,
+            Token::Eq => Self::Assign,
+            Token::PlusEq => Self::AddAssign,
+            Token::MinusEq => Self::SubAssign,
+            Token::MulEq => Self::MulAssign,
+            Token::DivEq => Self::DivAssign,
+            Token::ModEq => Self::ModAssign,
 
-            TokenKind::Plus => Self::Add,
-            TokenKind::Minus => Self::Sub,
-            TokenKind::Star => Self::Mul,
-            TokenKind::Slash => Self::Div,
-            TokenKind::Percent => Self::Mod,
+            Token::Plus => Self::Add,
+            Token::Minus => Self::Sub,
+            Token::Star => Self::Mul,
+            Token::Slash => Self::Div,
+            Token::Percent => Self::Mod,
 
-            TokenKind::EqEq => Self::Eq,
-            TokenKind::Neq => Self::Neq,
-            TokenKind::Greater => Self::Greater,
-            TokenKind::Less => Self::Less,
-            TokenKind::GreaterEq => Self::GreaterEq,
-            TokenKind::LessEq => Self::LessEq,
+            Token::EqEq => Self::Eq,
+            Token::Neq => Self::Neq,
+            Token::Greater => Self::Greater,
+            Token::Less => Self::Less,
+            Token::GreaterEq => Self::GreaterEq,
+            Token::LessEq => Self::LessEq,
 
-            TokenKind::DotDot => Self::Range,
-            TokenKind::DotDotEq => Self::RangeInclusive,
+            Token::DotDot => Self::Range,
+            Token::DotDotEq => Self::RangeInclusive,
 
-            TokenKind::And => Self::And,
-            TokenKind::Or => Self::Or,
+            Token::And => Self::And,
+            Token::Or => Self::Or,
             _ => return Err(()),
         })
     }
 }
 
 fn parse_atom_with(stream: &mut Stream, tok: Token) -> Result<ExprId> {
+    let start = stream.lexer.span();
     macro_rules! lit {
         ($lit: expr, $span: expr) => {
             Ok(ExprKind::Lit($lit).with_span($span))
         };
         ($lit: expr) => {
-            Ok(ExprKind::Lit($lit).with_span(tok.span))
+            Ok(ExprKind::Lit($lit).with_span(start))
         };
     }
 
-    let expr = match tok.kind {
-        TokenKind::Unreachable => Ok(ExprKind::Unreachable.with_span(tok.span)),
-        TokenKind::LParen => {
-            return Ok(if stream.peek().kind == TokenKind::RParen {
-                _ = stream.next();
-                stream.ast.exprs.push(ExprKind::Lit(Lit::Unit).todo_span())
-            } else {
-                let expr = stream.parse()?;
-                stream.expect(TokenKind::RParen)?;
-                expr
-            });
-        }
-        TokenKind::LBracket => Ok(ExprKind::Lit(Lit::Array {
-            segments: stream.parse_separated(TokenKind::Comma, TokenKind::RBracket)?,
-        })
-        .with_span(tok.span.with_end(stream.lexer.current_pos()))),
-        TokenKind::LBrace => Ok(ExprKind::Block(stream.parse()?)
-            .with_span(tok.span.with_end(stream.lexer.current_pos()))),
-        TokenKind::Break => Ok(ExprKind::Break.with_span(tok.span)),
-        TokenKind::Continue => Ok(ExprKind::Continue.with_span(tok.span)),
-        TokenKind::Assert => {
-            let expr: ExprId = stream.parse()?;
-            Ok(ExprKind::Assert(expr).with_span(stream.ast.exprs[expr].span))
-        }
-        TokenKind::Return => {
-            if stream.peek().kind.is_terminator() {
-                Ok(ExprKind::Return(None).with_span(tok.span))
-            } else {
-                let expr = stream.parse()?;
-                let span = tok.span.with_end((&stream.ast.exprs[expr] as &Expr).span.end());
-                Ok(ExprKind::Return(Some(expr)).with_span(span))
+    let expr =
+        match tok {
+            Token::Unreachable => Ok(ExprKind::Unreachable.with_span(start)),
+            Token::LParen => {
+                return Ok(if stream.peek() == Token::RParen {
+                    _ = stream.next();
+                    stream.ast.exprs.push(ExprKind::Lit(Lit::Unit).todo_span())
+                } else {
+                    let expr = stream.parse()?;
+                    stream.expect(Token::RParen)?;
+                    expr
+                });
             }
-        }
-        TokenKind::Let => parse_let(stream, tok),
-        TokenKind::While => parse_while(stream),
-        TokenKind::For => parse_for(stream),
-        TokenKind::Match => parse_match(stream, tok),
-        TokenKind::If => parse_ifchain(stream, tok),
-        TokenKind::True => lit!(Lit::Bool(true)),
-        TokenKind::False => lit!(Lit::Bool(false)),
-        TokenKind::Int => lit!(Lit::Int(stream.lexer.src()[tok.span].parse::<i64>().unwrap())),
-        TokenKind::Str => parse_string(stream, tok.span),
-        TokenKind::Char => {
-            // TODO: Escaping
-            let str = &stream.lexer.src()[tok.span.shrink(1)];
-            lit!(Lit::Char(str.chars().next().unwrap()))
-        }
-        TokenKind::Ident => {
-            let path = parse_path(stream, tok.span)?;
-            let span = tok.span.with_end(stream.lexer.current_pos());
-            Ok(ExprKind::Path(path).with_span(span))
-        }
-        found => {
-            return Err(errors::error(
-                &format!("expected expression, found '{}'", found.repr()),
-                [(stream.lexer.span(), "expected expression")],
-            ));
-        }
-    };
+            Token::LBracket => Ok(ExprKind::Lit(Lit::Array {
+                segments: stream.parse_separated(Token::Comma, Token::RBracket)?,
+            })
+            .with_span(start.with_end(stream.lexer.current_pos()))),
+            Token::LBrace => Ok(ExprKind::Block(stream.parse()?)
+                .with_span(start.with_end(stream.lexer.current_pos()))),
+            Token::Break => Ok(ExprKind::Break.with_span(start)),
+            Token::Continue => Ok(ExprKind::Continue.with_span(start)),
+            Token::Assert => {
+                let expr: ExprId = stream.parse()?;
+                Ok(ExprKind::Assert(expr).with_span(stream.ast.exprs[expr].span))
+            }
+            Token::Return => {
+                if stream.peek().is_terminator() {
+                    Ok(ExprKind::Return(None).with_span(start))
+                } else {
+                    let expr = stream.parse()?;
+                    let span = start.with_end((&stream.ast.exprs[expr] as &Expr).span.end());
+                    Ok(ExprKind::Return(Some(expr)).with_span(span))
+                }
+            }
+            Token::Let => parse_let(stream),
+            Token::While => parse_while(stream),
+            Token::For => parse_for(stream),
+            Token::Match => parse_match(stream),
+            Token::If => parse_ifchain(stream),
+            Token::True => lit!(Lit::Bool(true)),
+            Token::False => lit!(Lit::Bool(false)),
+            Token::Int => lit!(Lit::Int(stream.lexer.src()[start].parse::<i64>().unwrap())),
+            Token::Str => parse_string(stream, start),
+            Token::Char => {
+                // TODO: Escaping
+                let str = &stream.lexer.src()[start.shrink(1)];
+                lit!(Lit::Char(str.chars().next().unwrap()))
+            }
+            Token::Ident => {
+                let path = parse_path(stream, start)?;
+                let span = start.with_end(stream.lexer.current_pos());
+                Ok(ExprKind::Path(path).with_span(span))
+            }
+            found => {
+                return Err(errors::error(
+                    &format!("expected expression, found '{}'", found.repr()),
+                    [(stream.lexer.span(), "expected expression")],
+                ));
+            }
+        };
     Ok(stream.ast.exprs.push(expr?))
 }
 
 fn parse_path(stream: &mut Stream, ident_span: Span) -> Result<Path> {
     let ident = Ident { symbol: stream.lexer.src()[ident_span].into(), span: ident_span };
     let mut path = ast::Path::new_single(ident);
-    while stream.peek().kind == TokenKind::PathSep {
+    while stream.peek() == Token::PathSep {
         _ = stream.next();
         let next = stream.parse()?;
         path.segments.push(next);
@@ -754,7 +738,8 @@ fn invalid_escape(span: Span, char: char) -> Error {
 
 impl Parse for Ident {
     fn parse(stream: &mut Stream) -> Result<Self> {
-        let span = stream.expect(TokenKind::Ident)?.span;
+        stream.expect(Token::Ident)?;
+        let span = stream.lexer.span();
         Ok(Self { symbol: Symbol::from(&stream.lexer.src()[span]), span })
     }
 }
@@ -768,17 +753,18 @@ impl ItemKind {
 impl Parse for Item {
     fn parse(stream: &mut Stream) -> Result<Self> {
         let tok = stream.next();
-        let kind = match tok.kind {
-            TokenKind::Use => ItemKind::Use(stream.parse()?),
-            TokenKind::Module => {
+        let tok_span = stream.lexer.span();
+        let kind = match tok {
+            Token::Use => ItemKind::Use(stream.parse()?),
+            Token::Module => {
                 let ident = stream.parse()?;
-                let next = stream.any(&[TokenKind::LBrace, TokenKind::Semicolon])?;
-                match next.kind {
-                    TokenKind::LBrace => {
-                        let module = stream.parse_items(TokenKind::RBrace)?;
+                let next = stream.any(&[Token::LBrace, Token::Semicolon])?;
+                match next {
+                    Token::LBrace => {
+                        let module = stream.parse_items(Token::RBrace)?;
                         ItemKind::Module(ident, Module { items: module })
                     }
-                    TokenKind::Semicolon => {
+                    Token::Semicolon => {
                         let path = stream
                             .lexer
                             .source()
@@ -792,26 +778,26 @@ impl Parse for Item {
                             ));
                         };
                         let lexer = std::mem::replace(&mut stream.lexer, lexer);
-                        let items = stream.parse_items(TokenKind::Eof)?;
+                        let items = stream.parse_items(Token::Eof)?;
                         stream.lexer = lexer;
                         ItemKind::Module(ident, Module { items })
                     }
                     _ => unreachable!(),
                 }
             }
-            TokenKind::Fn => ItemKind::FnDecl(stream.parse()?),
-            TokenKind::Struct => parse_struct(stream)?,
-            TokenKind::Impl => ItemKind::Impl(stream.parse()?),
-            TokenKind::Trait => ItemKind::Trait(stream.parse()?),
-            TokenKind::Const => parse_const(stream)?,
+            Token::Fn => ItemKind::FnDecl(stream.parse()?),
+            Token::Struct => parse_struct(stream)?,
+            Token::Impl => ItemKind::Impl(stream.parse()?),
+            Token::Trait => ItemKind::Trait(stream.parse()?),
+            Token::Const => parse_const(stream)?,
             _ => {
                 return Err(errors::error(
-                    &format!("expected item, found `{}`", tok.kind.repr()),
-                    [(tok.span, "expected item")],
+                    &format!("expected item, found `{}`", tok.repr()),
+                    [(tok_span, "expected item")],
                 ));
             }
         };
-        Ok(kind.with_span(tok.span.with_end(stream.lexer.current_pos())))
+        Ok(kind.with_span(tok_span.with_end(stream.lexer.current_pos())))
     }
 }
 
@@ -824,14 +810,10 @@ impl Parse for ItemId {
 
 impl Parse for Stmt {
     fn parse(stream: &mut Stream) -> Result<Self> {
-        let token = stream.peek();
-        match token.kind {
-            TokenKind::Fn
-            | TokenKind::Struct
-            | TokenKind::Const
-            | TokenKind::Impl
-            | TokenKind::Trait
-            | TokenKind::Use => stream.parse().map(Stmt::Item),
+        match stream.peek() {
+            Token::Fn | Token::Struct | Token::Const | Token::Impl | Token::Trait | Token::Use => {
+                stream.parse().map(Stmt::Item)
+            }
             _ => stream.parse().map(Stmt::Expr),
         }
     }
