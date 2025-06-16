@@ -21,13 +21,16 @@ impl<'src> Lexer<'src> {
             src.root = Some(source);
             Ok::<_, io::Error>(source)
         })?;
-        Ok(Self { src, token_start: 0, chars: src.chars(), source })
+        Ok(Self::new_inner(src, source))
+    }
+    pub fn new_inner(src: &'src str, source: SourceId) -> Self {
+        Self { src, token_start: 0, chars: src.chars(), source }
     }
     pub fn new(path: &Path) -> io::Result<Self> {
         let source = Source::with_global(|src| src.init(path))?;
         // TODO: better source handling
         let src = source.contents().leak();
-        Ok(Self { src, token_start: 0, chars: src.chars(), source })
+        Ok(Self::new_inner(src, source))
     }
     #[cfg_attr(debug_assertions, track_caller)]
     pub fn bump(&mut self, bytes: usize) {
