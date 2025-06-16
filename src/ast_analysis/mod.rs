@@ -516,8 +516,10 @@ impl<'tcx> Collector<'_, 'tcx> {
             ExprKind::FnCall { function, ref args } => 'out: {
                 let fn_ty = self.analyze_expr(function)?;
                 let TyKind::Function(Function { params, ret }) = fn_ty.0 else {
-                    let fn_span = self.ast.exprs[function].span;
-                    self.errors.push(self.expected_function(fn_ty, fn_span));
+                    if !fn_ty.is_poison() {
+                        let fn_span = self.ast.exprs[function].span;
+                        self.errors.push(self.expected_function(fn_ty, fn_span));
+                    }
                     break 'out Ty::POISON;
                 };
 
