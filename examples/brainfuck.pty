@@ -1,6 +1,6 @@
 // FIXME: Add trailing/leading ranges 
 
-fn main(a) {
+fn main() {
     let input = "++++++++[>++++[>++>+++>+++>+<<<<-]>+>+>->>+[<]<-]>>.>---.+++++++..+++.>>.<-.<.+++.------.--------.>>+.>++.";
     let cells: [int] = [0; 256];
     let data_ptr = 0;

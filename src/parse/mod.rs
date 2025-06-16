@@ -165,16 +165,9 @@ impl Parse for TypeId {
 
 impl Parse for Ty {
     fn parse(stream: &mut Stream) -> Result<Self> {
-        let any = stream.any(&[
-            Token::Fn,
-            Token::Ident,
-            Token::LBracket,
-            Token::LParen,
-            Token::Not,
-            Token::Ampersand,
-        ])?;
+        let token = stream.next();
         let start = stream.lexer.span();
-        let kind = match any {
+        let kind = match token {
             Token::Fn => {
                 stream.expect(Token::LParen)?;
                 let params = stream.parse_separated(Token::Comma, Token::RParen)?;
@@ -213,7 +206,12 @@ impl Parse for Ty {
                 }
             }
             Token::Ampersand => TyKind::Ref(stream.parse()?),
-            _ => unreachable!(),
+            other => {
+                return Err(errors::error(
+                    &format!("expected type, found '{}'", other.repr()),
+                    [(stream.lexer.span(), "expected type")],
+                ));
+            }
         };
         Ok(Self { kind, span: start.with_end(stream.lexer.current_pos()) })
     }
