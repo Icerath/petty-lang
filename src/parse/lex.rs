@@ -148,8 +148,7 @@ impl Lexer<'_> {
         while let Some(next) = self.chars.next() {
             if next == '"' {
                 break;
-            }
-            if next == '$' && self.chars.clone().next().is_some_and(|c| c == '{') {
+            } else if next == '$' && self.chars.clone().next().is_some_and(|c| c == '{') {
                 let mut d = 0;
                 for next in self.chars.by_ref() {
                     match next {
@@ -161,8 +160,7 @@ impl Lexer<'_> {
                         break;
                     }
                 }
-            }
-            if next == '\\' && self.chars.next().is_some_and(|c| c == '\'') {
+            } else if next == '\\' {
                 self.chars.next();
             }
         }
