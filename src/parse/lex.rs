@@ -35,7 +35,7 @@ impl<'src> Lexer<'src> {
         Span::new(self.token_start()..self.current_pos(), self.source())
     }
     pub fn token_start(&self) -> usize {
-        self.token_start as _
+        self.token_start
     }
 
     fn try_next(&mut self, expected: char) -> bool {
