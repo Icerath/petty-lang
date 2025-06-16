@@ -32,6 +32,13 @@ struct Stream<'src> {
 }
 
 impl Stream<'_> {
+    fn ident(&self, span: Span) -> Ident {
+        Ident { span, symbol: self.symbol(span) }
+    }
+    fn symbol(&self, span: Span) -> Symbol {
+        self.lexer.src()[span].into()
+    }
+
     fn parse_items(&mut self, terminator: Token) -> Result<Vec<ItemId>> {
         let mut items = vec![];
         loop {
@@ -108,8 +115,7 @@ trait Parse: Sized {
 impl Parse for Symbol {
     fn parse(stream: &mut Stream) -> Result<Self> {
         stream.expect(Token::Ident)?;
-        let span = stream.lexer.span();
-        Ok(Symbol::from(&stream.lexer.src()[span]))
+        Ok(stream.symbol(stream.lexer.span()))
     }
 }
 
@@ -396,14 +402,14 @@ impl Parse for Pat {
             let kind = match tok {
                 Token::Ident if stream.peek() == Token::LParen => {
                     _ = stream.next();
-                    let symbol = Symbol::from(&stream.lexer.src()[tok_span]);
+                    let ident = stream.ident(tok_span);
                     let args = stream.parse_separated(Token::Comma, Token::RParen)?;
-                    PatKind::Struct(Ident { symbol, span: tok_span }, args)
+                    PatKind::Struct(ident, args)
                 }
-                Token::Ident => PatKind::Ident(Symbol::from(&stream.lexer.src()[tok_span])),
+                Token::Ident => PatKind::Ident(stream.symbol(tok_span)),
                 Token::True => PatKind::Bool(true),
                 Token::False => PatKind::Bool(false),
-                Token::Str => PatKind::Str(Symbol::from(&stream.lexer.src()[tok_span.shrink(1)])),
+                Token::Str => PatKind::Str(stream.symbol(tok_span.shrink(1))),
                 Token::Int => PatKind::Int(stream.lexer.src()[tok_span].parse::<i64>().unwrap()),
                 Token::LBrace => {
                     let block: BlockId = stream.parse()?;
@@ -503,8 +509,6 @@ impl Parse for Field {
 impl Parse for Use {
     fn parse(stream: &mut Stream) -> Result<Self> {
         let ident: Ident = stream.parse()?;
-        let ident_span = ident.span;
-        let ident = Ident { symbol: stream.lexer.src()[ident_span].into(), span: ident_span };
         let mut path = ast::Path::new_single(ident);
 
         let kind = loop {
@@ -519,9 +523,7 @@ impl Parse for Use {
                     let many = stream.parse_separated(Token::Comma, Token::RBrace)?;
                     break Some(UseKind::Block(many));
                 }
-                Token::Ident => path
-                    .segments
-                    .push(Ident { symbol: stream.lexer.src()[next_span].into(), span: next_span }),
+                Token::Ident => path.segments.push(stream.ident(next_span)),
                 Token::Star => {
                     break Some(UseKind::Wildcard);
                 }
@@ -641,7 +643,7 @@ fn parse_atom_with(stream: &mut Stream, tok: Token) -> Result<ExprId> {
 }
 
 fn parse_path(stream: &mut Stream, ident_span: Span) -> Result<Path> {
-    let ident = Ident { symbol: stream.lexer.src()[ident_span].into(), span: ident_span };
+    let ident = stream.ident(ident_span);
     let mut path = ast::Path::new_single(ident);
     while stream.peek() == Token::PathSep {
         _ = stream.next();
@@ -729,7 +731,7 @@ impl Parse for Ident {
     fn parse(stream: &mut Stream) -> Result<Self> {
         stream.expect(Token::Ident)?;
         let span = stream.lexer.span();
-        Ok(Self { symbol: Symbol::from(&stream.lexer.src()[span]), span })
+        Ok(stream.ident(span))
     }
 }
 
