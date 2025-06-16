@@ -1,10 +1,7 @@
-use std::{io, path::Path, str::Chars};
+use std::str::Chars;
 
 use super::token::Token;
-use crate::{
-    source::{Source, SourceId},
-    span::Span,
-};
+use crate::{source::SourceId, span::Span};
 
 #[derive(Clone)]
 pub struct Lexer<'src> {
@@ -15,14 +12,6 @@ pub struct Lexer<'src> {
 }
 
 impl<'src> Lexer<'src> {
-    pub fn new_root(src: &'src str, path: &Path) -> io::Result<Self> {
-        let source = Source::with_global(|src| {
-            let source = src.init(path)?;
-            src.root = Some(source);
-            Ok::<_, io::Error>(source)
-        })?;
-        Ok(Self::new(src, source))
-    }
     pub fn new(src: &'src str, source: SourceId) -> Self {
         Self { src, token_start: 0, chars: src.chars(), source }
     }

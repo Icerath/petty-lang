@@ -2,6 +2,8 @@ mod expr;
 mod lex;
 mod token;
 
+use std::io;
+
 use lex::Lexer;
 use miette::{Error, IntoDiagnostic, Result};
 use thin_vec::{ThinVec, thin_vec};
@@ -20,7 +22,13 @@ use crate::{
 };
 
 pub fn parse(src: &str, path: &std::path::Path) -> Result<Ast> {
-    let lexer = Lexer::new_root(src, path).into_diagnostic()?;
+    let source = Source::with_global(|src| {
+        let source = src.init(path)?;
+        src.root = Some(source);
+        Ok::<_, io::Error>(source)
+    })
+    .into_diagnostic()?;
+    let lexer = Lexer::new(src, source);
     let mut ast = Ast::default();
     let mut stream = Stream { lexer, ast: &mut ast };
     ast.root.items = stream.parse_items(Token::Eof)?;
