@@ -7,61 +7,74 @@ use index_vec::IndexVec;
 
 use crate::{HashMap, define_id, symbol::Symbol};
 
-pub struct Global<B, T> {
-    pub module_storage: IndexVec<ModuleId, ModuleScopes<B, T>>,
+pub struct Global<B, Var, Ty> {
+    pub module_storage: IndexVec<ModuleId, ModuleScopes<B, Var, Ty>>,
     root: ModuleId,
     pub current: ModuleId,
 }
 
-pub struct ModuleScopes<B, T> {
+pub struct ModuleScopes<B, Var, Ty> {
     #[expect(unused)]
     pub name: Symbol,
     pub parent: Option<ModuleId>,
     pub modules: HashMap<Symbol, ModuleId>,
-    pub bodies: Vec<Body<B, T>>,
+    pub bodies: Vec<Body<B, Var, Ty>>,
 }
 
-pub struct Body<B, T> {
+pub struct Body<B, Var, Ty> {
     pub data: B,
-    pub scopes: Vec<Scope<T>>,
+    pub scopes: Vec<Scope<Var, Ty>>,
 }
 
-impl<B, T> Body<B, T> {
+impl<B, Var, Ty> Body<B, Var, Ty> {
     fn new(data: B) -> Self {
         Self { data, scopes: vec![Scope::default()] }
     }
 }
 
-pub struct Scope<T> {
-    pub variables: HashMap<Symbol, T>,
+pub struct Scope<Var, Ty> {
+    pub variables: HashMap<Symbol, Var>,
+    pub types: HashMap<Symbol, Ty>,
 }
 
-impl<T> Scope<T> {
-    pub fn insert(&mut self, var: Symbol, data: T) -> Option<T> {
-        self.variables.insert(var, data)
+impl<Var, Ty> Scope<Var, Ty> {
+    pub fn insert(&mut self, symbol: Symbol, var: Var) -> Option<Var> {
+        self.variables.insert(symbol, var)
     }
-    pub fn extend(&mut self, other: Scope<T>) {
+    pub fn insert_ty(&mut self, symbol: Symbol, ty: Ty) -> Option<Ty> {
+        self.types.insert(symbol, ty)
+    }
+    pub fn extend(&mut self, other: Scope<Var, Ty>) {
         self.variables.extend(other.variables);
+        self.types.extend(other.types);
+    }
+    pub fn extend_ref(&mut self, other: &Scope<Var, Ty>)
+    where
+        Var: Clone,
+        Ty: Clone,
+    {
+        self.variables.extend(other.variables.iter().map(|(a, b)| (*a, b.clone())));
+        self.types.extend(other.types.iter().map(|(a, b)| (*a, b.clone())));
     }
 }
 
-impl<T> Default for Scope<T> {
+impl<Var, Ty> Default for Scope<Var, Ty> {
     fn default() -> Self {
-        Self { variables: HashMap::default() }
+        Self { variables: HashMap::default(), types: HashMap::default() }
     }
 }
 
-impl<B, T> Global<B, T> {
+impl<B, Var, Ty> Global<B, Var, Ty> {
     pub fn new(body: B) -> Self {
         let root = ModuleScopes::new("crate".into(), None, body);
         let mut module_storage = IndexVec::new();
         let root = module_storage.push(root);
         Self { module_storage, root, current: root }
     }
-    pub fn current(&self) -> &ModuleScopes<B, T> {
+    pub fn current(&self) -> &ModuleScopes<B, Var, Ty> {
         &self.module_storage[self.current]
     }
-    pub fn current_mut(&mut self) -> &mut ModuleScopes<B, T> {
+    pub fn current_mut(&mut self) -> &mut ModuleScopes<B, Var, Ty> {
         &mut self.module_storage[self.current]
     }
     pub fn push_module(&mut self, name: Symbol, body: B) -> ModuleToken {
@@ -75,9 +88,14 @@ impl<B, T> Global<B, T> {
         self.current = parent;
     }
 
-    pub fn get_path(&self, path: impl IntoIterator<Item = impl AsRef<Symbol>>) -> Option<&T> {
+    pub fn get_path(&self, path: impl IntoIterator<Item = impl AsRef<Symbol>>) -> Option<&Var> {
         let (module, last) = self.get_module(path);
         self[module].get(last)
+    }
+
+    pub fn get_type_path(&self, path: impl IntoIterator<Item = impl AsRef<Symbol>>) -> Option<&Ty> {
+        let (module, last) = self.get_module(path);
+        self[module].get_ty(last)
     }
 
     pub fn get_module(
@@ -115,14 +133,14 @@ impl<B, T> Global<B, T> {
     }
 }
 
-impl<B, T> ModuleScopes<B, T> {
+impl<B, Var, Ty> ModuleScopes<B, Var, Ty> {
     pub fn new(name: Symbol, parent: Option<ModuleId>, body: B) -> Self {
         Self { name, parent, bodies: vec![Body::new(body)], modules: HashMap::default() }
     }
-    fn raw_body(&self) -> &Body<B, T> {
+    fn raw_body(&self) -> &Body<B, Var, Ty> {
         self.bodies.last().unwrap()
     }
-    fn raw_body_mut(&mut self) -> &mut Body<B, T> {
+    fn raw_body_mut(&mut self) -> &mut Body<B, Var, Ty> {
         self.bodies.last_mut().unwrap()
     }
     pub fn body(&self) -> &B {
@@ -142,16 +160,16 @@ impl<B, T> ModuleScopes<B, T> {
         self.raw_body_mut().scopes.push(Scope::default());
         ScopeToken { __priv: PhantomData }
     }
-    pub fn pop_scope(&mut self, _: ScopeToken) -> Scope<T> {
+    pub fn pop_scope(&mut self, _: ScopeToken) -> Scope<Var, Ty> {
         self.raw_body_mut().scopes.pop().unwrap()
     }
-    pub fn scope(&self) -> &Scope<T> {
+    pub fn scope(&self) -> &Scope<Var, Ty> {
         self.raw_body().scopes.last().unwrap()
     }
-    pub fn scope_mut(&mut self) -> &mut Scope<T> {
+    pub fn scope_mut(&mut self) -> &mut Scope<Var, Ty> {
         self.raw_body_mut().scopes.last_mut().unwrap()
     }
-    pub fn get(&self, key: Symbol) -> Option<&T> {
+    pub fn get(&self, key: Symbol) -> Option<&Var> {
         // FIXME: should only use last body
         self.bodies
             .iter()
@@ -159,13 +177,11 @@ impl<B, T> ModuleScopes<B, T> {
             .find_map(|body| body.scopes.iter().rev().find_map(|scope| scope.variables.get(&key)))
         // self.raw_body().scopes.iter().rev().find_map(|scope| scope.variables.get(&key))
     }
-    #[expect(unused)]
-    pub fn get_mut(&mut self, key: Symbol) -> Option<&mut T> {
-        // FIXME: should only use last body
-        self.bodies.iter_mut().rev().find_map(|body| {
-            body.scopes.iter_mut().rev().find_map(|scope| scope.variables.get_mut(&key))
-        })
-        // self.raw_body_mut().scopes.iter_mut().rev().find_map(|scope| scope.variables.get_mut(&key))
+    pub fn get_ty(&self, key: Symbol) -> Option<&Ty> {
+        self.bodies
+            .iter()
+            .rev()
+            .find_map(|body| body.scopes.iter().rev().find_map(|scope| scope.types.get(&key)))
     }
     pub fn available_names(&self) -> impl Iterator<Item = Symbol> {
         self.raw_body().scopes.iter().rev().flat_map(|scope| scope.variables.keys()).copied()
@@ -189,27 +205,27 @@ pub struct ModuleToken {
 
 define_id!(pub ModuleId);
 
-impl<B, T> Deref for Global<B, T> {
-    type Target = ModuleScopes<B, T>;
+impl<B, Var, Ty> Deref for Global<B, Var, Ty> {
+    type Target = ModuleScopes<B, Var, Ty>;
     fn deref(&self) -> &Self::Target {
         self.current()
     }
 }
 
-impl<B, T> DerefMut for Global<B, T> {
+impl<B, Var, Ty> DerefMut for Global<B, Var, Ty> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.current_mut()
     }
 }
 
-impl<B, T> Index<ModuleId> for Global<B, T> {
-    type Output = ModuleScopes<B, T>;
+impl<B, Var, Ty> Index<ModuleId> for Global<B, Var, Ty> {
+    type Output = ModuleScopes<B, Var, Ty>;
     fn index(&self, index: ModuleId) -> &Self::Output {
         &self.module_storage[index]
     }
 }
 
-impl<B, T> IndexMut<ModuleId> for Global<B, T> {
+impl<B, Var, Ty> IndexMut<ModuleId> for Global<B, Var, Ty> {
     fn index_mut(&mut self, index: ModuleId) -> &mut Self::Output {
         &mut self.module_storage[index]
     }

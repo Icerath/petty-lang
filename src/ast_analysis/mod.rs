@@ -35,7 +35,6 @@ impl<'tcx> Index<TypeId> for TyInfo<'tcx> {
 
 #[derive(Debug)]
 struct Body<'tcx> {
-    ty_names: HashMap<Symbol, Ty<'tcx>>,
     ret: Ty<'tcx>,
     loops: usize,
 }
@@ -62,12 +61,12 @@ enum Var {
 
 impl<'tcx> Body<'tcx> {
     pub fn new(ret: Ty<'tcx>) -> Self {
-        Self { ty_names: HashMap::default(), ret, loops: 0 }
+        Self { ret, loops: 0 }
     }
 }
 
 struct Collector<'ast, 'tcx> {
-    scopes: Global<Body<'tcx>, (Ty<'tcx>, Var, Span)>,
+    scopes: Global<Body<'tcx>, (Ty<'tcx>, Var, Span), Ty<'tcx>>,
     ty_info: TyInfo<'tcx>,
     ast: &'ast Ast,
     tcx: &'tcx TyCtx<'tcx>,
@@ -91,7 +90,11 @@ fn setup_ty_info<'tcx>(ast: &Ast) -> TyInfo<'tcx> {
 
 pub fn analyze<'tcx>(ast: &Ast, tcx: &'tcx TyCtx<'tcx>) -> Result<TyInfo<'tcx>, Vec<Error>> {
     let ty_info = setup_ty_info(ast);
-    let body = global_body();
+    let mut scopes = Global::new(Body::new(Ty::UNIT));
+
+    let global_types = global_types();
+    scopes.scope_mut().types.extend(global_types);
+
     let mut collector = Collector {
         ty_info,
         ast,
@@ -101,7 +104,7 @@ pub fn analyze<'tcx>(ast: &Ast, tcx: &'tcx TyCtx<'tcx>) -> Result<TyInfo<'tcx>, 
         impl_generics: GenericRange::EMPTY,
         produced_generics: HashMap::default(),
         errors: vec![],
-        scopes: Global::new(body),
+        scopes,
     };
     collector.analyze_module(None, &ast.root).map_err(|err| vec![err])?;
 
@@ -121,12 +124,9 @@ pub fn analyze<'tcx>(ast: &Ast, tcx: &'tcx TyCtx<'tcx>) -> Result<TyInfo<'tcx>, 
     Ok(ty_info)
 }
 
-fn global_body<'tcx>() -> Body<'tcx> {
-    let mut body = Body::new(Ty::NEVER);
-    let common = [("bool", Ty::BOOL), ("int", Ty::INT), ("char", Ty::CHAR), ("str", Ty::STR)]
-        .map(|(name, ty)| (Symbol::from(name), ty));
-    body.ty_names.extend(common);
-    body
+fn global_types<'tcx>() -> [(Symbol, Ty<'tcx>); 4] {
+    [("bool", Ty::BOOL), ("int", Ty::INT), ("char", Ty::CHAR), ("str", Ty::STR)]
+        .map(|(name, ty)| (Symbol::from(name), ty))
 }
 
 impl<'tcx> Collector<'_, 'tcx> {
@@ -147,7 +147,7 @@ impl<'tcx> Collector<'_, 'tcx> {
                 })
                 .collect();
             let struct_ty = self.tcx.new_struct(ident.symbol, generics, fields);
-            self.scopes.body_mut().ty_names.insert(ident.symbol, struct_ty);
+            self.scopes.scope_mut().insert_ty(ident.symbol, struct_ty);
             self.ty_info.struct_types.insert(ident.span, struct_ty);
 
             self.scopes.scope_mut().insert(
@@ -340,10 +340,7 @@ impl<'tcx> Collector<'_, 'tcx> {
     }
 
     fn read_named_ty(&mut self, path: &Path) -> Ty<'tcx> {
-        let (module, ident) = self.scopes.get_module(&path.segments);
-        if let Some(&ty) =
-            self.scopes[module].bodies.iter().rev().find_map(|body| body.data.ty_names.get(&ident))
-        {
+        if let Some(&ty) = self.scopes.get_type_path(&path.segments) {
             return ty;
         }
         self.errors.push(self.unknown_type_err(path));
@@ -427,13 +424,8 @@ impl<'tcx> Collector<'_, 'tcx> {
             if let Some(&var) = self.scopes[module].scope().variables.get(&last) {
                 self.scopes.scope_mut().insert(last, var);
             }
-            if let Some(&ty) = self.scopes[module]
-                .bodies
-                .iter()
-                .rev()
-                .find_map(|body| body.data.ty_names.get(&last))
-            {
-                self.scopes.body_mut().ty_names.insert(last, ty);
+            if let Some(&ty) = self.scopes[module].get_ty(last) {
+                self.scopes.scope_mut().insert_ty(last, ty);
             }
 
             return Ok(());
@@ -454,12 +446,7 @@ impl<'tcx> Collector<'_, 'tcx> {
                     .get_disjoint_mut([module.index(), self.scopes.current.index()])
                     .unwrap();
                 assert!(module.bodies.len() == 1);
-                let body = &module.bodies[0];
-                let ty_names = body.data.ty_names.iter().map(|(s, t)| (*s, *t));
-                let scope = body.scopes.last().unwrap().variables.iter().map(|(s, t)| (*s, *t));
-                let current_body = current.bodies.last_mut().unwrap();
-                current_body.data.ty_names.extend(ty_names);
-                current_body.scopes.last_mut().unwrap().variables.extend(scope);
+                current.scope_mut().extend_ref(module.scope());
             }
         }
 
@@ -781,7 +768,7 @@ impl<'tcx> Collector<'_, 'tcx> {
                 self.sub(ty, Ty::BOOL, expr);
             }
             PatKind::Or(ref patterns) => {
-                let mut scope: Option<Scope<_>> = None;
+                let mut scope: Option<Scope<_, _>> = None;
                 for pat in patterns {
                     let scope_token = self.scopes.push_scope();
                     self.analyze_pat(pat, scrutinee)?;

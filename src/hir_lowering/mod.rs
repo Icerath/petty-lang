@@ -55,7 +55,7 @@ struct Lowering<'hir, 'tcx> {
     tcx: &'tcx TyCtx<'tcx>,
     hir: &'hir Hir<'tcx>,
     mir: Mir,
-    scopes: Global<BodyInfo, Var>,
+    scopes: Global<BodyInfo, Var, ()>,
     struct_display_bodies: IndexVec<StructId, Option<BodyId>>,
     array_display_bodies: HashMap<Ty<'tcx>, BodyId>,
     strings: HashMap<Symbol, ArcStr>,
