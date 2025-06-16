@@ -14,6 +14,7 @@ use crate::{
         PatArg, PatKind, Path, Stmt, Trait, Ty, TyKind, TypeId, Use, UseKind,
     },
     errors,
+    source::Source,
     span::Span,
     symbol::Symbol,
 };
@@ -31,7 +32,21 @@ struct Stream<'src> {
     ast: &'src mut Ast,
 }
 
-impl Stream<'_> {
+impl<'src> Stream<'src> {
+    fn new_lexer(&self, ident: Span) -> Result<Lexer<'src>> {
+        let file_name = &self.lexer.src()[ident];
+        let path = self.lexer.source().path().with_file_name(file_name).with_extension("pty");
+
+        let Ok(source) = Source::with_global(|src| src.init(&path)) else {
+            return Err(errors::error(
+                &format!("failed to read module {}", path.display()),
+                [(ident, format!("failed to read module {}", path.display()))],
+            ));
+        };
+        let src = source.contents().leak();
+        Ok(Lexer::new(src, source))
+    }
+
     fn ident(&self, span: Span) -> Ident {
         Ident { span, symbol: self.symbol(span) }
     }
@@ -756,18 +771,7 @@ impl Parse for Item {
                         ItemKind::Module(ident, Module { items: module })
                     }
                     Token::Semicolon => {
-                        let path = stream
-                            .lexer
-                            .source()
-                            .path()
-                            .with_file_name(ident.symbol.as_str())
-                            .with_extension("pty");
-                        let Ok(lexer) = Lexer::new(&path) else {
-                            return Err(errors::error(
-                                &format!("failed to read module {}", path.display()),
-                                [(ident.span, format!("failed to read module {}", path.display()))],
-                            ));
-                        };
+                        let lexer = stream.new_lexer(ident.span)?;
                         let lexer = std::mem::replace(&mut stream.lexer, lexer);
                         let items = stream.parse_items(Token::Eof)?;
                         stream.lexer = lexer;
