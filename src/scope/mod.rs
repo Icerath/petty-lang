@@ -116,9 +116,7 @@ impl<B, Var, Ty> Global<B, Var, Ty> {
         path: impl IntoIterator<Item = impl AsRef<Symbol>>,
         current: ModuleId,
     ) -> Result<(ModuleId, Symbol), (ModuleId, Symbol)> {
-        let path = path.into_iter().map(|s| *s.as_ref());
-        let fully_qualified = path;
-        self.get_module_inner(fully_qualified, current)
+        self.get_module_inner(path.into_iter().map(|s| *s.as_ref()), current)
     }
     fn get_module_inner(
         &self,
