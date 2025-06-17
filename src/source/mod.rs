@@ -25,15 +25,19 @@ impl Source {
     pub fn with_global<T>(f: impl FnOnce(&mut Self) -> T) -> T {
         f(&mut GLOBAL.get_or_init(Mutex::default).lock().unwrap())
     }
-    pub fn init(&mut self, path: impl Into<PathBuf>) -> io::Result<SourceId> {
-        let path = path.into();
+    pub fn init_with(
+        &mut self,
+        path: PathBuf,
+        f: impl FnOnce() -> io::Result<String>,
+    ) -> io::Result<SourceId> {
         if let Some(existing) = self.path_ids.get(&path) {
             return Ok(*existing);
         }
-        let contents = std::fs::read_to_string(&path)?;
-        let id = self.data.push((path.clone(), contents));
-        self.path_ids.insert(path, id);
+        let id = self.data.push((path, f()?));
         Ok(id)
+    }
+    pub fn init(&mut self, path: &Path) -> io::Result<SourceId> {
+        self.init_with(path.into(), || std::fs::read_to_string(path))
     }
     pub fn get_id(&self, path: impl AsRef<Path>) -> SourceId {
         *self.path_ids.get(path.as_ref()).unwrap_or_else(|| panic!("{}", path.as_ref().display()))

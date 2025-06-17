@@ -29,10 +29,6 @@ impl fmt::Display for Ast {
         let f = String::new();
         let mut w = Writer { ast: self, f, indent: 0, inside_expr: false };
         self.root.items.iter().for_each(|item| (item, Line).write(&mut w));
-        if !self.exprs.is_empty() {
-            #[cfg(debug_assertions)]
-            crate::parse::parse(&w.f, &self.exprs[0].span.source().path()).unwrap();
-        }
         fmt.write_str(&w.f)
     }
 }

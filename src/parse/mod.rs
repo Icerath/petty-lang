@@ -21,17 +21,31 @@ use crate::{
     symbol::Symbol,
 };
 
-pub fn parse(src: &str, path: &std::path::Path) -> Result<Ast> {
+pub fn parse(path: &std::path::Path) -> Result<Ast> {
+    let std_source =
+        Source::with_global(|src| src.init_with("std".into(), || Ok(crate::STD.to_string())))
+            .into_diagnostic()?;
+
+    let mut ast = Ast::default();
+
+    let std_content = std_source.contents();
+    let std_lexer = Lexer::new(&std_content, std_source);
+
+    let mut stream = Stream { lexer: std_lexer, ast: &mut ast };
+    ast.root.items = stream.parse_items(Token::Eof)?;
+
     let source = Source::with_global(|src| {
         let source = src.init(path)?;
         src.root = Some(source);
         Ok::<_, io::Error>(source)
     })
     .into_diagnostic()?;
-    let lexer = Lexer::new(src, source);
-    let mut ast = Ast::default();
-    let mut stream = Stream { lexer, ast: &mut ast };
-    ast.root.items = stream.parse_items(Token::Eof)?;
+
+    let contents = source.contents();
+    let mut stream = Stream { lexer: Lexer::new(&contents, source), ast: &mut ast };
+    let new_items = stream.parse_items(Token::Eof)?;
+    ast.root.items.extend_from_slice(&new_items);
+
     Ok(ast)
 }
 

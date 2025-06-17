@@ -2,10 +2,7 @@ use std::path::Path;
 
 use miette::{Error, LabeledSpan, NamedSource};
 
-use crate::{
-    source::{Source, SourceId},
-    span::Span,
-};
+use crate::{source::SourceId, span::Span};
 
 #[inline(never)]
 #[cold]
@@ -24,7 +21,7 @@ pub fn error_with<S: Into<String>>(
     let labels: Vec<_> = labels
         .into_iter()
         .inspect(|(span, _)| id = Some(id.unwrap_or(span.source())))
-        .map(|(span, msg)| LabeledSpan::at(offset_span(span).into_range(), msg))
+        .map(|(span, msg)| LabeledSpan::at(span.into_range(), msg))
         .collect();
     error_inner(error, id.unwrap(), labels, help)
 }
@@ -45,15 +42,4 @@ fn error_inner(error: &str, src: SourceId, labels: Vec<LabeledSpan>, extra: Opti
 
 fn source(path: &Path, src: String) -> NamedSource<String> {
     NamedSource::new(path.display().to_string(), src)
-}
-
-fn offset_span(span: Span) -> Span {
-    if Source::with_global(|src| src.root != Some(span.source())) {
-        return span;
-    }
-    if span == Span::ZERO {
-        return span;
-    }
-    let offset = crate::STD.len();
-    Span::new(span.start().saturating_sub(offset)..span.end().saturating_sub(offset), span.source())
 }

@@ -36,7 +36,6 @@ pub fn compile_test(path: impl Into<std::path::PathBuf>) -> Result<Vec<u8>, Vec<
 }
 
 pub fn compile(args: &Args, w: &mut dyn Write) -> miette::Result<(), Vec<Error>> {
-    let src = fs::read_to_string(&args.path).into_diagnostic().map_err(|e| vec![e])?;
     if let Some(target) = &args.dump {
         create_new_dir(target).into_diagnostic().map_err(|e| vec![e])?;
     }
@@ -61,8 +60,7 @@ pub fn compile(args: &Args, w: &mut dyn Write) -> miette::Result<(), Vec<Error>>
         };
     }
     let start = Instant::now();
-    let src = crate::STD.to_string() + &src;
-    let ast = parse(&src, &args.path).map_err(|e| vec![e])?;
+    let ast = parse(&args.path).map_err(|e| vec![e])?;
     dump!(ast);
     let analysis = ast_analysis::analyze(&ast, &tcx)?;
     let hir = ast_lowering::lower(ast, analysis);
