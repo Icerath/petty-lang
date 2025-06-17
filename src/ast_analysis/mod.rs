@@ -951,6 +951,13 @@ impl<'tcx> Collector<'_, 'tcx> {
     }
 
     fn analyze_module(&mut self, name: Option<Ident>, module: &Module) -> Result<()> {
+        if let Some(name) = name {
+            if self.scopes.modules.contains_key(&name.symbol) {
+                self.errors.push(self.already_defined(name));
+                return Ok(());
+            }
+        }
+
         let pushed_module =
             name.map(|name| self.scopes.push_module(name.symbol, Body::new(Ty::NEVER)));
         self.preanalyze(module.items.iter().copied())?;
