@@ -12,6 +12,10 @@ use crate::{
 };
 
 impl<'tcx> Collector<'_, '_> {
+    pub fn module_not_found(&self, path: &Path) -> Error {
+        error("todo error", [(path.last().span, ("not found"))])
+    }
+
     pub fn pat_new_ident(&self, ident: Symbol, span: Span) -> Error {
         error(
             &format!("pattern set unexpected ident: `{ident}`"),

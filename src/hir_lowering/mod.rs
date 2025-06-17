@@ -728,7 +728,7 @@ impl<'tcx> Lowering<'_, 'tcx> {
     }
 
     fn load_path(&mut self, path: &Path, ty: Ty<'tcx>) -> RValue {
-        match *self.scopes.get_path(&path.segments).unwrap() {
+        match *self.scopes.get_path(&path.segments).unwrap().unwrap() {
             Var::Local(local) => RValue::local(local),
             Var::Func(location) => self.mono_fn(path.last(), location, ty),
         }
@@ -971,7 +971,7 @@ impl<'tcx> Lowering<'_, 'tcx> {
     }
 
     fn lower_use(&mut self, use_: &hir::Use, current: ModuleId) {
-        let (module, last) = self.scopes.get_module_with(&use_.path.segments, current);
+        let (module, last) = self.scopes.get_module_with(&use_.path.segments, current).unwrap();
         let Some(kind) = &use_.kind else {
             if let Some(&module) = self.scopes[module].modules.get(&last) {
                 self.scopes.modules.insert(last, module);

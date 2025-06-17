@@ -9,6 +9,7 @@ use crate::{HashMap, define_id, symbol::Symbol};
 
 pub struct Global<B, Var, Ty> {
     pub module_storage: IndexVec<ModuleId, ModuleScopes<B, Var, Ty>>,
+    #[expect(unused)]
     root: ModuleId,
     pub current: ModuleId,
 }
@@ -88,27 +89,33 @@ impl<B, Var, Ty> Global<B, Var, Ty> {
         self.current = parent;
     }
 
-    pub fn get_path(&self, path: impl IntoIterator<Item = impl AsRef<Symbol>>) -> Option<&Var> {
-        let (module, last) = self.get_module(path);
-        self[module].get(last)
+    pub fn get_path(
+        &self,
+        path: impl IntoIterator<Item = impl AsRef<Symbol>>,
+    ) -> Result<Option<&Var>, (ModuleId, Symbol)> {
+        let (module, last) = self.get_module(path)?;
+        Ok(self[module].get(last))
     }
 
-    pub fn get_type_path(&self, path: impl IntoIterator<Item = impl AsRef<Symbol>>) -> Option<&Ty> {
-        let (module, last) = self.get_module(path);
-        self[module].get_ty(last)
+    pub fn get_type_path(
+        &self,
+        path: impl IntoIterator<Item = impl AsRef<Symbol>>,
+    ) -> Result<Option<&Ty>, (ModuleId, Symbol)> {
+        let (module, last) = self.get_module(path)?;
+        Ok(self[module].get_ty(last))
     }
 
     pub fn get_module(
         &self,
         path: impl IntoIterator<Item = impl AsRef<Symbol>>,
-    ) -> (ModuleId, Symbol) {
+    ) -> Result<(ModuleId, Symbol), (ModuleId, Symbol)> {
         self.get_module_with(path, self.current)
     }
     pub fn get_module_with(
         &self,
         path: impl IntoIterator<Item = impl AsRef<Symbol>>,
         current: ModuleId,
-    ) -> (ModuleId, Symbol) {
+    ) -> Result<(ModuleId, Symbol), (ModuleId, Symbol)> {
         let path = path.into_iter().map(|s| *s.as_ref());
         let fully_qualified = path;
         self.get_module_inner(fully_qualified, current)
@@ -117,19 +124,17 @@ impl<B, Var, Ty> Global<B, Var, Ty> {
         &self,
         mut iter: impl Iterator<Item = Symbol>,
         mut current_module: ModuleId,
-    ) -> (ModuleId, Symbol) {
+    ) -> Result<(ModuleId, Symbol), (ModuleId, Symbol)> {
         let Some(mut last) = iter.next() else { unreachable!() };
 
         for next in iter {
-            // FIXME: remove hack
-            let next_module = match self[current_module].modules.get(&last) {
-                Some(id) => *id,
-                None => self.root,
+            let Some(next_module) = self[current_module].modules.get(&last) else {
+                return Err((current_module, last));
             };
-            current_module = next_module;
+            current_module = *next_module;
             last = next;
         }
-        (current_module, last)
+        Ok((current_module, last))
     }
 }
 

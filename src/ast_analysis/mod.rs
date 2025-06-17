@@ -344,11 +344,14 @@ impl<'tcx> Collector<'_, 'tcx> {
         ty
     }
 
+    #[expect(clippy::match_same_arms)]
     fn read_named_ty(&mut self, path: &Path) -> Ty<'tcx> {
-        if let Some(&ty) = self.scopes.get_type_path(&path.segments) {
-            return ty;
-        }
-        self.errors.push(self.unknown_type_err(path));
+        let err = match self.scopes.get_type_path(&path.segments) {
+            Ok(Some(ty)) => return *ty,
+            Ok(None) => self.unknown_type_err(path),
+            Err((..)) => self.unknown_type_err(path),
+        };
+        self.errors.push(err);
         Ty::POISON
     }
 
@@ -421,7 +424,10 @@ impl<'tcx> Collector<'_, 'tcx> {
     }
 
     fn analyze_use(&mut self, use_: &ast::Use, current: ModuleId) -> Result<()> {
-        let (module, last) = self.scopes.get_module_with(&use_.path.segments, current);
+        let Ok((module, last)) = self.scopes.get_module_with(&use_.path.segments, current) else {
+            self.errors.push(self.module_not_found(&use_.path));
+            return Ok(());
+        };
         let Some(kind) = &use_.kind else {
             if let Some(&module) = self.scopes[module].modules.get(&last) {
                 self.scopes.modules.insert(last, module);
@@ -1003,14 +1009,16 @@ impl<'tcx> Collector<'_, 'tcx> {
         }
     }
     // like `read_ident` but will not produce `TyVid`s for generic functions
+    #[expect(clippy::match_same_arms)]
     fn read_path_raw(&mut self, path: &Path) -> (Ty<'tcx>, Var) {
-        if let Some(&out) = self.scopes.get_path(&path.segments) {
-            (out.0, out.1)
-        } else {
-            // TODO: better error for invalid paths
-            self.errors.push(self.ident_not_found(path.segments[0]));
-            (Ty::POISON, Var::Let)
-        }
+        // TODO: better error for invalid paths
+        let error = match self.scopes.get_path(&path.segments) {
+            Ok(Some((ty, var, _))) => return (*ty, *var),
+            Ok(None) => self.ident_not_found(path.last()),
+            Err((..)) => self.ident_not_found(path.last()),
+        };
+        self.errors.push(error);
+        (Ty::POISON, Var::Let)
     }
 
     fn analyze_lit(&mut self, lit: &Lit) -> Result<Ty<'tcx>> {
