@@ -147,7 +147,12 @@ impl<'tcx> Collector<'_, 'tcx> {
                 })
                 .collect();
             let struct_ty = self.tcx.new_struct(ident.symbol, generics, fields);
-            self.scopes.scope_mut().insert_ty(ident.symbol, struct_ty);
+            let prev = self.scopes.scope_mut().insert_ty(ident.symbol, struct_ty);
+            if prev.is_some() {
+                self.errors.push(self.already_defined(*ident));
+                continue;
+            }
+
             self.ty_info.struct_types.insert(ident.span, struct_ty);
 
             self.scopes.scope_mut().insert(
