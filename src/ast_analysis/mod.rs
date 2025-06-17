@@ -92,9 +92,7 @@ pub fn analyze<'tcx>(ast: &Ast, tcx: &'tcx TyCtx<'tcx>) -> Result<TyInfo<'tcx>, 
     let ty_info = setup_ty_info(ast);
     let mut scopes = Global::new(Body::new(Ty::UNIT));
 
-    let global_types = global_types();
-    scopes.scope_mut().types.extend(global_types);
-
+    add_primitives(scopes.scope_mut());
     let mut collector = Collector {
         ty_info,
         ast,
@@ -124,9 +122,11 @@ pub fn analyze<'tcx>(ast: &Ast, tcx: &'tcx TyCtx<'tcx>) -> Result<TyInfo<'tcx>, 
     Ok(ty_info)
 }
 
-fn global_types<'tcx>() -> [(Symbol, Ty<'tcx>); 4] {
-    [("bool", Ty::BOOL), ("int", Ty::INT), ("char", Ty::CHAR), ("str", Ty::STR)]
-        .map(|(name, ty)| (Symbol::from(name), ty))
+static PRIMITIVES: &[(&str, Ty)] =
+    &[("bool", Ty::BOOL), ("int", Ty::INT), ("char", Ty::CHAR), ("str", Ty::STR)];
+
+fn add_primitives(scope: &mut Scope<(Ty, Var, Span), Ty>) {
+    scope.types.extend(PRIMITIVES.iter().map(|&(symbol, ty)| (Symbol::from(symbol), ty)));
 }
 
 impl<'tcx> Collector<'_, 'tcx> {
@@ -956,15 +956,18 @@ impl<'tcx> Collector<'_, 'tcx> {
     }
 
     fn analyze_module(&mut self, name: Option<Ident>, module: &Module) -> Result<()> {
+        let mut pushed_module = None;
         if let Some(name) = name {
             if self.scopes.modules.contains_key(&name.symbol) {
                 self.errors.push(self.already_defined(name));
                 return Ok(());
             }
+            let (module_token, module_id) =
+                self.scopes.push_module(name.symbol, Body::new(Ty::NEVER));
+            pushed_module = Some(module_token);
+            add_primitives(self.scopes[module_id].scope_mut());
         }
 
-        let pushed_module =
-            name.map(|name| self.scopes.push_module(name.symbol, Body::new(Ty::NEVER)));
         self.preanalyze(module.items.iter().copied())?;
         for &item in &module.items {
             self.analyze_item(item)?;

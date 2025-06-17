@@ -238,7 +238,7 @@ impl<'tcx> Lowering<'_, 'tcx> {
             }
             ExprKind::Module(name, ref body) => {
                 let body_id = self.mir.bodies.push(Body::new(None, 0).with_auto(true));
-                let module_token = self.scopes.push_module(name, BodyInfo::new(body_id));
+                let module_token = self.scopes.push_module(name, BodyInfo::new(body_id)).0;
                 for &expr in body {
                     self.lower(expr);
                 }

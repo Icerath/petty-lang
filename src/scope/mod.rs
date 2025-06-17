@@ -77,11 +77,11 @@ impl<B, Var, Ty> Global<B, Var, Ty> {
     pub fn current_mut(&mut self) -> &mut ModuleScopes<B, Var, Ty> {
         &mut self.module_storage[self.current]
     }
-    pub fn push_module(&mut self, name: Symbol, body: B) -> ModuleToken {
+    pub fn push_module(&mut self, name: Symbol, body: B) -> (ModuleToken, ModuleId) {
         let module = self.module_storage.push(ModuleScopes::new(name, Some(self.current), body));
         self.modules.insert(name, module);
         self.current = module;
-        ModuleToken { __priv: PhantomData }
+        (ModuleToken { __priv: PhantomData }, module)
     }
     pub fn pop_module(&mut self, _: ModuleToken) {
         let parent = self.module_storage[self.current].parent.unwrap();
