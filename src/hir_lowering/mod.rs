@@ -1002,6 +1002,7 @@ impl<'tcx> Lowering<'_, 'tcx> {
                 let scope = body.scopes.last().unwrap().variables.iter().map(|(s, t)| (*s, *t));
                 let current_body = current.bodies.last_mut().unwrap();
                 current_body.scopes.last_mut().unwrap().variables.extend(scope);
+                current.modules.extend(&module.modules);
             }
         }
     }

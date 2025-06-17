@@ -447,6 +447,7 @@ impl<'tcx> Collector<'_, 'tcx> {
                     .unwrap();
                 assert!(module.bodies.len() == 1);
                 current.scope_mut().extend_ref(module.scope());
+                current.modules.extend(&module.modules);
             }
         }
 
