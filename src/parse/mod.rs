@@ -504,7 +504,7 @@ impl Parse for Pat {
                     } else {
                         PatKind::And(patterns)
                     };
-                    single = Pat { kind, span };
+                    single = Self { kind, span };
                 }
                 _ => break Ok(single),
             }
@@ -567,7 +567,7 @@ impl Parse for Use {
                 _ => todo!("{:?}", next),
             }
         };
-        Ok(Use { path, kind })
+        Ok(Self { path, kind })
     }
 }
 

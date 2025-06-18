@@ -45,11 +45,11 @@ impl<Var, Ty> Scope<Var, Ty> {
     pub fn insert_ty(&mut self, symbol: Symbol, ty: Ty) -> Option<Ty> {
         self.types.insert(symbol, ty)
     }
-    pub fn extend(&mut self, other: Scope<Var, Ty>) {
+    pub fn extend(&mut self, other: Self) {
         self.variables.extend(other.variables);
         self.types.extend(other.types);
     }
-    pub fn extend_ref(&mut self, other: &Scope<Var, Ty>)
+    pub fn extend_ref(&mut self, other: &Self)
     where
         Var: Clone,
         Ty: Clone,

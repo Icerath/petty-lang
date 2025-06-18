@@ -47,7 +47,7 @@ impl Span {
     }
     pub fn join(spans: impl IntoIterator<Item = Self>) -> Self {
         let mut spans = spans.into_iter();
-        let Some(first) = spans.next() else { return Span::ZERO };
+        let Some(first) = spans.next() else { return Self::ZERO };
 
         let mut start = first.start();
         let mut end = first.end();

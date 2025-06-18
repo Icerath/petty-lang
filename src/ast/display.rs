@@ -156,8 +156,8 @@ trait Dump {
 impl Dump for Stmt {
     fn write(&self, w: &mut Writer) {
         match self {
-            Stmt::Expr(expr) => expr.write(w),
-            Stmt::Item(item) => item.write(w),
+            Self::Expr(expr) => expr.write(w),
+            Self::Item(item) => item.write(w),
         }
     }
 }

@@ -11,8 +11,8 @@ impl Symbol {
     }
 }
 
-impl AsRef<Symbol> for Symbol {
-    fn as_ref(&self) -> &Symbol {
+impl AsRef<Self> for Symbol {
+    fn as_ref(&self) -> &Self {
         self
     }
 }

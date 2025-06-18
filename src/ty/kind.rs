@@ -46,8 +46,8 @@ impl<'tcx> Ty<'tcx> {
     pub fn replace_generics(
         self,
         tcx: &'tcx TyCtx<'tcx>,
-        f: &mut impl FnMut(GenericId) -> Ty<'tcx>,
-    ) -> Ty<'tcx> {
+        f: &mut impl FnMut(GenericId) -> Self,
+    ) -> Self {
         match *self.0 {
             TyKind::Generic(id) => f(id),
             TyKind::Ref(ty) => tcx.intern(TyKind::Ref(ty.replace_generics(tcx, f))),
